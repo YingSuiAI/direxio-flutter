@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../mcp/mcp_policy.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
@@ -15,12 +16,17 @@ class McpPermissionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final policies = ref.watch(mcpPolicyStoreProvider);
 
     return Scaffold(
       body: Column(
         children: [
-          GlassHeader.detail(title: 'MCP / Agent 权限'),
+          GlassHeader.detail(
+              title: l10n?.mcpPermissionTitle ?? 'MCP / Agent 权限'),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
@@ -38,7 +44,8 @@ class McpPermissionPage extends ConsumerWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '已授权 Agent 通过 MCP 访问你的聊天数据。点击进入可配置范围、时间、内容脱敏等。',
+                          l10n?.mcpPermissionDescription ??
+                              '已授权 Agent 通过 MCP 访问你的聊天数据。点击进入可配置范围、时间、内容脱敏等。',
                           style: AppTheme.sans(size: 12, color: t.textMute),
                         ),
                       ),
@@ -51,7 +58,8 @@ class McpPermissionPage extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Symbols.add, size: 14),
-                  label: const Text('授权新的 Agent'),
+                  label: Text(
+                      l10n?.mcpPermissionAuthorizeNewAgent ?? '授权新的 Agent'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
@@ -72,6 +80,7 @@ class _AgentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -116,7 +125,7 @@ class _AgentRow extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                '已授权',
+                                l10n.mcpPermissionAuthorized,
                                 style: AppTheme.mono(
                                   size: 10,
                                   weight: FontWeight.w600,
@@ -135,7 +144,7 @@ class _AgentRow extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                '已停用',
+                                l10n.mcpPermissionDisabled,
                                 style: AppTheme.mono(
                                   size: 10,
                                   weight: FontWeight.w600,

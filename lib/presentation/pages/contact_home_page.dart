@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -40,13 +41,14 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   List<AsChannel>? _publicChannels;
 
   String get _friendButtonText {
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     switch (_friendState) {
       case _FriendButtonState.accepted:
-        return '删除好友';
+        return l10n?.contactDeleteFriend ?? '删除好友';
       case _FriendButtonState.pending:
-        return '已申请';
+        return l10n?.contactApplied ?? '已申请';
       case _FriendButtonState.none:
-        return '加好友';
+        return l10n?.contactAddFriend ?? '加好友';
     }
   }
 
@@ -110,8 +112,18 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _following = !next);
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(next ? '关注失败: $e' : '取消关注失败: $e')),
+        SnackBar(
+          content: Text(
+            next
+                ? l10n?.contactFollowFailed('$e') ?? '关注失败: $e'
+                : l10n?.contactUnfollowFailed('$e') ?? '取消关注失败: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _followBusy = false);
@@ -157,16 +169,33 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         _friendState =
             restored ? _FriendButtonState.accepted : _FriendButtonState.pending;
       });
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(restored ? '已恢复旧会话，可以继续聊天。' : '好友请求已发送，等待对方接受。'),
+          content: Text(
+            restored
+                ? l10n?.requestsRestoredConversation(home.displayName) ??
+                    '已恢复旧会话，可以继续聊天。'
+                : l10n?.requestsSentTo(home.displayName) ?? '好友请求已发送，等待对方接受。',
+          ),
         ),
       );
     } catch (e, stackTrace) {
       debugPrint('send friend request failed: $e\n$stackTrace');
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送好友请求失败: $e')),
+        SnackBar(
+          content: Text(
+            l10n?.contactFriendRequestFailed('$e') ?? '发送好友请求失败: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _friendActionBusy = false);
@@ -177,17 +206,24 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final l10n = Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        );
         return AlertDialog(
-          title: const Text('删除好友'),
-          content: Text('删除 ${home.displayName} 后，双方的私聊关系会解除。'),
+          title: Text(l10n?.contactDeleteConfirmTitle ?? '删除好友'),
+          content: Text(
+            l10n?.contactDeleteConfirmBodyWithName(home.displayName) ??
+                '删除 ${home.displayName} 后，双方的私聊关系会解除。',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
+              child: Text(l10n?.commonCancel ?? '取消'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('删除'),
+              child: Text(l10n?.contactDeleteAction ?? '删除'),
             ),
           ],
         );
@@ -200,8 +236,16 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   Future<void> _deleteFriend(_ContactHomeData home) async {
     final roomId = _acceptedContactRoomId?.trim();
     if (roomId == null || roomId.isEmpty) {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('删除好友失败: 缺少联系人房间信息')),
+        SnackBar(
+          content: Text(
+            l10n?.contactDeleteMissingRoom ?? '删除好友失败: 缺少联系人房间信息',
+          ),
+        ),
       );
       return;
     }
@@ -225,14 +269,28 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         _friendState = _FriendButtonState.none;
         _acceptedContactRoomId = null;
       });
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已删除 ${home.displayName}')),
+        SnackBar(
+          content: Text(
+            l10n?.contactDeletedName(home.displayName) ??
+                '已删除 ${home.displayName}',
+          ),
+        ),
       );
       context.go('/home');
     } catch (e) {
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除好友失败: $e')),
+        SnackBar(
+            content: Text(l10n?.contactDeleteFailed('$e') ?? '删除好友失败: $e')),
       );
     } finally {
       if (mounted) setState(() => _friendActionBusy = false);
@@ -809,9 +867,13 @@ class _ContactHomeEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Center(
       child: Text(
-        '联系人主页不存在',
+        l10n?.contactHomeMissing ?? '联系人主页不存在',
         style: AppTheme.sans(size: 14, color: t.textMute),
       ),
     );

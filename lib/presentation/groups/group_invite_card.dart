@@ -37,7 +37,7 @@ class GroupInviteCard extends StatelessWidget {
             : invite.inviterDisplayName;
     final fallbackInviter = l10n?.groupInviteFallbackInviter ?? '对方';
     final displayInviter = inviter.trim().isEmpty ? fallbackInviter : inviter;
-    final alreadyJoinedMessage = l10n?.groupInviteAlreadyJoined ?? '已在群里中';
+    final alreadyJoinedMessage = l10n?.groupInviteAlreadyJoined ?? '已在群聊中';
     final titleColor = t.text;
     final bodyColor = t.textMute;
     final buttonColor = t.accent;

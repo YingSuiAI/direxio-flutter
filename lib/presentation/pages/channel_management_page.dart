@@ -293,6 +293,10 @@ class _ChannelManageEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -302,7 +306,7 @@ class _ChannelManageEmptyState extends StatelessWidget {
             Icon(Symbols.campaign, size: 34, color: t.textMute),
             const SizedBox(height: 10),
             Text(
-              '还没有可管理的频道',
+              l10n?.channelManageEmptyTitle ?? '还没有可管理的频道',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -311,7 +315,7 @@ class _ChannelManageEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '创建频道后，可以在这里管理资料、成员和规则。',
+              l10n?.channelManageEmptySubtitle ?? '创建频道后，可以在这里管理资料、成员和规则。',
               textAlign: TextAlign.center,
               style: AppTheme.sans(size: 13, color: t.textMute)
                   .copyWith(height: 1.35),
@@ -1418,22 +1422,23 @@ Future<void> _confirmDissolveChannel(
   WidgetRef ref,
   String channelId,
 ) async {
+  final l10n = AppLocalizations.of(context);
   final confirmed = await showChannelConfirmDialog(
     context,
-    title: '确定解散？',
+    title: l10n.channelInfoDissolveConfirm,
   );
   if (!context.mounted || !confirmed) return;
   try {
     await dissolveChannelThroughAs(ref, channelId);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已解散频道')),
+      SnackBar(content: Text(l10n.channelInfoDissolved)),
     );
     _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('解散频道失败：$err')),
+      SnackBar(content: Text(l10n.channelInfoDissolveFailed('$err'))),
     );
   }
 }

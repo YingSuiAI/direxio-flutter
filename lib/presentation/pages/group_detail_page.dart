@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
@@ -43,6 +44,10 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final authoritativeGroupMembers = ref
             .watch(
               groupMembersProvider(
@@ -55,9 +60,9 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
             .valueOrNull ??
         const <AsGroupMember>[];
     if (room == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(child: Text('群组不存在')),
+        body: Center(child: Text(l10n?.groupDetailMissing ?? '群组不存在')),
       );
     }
 
@@ -91,7 +96,8 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       body: Column(
         children: [
           GlassHeader.detail(
-            title: '聊天信息($memberCount)',
+            title: l10n?.groupDetailChatInfoTitle(memberCount) ??
+                '聊天信息($memberCount)',
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -291,15 +297,24 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     BuildContext context, {
     required String currentName,
   }) async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final next = await _showTextEditDialog(
       context,
-      title: '备注',
+      title: l10n?.groupInfoRemarkTitle ?? '备注',
       initialValue: currentName,
-      hintText: '输入群聊备注',
+      hintText: l10n?.groupInfoRemarkHint ?? '输入群聊备注',
     );
     if (!context.mounted || next == null) return;
     setGroupRemarkName(ref, widget.roomId, next);
-    _toast(context, next.trim().isEmpty ? '已清除群聊备注' : '群聊备注已更新');
+    _toast(
+      context,
+      next.trim().isEmpty
+          ? l10n?.groupInfoRemarkCleared ?? '已清除群聊备注'
+          : l10n?.groupInfoRemarkUpdated ?? '群聊备注已更新',
+    );
   }
 
   Future<void> _showMyGroupNicknameDialog(
@@ -307,22 +322,26 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     required Room room,
     required String currentName,
   }) async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final next = await _showTextEditDialog(
       context,
-      title: '我在本群昵称',
+      title: l10n?.groupInfoMyNickname ?? '我在本群昵称',
       initialValue: currentName,
-      hintText: '输入群昵称',
+      hintText: l10n?.groupInfoNicknameHint ?? '输入群昵称',
     );
     if (!context.mounted || next == null) return;
     final nickname = next.trim();
     if (nickname.isEmpty) {
-      _toast(context, '群昵称不能为空');
+      _toast(context, l10n?.groupInfoNicknameEmpty ?? '群昵称不能为空');
       return;
     }
     try {
       final userId = room.client.userID;
       if (userId == null || userId.isEmpty) {
-        throw StateError('缺少当前用户信息');
+        throw StateError(l10n?.groupInfoCurrentUserMissing ?? '缺少当前用户信息');
       }
       final content =
           room.getState(EventTypes.RoomMember, userId)?.content.copy() ?? {};
@@ -344,37 +363,44 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       );
       if (!mounted) return;
       setState(() {});
-      _toast(this.context, '群昵称已更新');
+      _toast(this.context, l10n?.groupInfoNicknameUpdated ?? '群昵称已更新');
     } on Object catch (e) {
       if (!context.mounted) return;
-      _toast(context, '设置群昵称失败: $e');
+      _toast(
+        context,
+        l10n?.groupInfoNicknameUpdateFailed('$e') ?? '设置群昵称失败: $e',
+      );
     }
   }
 
   Future<void> _confirmClearChatHistory(BuildContext context) async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(
-          '清空聊天记录',
+          l10n?.chatInfoClearHistory ?? '清空聊天记录',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定清空当前群聊的所有聊天记录？该操作不可恢复。',
+          l10n?.groupInfoClearHistoryConfirm ?? '确定清空当前群聊的所有聊天记录？该操作不可恢复。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(c).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(c).pop(true),
             child: Text(
-              '清空',
+              l10n?.chatInfoClearHistoryAction ?? '清空',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -397,10 +423,13 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
             clearedBeforeTs: clearedBeforeTs,
           );
       if (!context.mounted) return;
-      _toast(context, '聊天记录已清空');
+      _toast(context, l10n?.chatInfoClearHistoryCleared ?? '聊天记录已清空');
     } on Object catch (e) {
       if (!context.mounted) return;
-      _toast(context, '清空聊天记录失败: $e');
+      _toast(
+        context,
+        l10n?.chatInfoClearHistoryFailed('$e') ?? '清空聊天记录失败: $e',
+      );
     } finally {
       if (mounted) setState(() => _clearing = false);
     }
@@ -412,29 +441,39 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   }) async {
     if (_leaving) return;
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final dissolveAction = l10n?.groupDetailDissolveAction ?? '解散';
+    final leaveAction = l10n?.groupDetailLeaveAction ?? '退出';
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(
-          dissolve ? '解散群聊' : '退出群聊',
+          dissolve
+              ? l10n?.groupDetailDissolveTitle ?? '解散群聊'
+              : l10n?.groupDetailLeaveTitle ?? '退出群聊',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          dissolve ? '解散后群聊将从当前服务移除。' : '退出后你将不再接收该群聊消息。',
+          dissolve
+              ? l10n?.groupDetailDissolveMessage ?? '解散后群聊将从当前服务移除。'
+              : l10n?.groupDetailLeaveMessage ?? '退出后你将不再接收该群聊消息。',
           style: AppTheme.sans(size: 15, color: t.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(c).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: t.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(c).pop(true),
             child: Text(
-              dissolve ? '解散' : '退出',
+              dissolve ? dissolveAction : leaveAction,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -458,7 +497,15 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     } on Object catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${dissolve ? '解散' : '退出'}群聊失败: $e')),
+        SnackBar(
+          content: Text(
+            l10n?.groupDetailLeaveOrDissolveFailed(
+                  dissolve ? dissolveAction : leaveAction,
+                  '$e',
+                ) ??
+                '${dissolve ? dissolveAction : leaveAction}群聊失败: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _leaving = false);
@@ -566,6 +613,10 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return AlertDialog(
       title: Text(
         widget.title,
@@ -585,14 +636,14 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n?.commonCancel ?? '取消',
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: Text(
-            '保存',
+            l10n?.commonSave ?? '保存',
             style: AppTheme.sans(
               size: 15,
               weight: FontWeight.w600,
@@ -703,6 +754,10 @@ class _InviteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -717,7 +772,10 @@ class _InviteTile extends StatelessWidget {
               child: Icon(Symbols.add, size: 20, color: t.border),
             ),
             const SizedBox(height: 4),
-            Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
+            Text(
+              l10n?.groupDetailInvite ?? '邀请',
+              style: AppTheme.sans(size: 10, color: t.textMute),
+            ),
           ],
         ),
       ),

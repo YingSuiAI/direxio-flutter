@@ -160,6 +160,42 @@ abstract class AppLocalizations {
   /// **'我的'**
   String get tabMe;
 
+  /// No description provided for @homeDeleteChatTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除聊天记录'**
+  String get homeDeleteChatTitle;
+
+  /// No description provided for @homeDeleteChatMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除「{name}」的所有聊天记录？该操作不可恢复。'**
+  String homeDeleteChatMessage(String name);
+
+  /// No description provided for @homeConversationDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除「{name}」'**
+  String homeConversationDeleted(String name);
+
+  /// No description provided for @homeDeleteChatFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除聊天记录失败: {error}'**
+  String homeDeleteChatFailed(String error);
+
+  /// No description provided for @homeAgentConversationNotSynced.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 会话还未同步'**
+  String get homeAgentConversationNotSynced;
+
+  /// No description provided for @homeDeleteChatMenu.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除聊天'**
+  String get homeDeleteChatMenu;
+
   /// No description provided for @settingsTitle.
   ///
   /// In zh, this message translates to:
@@ -412,6 +448,24 @@ abstract class AppLocalizations {
   /// **'取消'**
   String get commonCancel;
 
+  /// No description provided for @commonBack.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get commonBack;
+
+  /// No description provided for @commonAdd.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加'**
+  String get commonAdd;
+
+  /// No description provided for @commonClose.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get commonClose;
+
   /// No description provided for @commonSave.
   ///
   /// In zh, this message translates to:
@@ -423,6 +477,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索'**
   String get commonSearch;
+
+  /// No description provided for @commonSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送'**
+  String get commonSend;
 
   /// No description provided for @commonShare.
   ///
@@ -441,6 +501,210 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'离线'**
   String get commonOffline;
+
+  /// No description provided for @toolCallDenied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝'**
+  String get toolCallDenied;
+
+  /// No description provided for @toolCallArguments.
+  ///
+  /// In zh, this message translates to:
+  /// **'参数'**
+  String get toolCallArguments;
+
+  /// No description provided for @toolCallWarnings.
+  ///
+  /// In zh, this message translates to:
+  /// **'警告'**
+  String get toolCallWarnings;
+
+  /// No description provided for @mcpPermissionTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'MCP 权限'**
+  String get mcpPermissionTitle;
+
+  /// No description provided for @mcpPermissionDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理哪些 Agent 账号可以调用 MCP 工具。'**
+  String get mcpPermissionDescription;
+
+  /// No description provided for @mcpPermissionAuthorizeNewAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权新的 Agent'**
+  String get mcpPermissionAuthorizeNewAgent;
+
+  /// No description provided for @mcpPermissionAuthorized.
+  ///
+  /// In zh, this message translates to:
+  /// **'已授权'**
+  String get mcpPermissionAuthorized;
+
+  /// No description provided for @mcpPermissionDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已停用'**
+  String get mcpPermissionDisabled;
+
+  /// No description provided for @mcpPolicyRevokeAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤销'**
+  String get mcpPolicyRevokeAction;
+
+  /// No description provided for @mcpPolicyRevokeAccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤销访问'**
+  String get mcpPolicyRevokeAccess;
+
+  /// No description provided for @mcpPolicyAuditEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无审计记录'**
+  String get mcpPolicyAuditEmptyTitle;
+
+  /// No description provided for @mcpPolicyAuditEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'工具调用记录会显示在这里'**
+  String get mcpPolicyAuditEmptySubtitle;
+
+  /// No description provided for @mcpPolicyCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get mcpPolicyCompleted;
+
+  /// No description provided for @mcpPolicyWriteBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'写入'**
+  String get mcpPolicyWriteBadge;
+
+  /// No description provided for @mcpPolicyConfirmBeforeCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'调用前确认'**
+  String get mcpPolicyConfirmBeforeCall;
+
+  /// No description provided for @mcpPolicySelectedRooms.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择房间'**
+  String get mcpPolicySelectedRooms;
+
+  /// No description provided for @mcpPolicyExcludedRooms.
+  ///
+  /// In zh, this message translates to:
+  /// **'已排除房间'**
+  String get mcpPolicyExcludedRooms;
+
+  /// No description provided for @mcpPolicyAddRoom.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加房间'**
+  String get mcpPolicyAddRoom;
+
+  /// No description provided for @channelCreatedNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道已创建'**
+  String get channelCreatedNotice;
+
+  /// No description provided for @channelManageEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无频道'**
+  String get channelManageEmptyTitle;
+
+  /// No description provided for @channelManageEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建的频道会显示在这里'**
+  String get channelManageEmptySubtitle;
+
+  /// No description provided for @homeDetailPlaceholderTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择一个{tabTitle}项目'**
+  String homeDetailPlaceholderTitle(String tabTitle);
+
+  /// No description provided for @homeDetailPlaceholderChatsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开会话查看消息'**
+  String get homeDetailPlaceholderChatsSubtitle;
+
+  /// No description provided for @homeDetailPlaceholderDefaultSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择项目查看详情'**
+  String get homeDetailPlaceholderDefaultSubtitle;
+
+  /// No description provided for @groupDetailMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊不存在'**
+  String get groupDetailMissing;
+
+  /// No description provided for @groupDetailChatInfoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊信息（{count}）'**
+  String groupDetailChatInfoTitle(int count);
+
+  /// No description provided for @groupDetailDissolveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散群聊'**
+  String get groupDetailDissolveTitle;
+
+  /// No description provided for @groupDetailLeaveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出群聊'**
+  String get groupDetailLeaveTitle;
+
+  /// No description provided for @groupDetailDissolveMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散后，成员将无法继续使用此群聊。'**
+  String get groupDetailDissolveMessage;
+
+  /// No description provided for @groupDetailLeaveMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出后，你将不再接收此群聊消息。'**
+  String get groupDetailLeaveMessage;
+
+  /// No description provided for @groupDetailDissolveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散'**
+  String get groupDetailDissolveAction;
+
+  /// No description provided for @groupDetailLeaveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出'**
+  String get groupDetailLeaveAction;
+
+  /// No description provided for @groupDetailLeaveOrDissolveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'{action}失败：{error}'**
+  String groupDetailLeaveOrDissolveFailed(String action, String error);
+
+  /// No description provided for @groupDetailInvite.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请'**
+  String get groupDetailInvite;
 
   /// No description provided for @avatarAdjustTitle.
   ///
@@ -2033,6 +2297,162 @@ abstract class AppLocalizations {
   /// **'{action}群聊失败: {error}'**
   String groupInfoLeaveFailed(String action, String error);
 
+  /// No description provided for @groupCreateCreated.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊已创建'**
+  String get groupCreateCreated;
+
+  /// No description provided for @groupCreateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建失败: {error}'**
+  String groupCreateFailed(String error);
+
+  /// No description provided for @groupCreateNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入群聊名称'**
+  String get groupCreateNameHint;
+
+  /// No description provided for @groupInviteAddMembersTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加群成员'**
+  String get groupInviteAddMembersTitle;
+
+  /// No description provided for @channelInviteAddMembersTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请频道成员'**
+  String get channelInviteAddMembersTitle;
+
+  /// No description provided for @groupInviteNoContacts.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可邀请联系人'**
+  String get groupInviteNoContacts;
+
+  /// No description provided for @groupInviteSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送邀请'**
+  String get groupInviteSend;
+
+  /// No description provided for @groupManageNameTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'群名称'**
+  String get groupManageNameTitle;
+
+  /// No description provided for @groupManageNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入群名称'**
+  String get groupManageNameHint;
+
+  /// No description provided for @groupManageNameEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'群名称不能为空'**
+  String get groupManageNameEmpty;
+
+  /// No description provided for @groupManageNameUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'群名称已更新'**
+  String get groupManageNameUpdated;
+
+  /// No description provided for @groupManageNameUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改群名称失败: {error}'**
+  String groupManageNameUpdateFailed(String error);
+
+  /// No description provided for @groupManageAvatarUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'群头像已更新'**
+  String get groupManageAvatarUpdated;
+
+  /// No description provided for @groupManageAvatarUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改群头像失败: {error}'**
+  String groupManageAvatarUpdateFailed(String error);
+
+  /// No description provided for @groupManageMuteEnabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启全员禁言'**
+  String get groupManageMuteEnabled;
+
+  /// No description provided for @groupManageMuteDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解除全员禁言'**
+  String get groupManageMuteDisabled;
+
+  /// No description provided for @groupManageMuteEnableFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启全员禁言失败: {error}'**
+  String groupManageMuteEnableFailed(String error);
+
+  /// No description provided for @groupManageMuteDisableFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'解除全员禁言失败: {error}'**
+  String groupManageMuteDisableFailed(String error);
+
+  /// No description provided for @groupManageInvitePolicyUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'已更新添加成员权限'**
+  String get groupManageInvitePolicyUpdated;
+
+  /// No description provided for @groupManageInvitePolicyUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新添加成员权限失败: {error}'**
+  String groupManageInvitePolicyUpdateFailed(String error);
+
+  /// No description provided for @mcpPolicySaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存'**
+  String get mcpPolicySaved;
+
+  /// No description provided for @mcpPolicyRevokeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤销授权？'**
+  String get mcpPolicyRevokeTitle;
+
+  /// No description provided for @mcpPolicyRevokeMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 将立即失去全部 MCP 权限。'**
+  String get mcpPolicyRevokeMessage;
+
+  /// No description provided for @mcpPolicyBlockedKeywordAdd.
+  ///
+  /// In zh, this message translates to:
+  /// **'+ 添加'**
+  String get mcpPolicyBlockedKeywordAdd;
+
+  /// No description provided for @mcpPolicyBlockedKeywordTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加屏蔽关键词'**
+  String get mcpPolicyBlockedKeywordTitle;
+
+  /// No description provided for @mcpPolicyBlockedKeywordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'命中该词的消息将被遮蔽'**
+  String get mcpPolicyBlockedKeywordHint;
+
   /// No description provided for @contactFriendRequestRestored.
   ///
   /// In zh, this message translates to:
@@ -2057,6 +2477,12 @@ abstract class AppLocalizations {
   /// **'删除后将不再显示该联系人，会话关系也会同步更新。'**
   String get contactDeleteConfirmBody;
 
+  /// No description provided for @contactDeleteConfirmBodyWithName.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除 {name} 后，双方的私聊关系会解除。'**
+  String contactDeleteConfirmBodyWithName(String name);
+
   /// No description provided for @contactDeleteAction.
   ///
   /// In zh, this message translates to:
@@ -2068,6 +2494,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已删除好友'**
   String get contactDeleted;
+
+  /// No description provided for @contactDeletedName.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除 {name}'**
+  String contactDeletedName(String name);
+
+  /// No description provided for @contactApplied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已申请'**
+  String get contactApplied;
+
+  /// No description provided for @contactFollowFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'关注失败: {error}'**
+  String contactFollowFailed(String error);
+
+  /// No description provided for @contactUnfollowFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消关注失败: {error}'**
+  String contactUnfollowFailed(String error);
+
+  /// No description provided for @contactFriendRequestFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送好友请求失败: {error}'**
+  String contactFriendRequestFailed(String error);
+
+  /// No description provided for @contactDeleteMissingRoom.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除好友失败: 缺少联系人房间信息'**
+  String get contactDeleteMissingRoom;
 
   /// No description provided for @contactDeleteFailed.
   ///
@@ -2381,6 +2843,18 @@ abstract class AppLocalizations {
   /// **'好友申请通知'**
   String get requestsFriendNoticeFallback;
 
+  /// No description provided for @requestsGroupNoticeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊通知'**
+  String get requestsGroupNoticeTitle;
+
+  /// No description provided for @requestsGroupNoticeFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请你加入群聊'**
+  String get requestsGroupNoticeFallback;
+
   /// No description provided for @requestsChannelNoticeTitle.
   ///
   /// In zh, this message translates to:
@@ -2390,7 +2864,7 @@ abstract class AppLocalizations {
   /// No description provided for @requestsChannelNoticeFallback.
   ///
   /// In zh, this message translates to:
-  /// **'频道通知'**
+  /// **'邀请你加入频道'**
   String get requestsChannelNoticeFallback;
 
   /// No description provided for @requestsView.
@@ -2489,11 +2963,47 @@ abstract class AppLocalizations {
   /// **'发起群聊'**
   String get createGroupTitle;
 
+  /// No description provided for @createGroupMenuTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建群聊'**
+  String get createGroupMenuTitle;
+
+  /// No description provided for @createGroupSetupTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建群聊'**
+  String get createGroupSetupTitle;
+
   /// No description provided for @createGroupDone.
   ///
   /// In zh, this message translates to:
   /// **'完成'**
   String get createGroupDone;
+
+  /// No description provided for @createGroupDoneWithCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成({count})'**
+  String createGroupDoneWithCount(int count);
+
+  /// No description provided for @createGroupSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成创建'**
+  String get createGroupSubmit;
+
+  /// No description provided for @createGroupMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'群成员'**
+  String get createGroupMembers;
+
+  /// No description provided for @createGroupMemberCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count}人'**
+  String createGroupMemberCount(int count);
 
   /// No description provided for @createGroupEmptyTitle.
   ///
@@ -2666,7 +3176,7 @@ abstract class AppLocalizations {
   /// No description provided for @groupInviteAlreadyJoined.
   ///
   /// In zh, this message translates to:
-  /// **'已在群里中'**
+  /// **'已在群聊中'**
   String get groupInviteAlreadyJoined;
 
   /// No description provided for @groupChatUnknownMember.
@@ -3473,6 +3983,12 @@ abstract class AppLocalizations {
   /// **'松开发送，上滑取消'**
   String get chatInputReleaseToSendSwipeCancel;
 
+  /// No description provided for @chatInputMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多'**
+  String get chatInputMore;
+
   /// No description provided for @chatAttachmentAlbum.
   ///
   /// In zh, this message translates to:
@@ -3508,6 +4024,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'文件'**
   String get chatAttachmentFile;
+
+  /// No description provided for @chatAttachmentNoImageSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择图片'**
+  String get chatAttachmentNoImageSelected;
+
+  /// No description provided for @chatAttachmentNoPhotoTaken.
+  ///
+  /// In zh, this message translates to:
+  /// **'未拍摄照片'**
+  String get chatAttachmentNoPhotoTaken;
+
+  /// No description provided for @chatAttachmentNoFileSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择文件'**
+  String get chatAttachmentNoFileSelected;
+
+  /// No description provided for @chatAttachmentNoVideoSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未选择视频'**
+  String get chatAttachmentNoVideoSelected;
+
+  /// No description provided for @chatMediaPhoto.
+  ///
+  /// In zh, this message translates to:
+  /// **'照片'**
+  String get chatMediaPhoto;
+
+  /// No description provided for @chatMediaAudio.
+  ///
+  /// In zh, this message translates to:
+  /// **'语音'**
+  String get chatMediaAudio;
+
+  /// No description provided for @chatMediaGeneric.
+  ///
+  /// In zh, this message translates to:
+  /// **'媒体'**
+  String get chatMediaGeneric;
+
+  /// No description provided for @chatMediaReadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label}读取失败，请重新选择'**
+  String chatMediaReadFailed(String label);
+
+  /// No description provided for @chatMediaUploadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label}上传失败，请检查网络后重试'**
+  String chatMediaUploadFailed(String label);
 
   /// No description provided for @groupChatLocalMediaMissing.
   ///
@@ -3665,6 +4235,48 @@ abstract class AppLocalizations {
   /// **'取消选择消息'**
   String get groupChatCancelSelectMessage;
 
+  /// No description provided for @chatAiSuggestions.
+  ///
+  /// In zh, this message translates to:
+  /// **'AI 建议'**
+  String get chatAiSuggestions;
+
+  /// No description provided for @chatRecordForwardTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'转发聊天记录'**
+  String get chatRecordForwardTitle;
+
+  /// No description provided for @chatVideoCannotPlay.
+  ///
+  /// In zh, this message translates to:
+  /// **'该视频无法播放'**
+  String get chatVideoCannotPlay;
+
+  /// No description provided for @redPacketMineDetailAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看发出详情'**
+  String get redPacketMineDetailAction;
+
+  /// No description provided for @redPacketDetailAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看领取详情'**
+  String get redPacketDetailAction;
+
+  /// No description provided for @redPacketMineDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发出的红包'**
+  String get redPacketMineDetailTitle;
+
+  /// No description provided for @redPacketDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'红包详情'**
+  String get redPacketDetailTitle;
+
   /// No description provided for @groupChatMe.
   ///
   /// In zh, this message translates to:
@@ -3676,6 +4288,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'消息'**
   String get groupChatMessageFallback;
+
+  /// No description provided for @chatReplyTo.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复 {sender}'**
+  String chatReplyTo(String sender);
 
   /// No description provided for @groupChatQuotedMessage.
   ///
@@ -3719,6 +4337,54 @@ abstract class AppLocalizations {
   /// **'无法在已退出的群聊中发送消息'**
   String get groupChatRemovedCannotSend;
 
+  /// No description provided for @chatPeerAcceptBeforeSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方接受好友请求后才能发送消息'**
+  String get chatPeerAcceptBeforeSend;
+
+  /// No description provided for @contactHomeMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'联系人不存在'**
+  String get contactHomeMissing;
+
+  /// No description provided for @chatPeerDeletedContact.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方已删除联系人关系，消息未送达'**
+  String get chatPeerDeletedContact;
+
+  /// No description provided for @chatRecallBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤回后，对方也将看不到这条消息。'**
+  String get chatRecallBody;
+
+  /// No description provided for @chatImageSavedToAlbum.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存原图到相册'**
+  String get chatImageSavedToAlbum;
+
+  /// No description provided for @chatGroupSyncingRetryLater.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊正在同步，请稍后重试'**
+  String get chatGroupSyncingRetryLater;
+
+  /// No description provided for @chatGroupInviteExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'你未被邀请或邀请已失效'**
+  String get chatGroupInviteExpired;
+
+  /// No description provided for @chatJoinGroupFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入群聊失败: {error}'**
+  String chatJoinGroupFailed(String error);
+
   /// No description provided for @commonOk.
   ///
   /// In zh, this message translates to:
@@ -3760,6 +4426,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'转发失败：{error}'**
   String chatRecordForwardFailed(String error);
+
+  /// No description provided for @chatRecordOpenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开失败：{error}'**
+  String chatRecordOpenFailed(String error);
+
+  /// No description provided for @chatRecordSelectedCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选 {count} 条'**
+  String chatRecordSelectedCount(int count);
+
+  /// No description provided for @chatRecordMessageCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 条消息'**
+  String chatRecordMessageCount(int count);
+
+  /// No description provided for @chatRecordEmptyDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无消息详情'**
+  String get chatRecordEmptyDetails;
+
+  /// No description provided for @chatVideoSavedToAlbum.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存原视频到相册'**
+  String get chatVideoSavedToAlbum;
+
+  /// No description provided for @chatSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败：{error}'**
+  String chatSaveFailed(String error);
 
   /// No description provided for @channelFallbackTitle.
   ///
@@ -3814,6 +4516,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'请稍候'**
   String get channelSyncingSubtitle;
+
+  /// No description provided for @channelConversationQuoted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已引用'**
+  String get channelConversationQuoted;
+
+  /// No description provided for @channelConversationForwardPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'转发功能即将接入频道真实消息'**
+  String get channelConversationForwardPending;
+
+  /// No description provided for @channelConversationMultiSelectPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'多选功能即将接入频道真实消息'**
+  String get channelConversationMultiSelectPending;
 
   /// No description provided for @channelMyChannelsTitle.
   ///
@@ -4751,6 +5471,12 @@ abstract class AppLocalizations {
   /// **'收藏加载失败'**
   String get meFavoritesLoadFailed;
 
+  /// No description provided for @meFavoriteImagePreviewUrlMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏图片地址为空，无法预览'**
+  String get meFavoriteImagePreviewUrlMissing;
+
   /// No description provided for @meFavoritesEmptyTitle.
   ///
   /// In zh, this message translates to:
@@ -5008,6 +5734,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'开始我们的聊天吧'**
   String get agentChatEmptyTitle;
+
+  /// No description provided for @agentChatOfflineReply.
+  ///
+  /// In zh, this message translates to:
+  /// **'目前Agent离线，请耐心等待'**
+  String get agentChatOfflineReply;
 }
 
 class _AppLocalizationsDelegate

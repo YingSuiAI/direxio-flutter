@@ -10,6 +10,33 @@
   "tabContacts": "連絡先",
   "tabChannels": "チャンネル",
   "tabMe": "自分",
+  "homeDeleteChatTitle": "チャット履歴を削除",
+  "homeDeleteChatMessage": "「{name}」のすべてのチャット履歴を削除しますか？この操作は元に戻せません。",
+  "@homeDeleteChatMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeConversationDeleted": "「{name}」を削除しました",
+  "@homeConversationDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteChatFailed": "チャット履歴の削除に失敗しました: {error}",
+  "@homeDeleteChatFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAgentConversationNotSynced": "Agent 会話はまだ同期されていません",
+  "homeDeleteChatMenu": "チャットを削除",
   "settingsTitle": "設定",
   "settingsGeneral": "一般設定",
   "settingsLanguage": "言語",
@@ -59,11 +86,73 @@
   "settingsDeactivateLoginConfirmTitle": "アカウントを削除",
   "settingsDeactivateLoginConfirmMessage": "14日以内に一度ログインすると、アカウント削除は自動的にキャンセルされます。",
   "commonCancel": "キャンセル",
+  "commonBack": "戻る",
+  "commonAdd": "追加",
+  "commonClose": "閉じる",
   "commonSave": "保存",
   "commonSearch": "検索",
+  "commonSend": "送信",
   "commonShare": "共有",
   "commonOnline": "オンライン",
   "commonOffline": "オフライン",
+  "toolCallDenied": "拒否済み",
+  "toolCallArguments": "引数",
+  "toolCallWarnings": "警告",
+  "mcpPermissionTitle": "MCP / Agent 権限",
+  "mcpPermissionDescription": "承認済みの Agent は MCP 経由でチャットデータにアクセスできます。開くと範囲、期間、マスキングを設定できます。",
+  "mcpPermissionAuthorizeNewAgent": "新しい Agent を承認",
+  "mcpPermissionAuthorized": "承認済み",
+  "mcpPermissionDisabled": "停止中",
+  "mcpPolicyRevokeAction": "取り消す",
+  "mcpPolicyRevokeAccess": "権限を取り消す",
+  "mcpPolicyAuditEmptyTitle": "活動はまだありません",
+  "mcpPolicyAuditEmptySubtitle": "Agent のツール呼び出しはここに記録されます",
+  "mcpPolicyCompleted": "完了",
+  "mcpPolicyWriteBadge": "書込",
+  "mcpPolicyConfirmBeforeCall": "呼び出し前に確認する",
+  "mcpPolicySelectedRooms": "選択した会話",
+  "mcpPolicyExcludedRooms": "除外した会話",
+  "mcpPolicyAddRoom": "+ 追加",
+  "channelCreatedNotice": "チャンネルを作成しました",
+  "channelManageEmptyTitle": "管理できるチャンネルはまだありません",
+  "channelManageEmptySubtitle": "チャンネルを作成すると、プロフィール、メンバー、ルールをここで管理できます。",
+  "homeDetailPlaceholderTitle": "左側の{tabTitle}を選択して詳細を表示",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "Agent は通常の連絡先と同じようにメッセージ一覧に表示されます",
+  "homeDetailPlaceholderDefaultSubtitle": "詳細はここに表示されます",
+  "groupDetailMissing": "グループが見つかりません",
+  "groupDetailChatInfoTitle": "チャット情報({count})",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "グループチャットを解散",
+  "groupDetailLeaveTitle": "グループチャットを退出",
+  "groupDetailDissolveMessage": "解散すると、このグループチャットは現在のサービスから削除されます。",
+  "groupDetailLeaveMessage": "退出すると、このグループチャットのメッセージを受信しなくなります。",
+  "groupDetailDissolveAction": "解散",
+  "groupDetailLeaveAction": "退出",
+  "groupDetailLeaveOrDissolveFailed": "グループチャットの{action}に失敗しました: {error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "招待",
   "avatarAdjustTitle": "アバターを調整",
   "avatarAdjustHint": "ピンチで拡大、ドラッグで移動",
   "avatarAdjustReset": "リセット",
@@ -488,12 +577,122 @@
       }
     }
   },
+  "groupCreateCreated": "グループチャットを作成しました",
+  "groupCreateFailed": "作成に失敗しました: {error}",
+  "@groupCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreateNameHint": "グループ名を入力",
+  "groupInviteAddMembersTitle": "グループメンバーを追加",
+  "channelInviteAddMembersTitle": "チャンネルメンバーを招待",
+  "groupInviteNoContacts": "招待できる連絡先はありません",
+  "groupInviteSend": "招待を送信",
+  "groupManageNameTitle": "グループ名",
+  "groupManageNameHint": "グループ名を入力",
+  "groupManageNameEmpty": "グループ名を入力してください",
+  "groupManageNameUpdated": "グループ名を更新しました",
+  "groupManageNameUpdateFailed": "グループ名の更新に失敗しました: {error}",
+  "@groupManageNameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageAvatarUpdated": "グループアバターを更新しました",
+  "groupManageAvatarUpdateFailed": "グループアバターの更新に失敗しました: {error}",
+  "@groupManageAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteEnabled": "全員ミュートを有効にしました",
+  "groupManageMuteDisabled": "全員ミュートを解除しました",
+  "groupManageMuteEnableFailed": "全員ミュートの有効化に失敗しました: {error}",
+  "@groupManageMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteDisableFailed": "全員ミュートの解除に失敗しました: {error}",
+  "@groupManageMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageInvitePolicyUpdated": "メンバー招待権限を更新しました",
+  "groupManageInvitePolicyUpdateFailed": "メンバー招待権限の更新に失敗しました: {error}",
+  "@groupManageInvitePolicyUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "mcpPolicySaved": "保存しました",
+  "mcpPolicyRevokeTitle": "権限を取り消しますか？",
+  "mcpPolicyRevokeMessage": "Agent はすべての MCP 権限をただちに失います。",
+  "mcpPolicyBlockedKeywordAdd": "+ 追加",
+  "mcpPolicyBlockedKeywordTitle": "ブロックキーワードを追加",
+  "mcpPolicyBlockedKeywordHint": "この単語に一致するメッセージはマスクされます",
   "contactFriendRequestRestored": "以前の会話を復元しました。続けてチャットできます。",
   "contactFriendRequestSent": "友だち申請を送信しました。承認を待っています。",
   "contactDeleteConfirmTitle": "友だちを削除",
   "contactDeleteConfirmBody": "削除すると、この連絡先は表示されなくなり、会話の関係も同期して更新されます。",
+  "contactDeleteConfirmBodyWithName": "{name}を削除すると、双方のダイレクトチャット関係が解除されます。",
+  "@contactDeleteConfirmBodyWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "contactDeleteAction": "削除",
   "contactDeleted": "友だちを削除しました",
+  "contactDeletedName": "{name}を削除しました",
+  "@contactDeletedName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "contactApplied": "申請済み",
+  "contactFollowFailed": "フォローに失敗しました: {error}",
+  "@contactFollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactUnfollowFailed": "フォロー解除に失敗しました: {error}",
+  "@contactUnfollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactFriendRequestFailed": "友だちリクエストの送信に失敗しました: {error}",
+  "@contactFriendRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactDeleteMissingRoom": "友だちの削除に失敗しました: 連絡先ルーム情報がありません",
   "contactDeleteFailed": "友だちの削除に失敗しました: {error}",
   "@contactDeleteFailed": {
     "placeholders": {
@@ -598,8 +797,10 @@
   "requestsIncomingRequestMessage": "友だち申請",
   "requestsFriendNoticeTitle": "友だち申請",
   "requestsFriendNoticeFallback": "友だち申請通知",
+  "requestsGroupNoticeTitle": "グループ通知",
+  "requestsGroupNoticeFallback": "グループチャットに招待されました",
   "requestsChannelNoticeTitle": "チャンネル通知",
-  "requestsChannelNoticeFallback": "チャンネル通知",
+  "requestsChannelNoticeFallback": "チャンネルに招待されました",
   "requestsView": "表示",
   "requestsAccept": "承認",
   "requestsReject": "拒否",
@@ -658,7 +859,27 @@
     }
   },
   "createGroupTitle": "グループチャットを開始",
+  "createGroupMenuTitle": "グループチャットを開始",
+  "createGroupSetupTitle": "グループチャットを作成",
   "createGroupDone": "完了",
+  "createGroupDoneWithCount": "完了({count})",
+  "@createGroupDoneWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createGroupSubmit": "作成",
+  "createGroupMembers": "グループメンバー",
+  "createGroupMemberCount": "{count}人",
+  "@createGroupMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createGroupEmptyTitle": "招待できる友だちがいません",
   "createGroupEmptySubtitle": "友だちを追加してからグループチャットを開始してください",
   "createGroupNoResultsTitle": "友だちが見つかりません",
@@ -954,12 +1175,36 @@
   "chatInputReleaseToCancel": "離してキャンセル",
   "chatInputReleaseToCancelCompact": "離してキャンセル",
   "chatInputReleaseToSendSwipeCancel": "離して送信、上にスワイプでキャンセル",
+  "chatInputMore": "その他",
   "chatAttachmentAlbum": "アルバム",
   "chatAttachmentCamera": "撮影",
   "chatAttachmentVideo": "動画",
   "chatAttachmentLocation": "位置情報",
   "chatAttachmentContactCard": "連絡先カード",
   "chatAttachmentFile": "ファイル",
+  "chatAttachmentNoImageSelected": "画像が選択されていません",
+  "chatAttachmentNoPhotoTaken": "写真が撮影されていません",
+  "chatAttachmentNoFileSelected": "ファイルが選択されていません",
+  "chatAttachmentNoVideoSelected": "動画が選択されていません",
+  "chatMediaPhoto": "写真",
+  "chatMediaAudio": "音声メッセージ",
+  "chatMediaGeneric": "メディア",
+  "chatMediaReadFailed": "{label}の読み取りに失敗しました。選択し直してください",
+  "@chatMediaReadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMediaUploadFailed": "{label}のアップロードに失敗しました。ネットワークを確認して再試行してください",
+  "@chatMediaUploadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatLocalMediaMissing": "ローカルの元{label}が見つかりません。{label}を選択し直してください",
   "@groupChatLocalMediaMissing": {
     "placeholders": {
@@ -1021,8 +1266,23 @@
   "groupChatQuote": "引用",
   "groupChatSelectMessage": "メッセージを選択",
   "groupChatCancelSelectMessage": "メッセージの選択を解除",
+  "chatAiSuggestions": "AI の提案",
+  "chatRecordForwardTitle": "チャット履歴を転送",
+  "chatVideoCannotPlay": "この動画は再生できません",
+  "redPacketMineDetailAction": "送信詳細を見る",
+  "redPacketDetailAction": "詳細を見る",
+  "redPacketMineDetailTitle": "送信したレッドパケット",
+  "redPacketDetailTitle": "レッドパケット詳細",
   "groupChatMe": "自分",
   "groupChatMessageFallback": "メッセージ",
+  "chatReplyTo": "{sender}に返信",
+  "@chatReplyTo": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatQuotedMessage": "引用メッセージ",
   "groupChatRetryFile": "ファイルを再送信",
   "groupChatRetryMessage": "メッセージを再送信",
@@ -1030,6 +1290,21 @@
   "groupChatDownloaded": "ダウンロード済み",
   "groupChatDownloadFile": "ファイルをダウンロード",
   "groupChatRemovedCannotSend": "退出済みのグループではメッセージを送信できません",
+  "chatPeerAcceptBeforeSend": "相手が友だちリクエストを承認するとメッセージを送信できます",
+  "contactHomeMissing": "連絡先が見つかりません",
+  "chatPeerDeletedContact": "相手が連絡先関係を削除したため、メッセージは配信されませんでした。",
+  "chatRecallBody": "取り消すと、相手もこのメッセージを見られなくなります。",
+  "chatImageSavedToAlbum": "元の画像を写真に保存しました",
+  "chatGroupSyncingRetryLater": "グループチャットを同期中です。しばらくしてから再試行してください。",
+  "chatGroupInviteExpired": "招待されていないか、招待の有効期限が切れています",
+  "chatJoinGroupFailed": "グループへの参加に失敗しました: {error}",
+  "@chatJoinGroupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "commonOk": "OK",
   "commonRetry": "再試行",
   "commonUser": "ユーザー",
@@ -1038,6 +1313,40 @@
   "chatRecordForwarded": "チャット履歴を転送しました",
   "chatRecordForwardFailed": "転送に失敗しました：{error}",
   "@chatRecordForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordOpenFailed": "開けませんでした：{error}",
+  "@chatRecordOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordSelectedCount": "{count}件選択済み",
+  "@chatRecordSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordMessageCount": "{count}件のメッセージ",
+  "@chatRecordMessageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordEmptyDetails": "メッセージ詳細はありません",
+  "chatVideoSavedToAlbum": "元の動画をアルバムに保存しました",
+  "chatSaveFailed": "保存に失敗しました：{error}",
+  "@chatSaveFailed": {
     "placeholders": {
       "error": {
         "type": "String"
@@ -1053,6 +1362,9 @@
   "channelEmptySubtitle": "参加または作成したチャンネルがここに表示されます。",
   "channelSyncingTitle": "チャンネルを同期中",
   "channelSyncingSubtitle": "しばらくお待ちください",
+  "channelConversationQuoted": "引用しました",
+  "channelConversationForwardPending": "転送機能はまもなく実チャンネルメッセージに対応します",
+  "channelConversationMultiSelectPending": "複数選択機能はまもなく実チャンネルメッセージに対応します",
   "channelMyChannelsTitle": "自分のチャンネル",
   "channelJoinedSection": "参加済み",
   "channelCreatedSection": "作成済み",
@@ -1368,6 +1680,7 @@
     }
   },
   "meFavoritesLoadFailed": "お気に入りの読み込みに失敗しました",
+  "meFavoriteImagePreviewUrlMissing": "お気に入り画像のURLが空のためプレビューできません",
   "meFavoritesEmptyTitle": "お気に入りはまだありません",
   "meFavoritesEmptySubtitle": "チャットメッセージを長押しして保存するとここに表示されます",
   "meLikesLoadFailed": "いいねの読み込みに失敗しました",
@@ -1478,7 +1791,66 @@
       }
     }
   },
+  "channelCreatedNotice": "チャンネルを作成しました",
+  "channelManageEmptyTitle": "チャンネルはまだありません",
+  "channelManageEmptySubtitle": "作成したチャンネルはここに表示されます",
+  "groupDetailMissing": "グループチャットが見つかりません",
+  "groupDetailChatInfoTitle": "グループチャット情報（{count}）",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "グループチャットを解散",
+  "groupDetailLeaveTitle": "グループチャットを退出",
+  "groupDetailDissolveMessage": "解散すると、メンバーはこのグループチャットを利用できなくなります。",
+  "groupDetailLeaveMessage": "退出すると、このグループチャットのメッセージを受信しなくなります。",
+  "groupDetailDissolveAction": "解散",
+  "groupDetailLeaveAction": "退出",
+  "groupDetailLeaveOrDissolveFailed": "{action}に失敗しました：{error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "招待",
+  "homeDetailPlaceholderTitle": "{tabTitle}の項目を選択してください",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "会話を開くとメッセージを表示できます",
+  "homeDetailPlaceholderDefaultSubtitle": "項目を選択すると詳細を表示できます",
+  "mcpPermissionTitle": "MCP権限",
+  "mcpPermissionDescription": "MCPツールを呼び出せるAgentアカウントを管理します。",
+  "mcpPermissionAuthorizeNewAgent": "新しいAgentを許可",
+  "mcpPermissionAuthorized": "許可済み",
+  "mcpPermissionDisabled": "無効",
+  "mcpPolicyRevokeAction": "取り消す",
+  "mcpPolicyRevokeAccess": "アクセスを取り消す",
+  "mcpPolicyAuditEmptyTitle": "監査記録はありません",
+  "mcpPolicyAuditEmptySubtitle": "ツール呼び出し記録はここに表示されます",
+  "mcpPolicyCompleted": "完了",
+  "mcpPolicyWriteBadge": "書込",
+  "mcpPolicyConfirmBeforeCall": "呼び出し前に確認",
+  "mcpPolicySelectedRooms": "選択したルーム",
+  "mcpPolicyExcludedRooms": "除外したルーム",
+  "mcpPolicyAddRoom": "ルームを追加",
+  "toolCallDenied": "拒否されました",
+  "toolCallArguments": "引数",
+  "toolCallWarnings": "警告",
   "commonMe": "自分",
   "commonJustNow": "たった今",
-  "agentChatEmptyTitle": "チャットを始めましょう"
+  "agentChatEmptyTitle": "チャットを始めましょう",
+  "agentChatOfflineReply": "現在Agentはオフラインです。しばらくお待ちください"
 }

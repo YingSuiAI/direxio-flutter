@@ -153,14 +153,13 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               const SizedBox(height: 14),
               _AddFriendRow(
                 label: isAcceptedContact
-                    ? l10n?.contactSendMessage ?? 'Message'
-                    : l10n?.contactAddFriend ?? 'Add Friend',
+                    ? l10n?.contactSendMessage ?? '发消息'
+                    : l10n?.contactAddFriend ?? '添加好友',
                 onTap: isAcceptedContact
                     ? acceptedConversation == null
                         ? () => _toast(
                               context,
-                              l10n?.addContactChatSyncing ??
-                                  'Chat is syncing. Try again later.',
+                              l10n?.addContactChatSyncing ?? '聊天会话同步中，请稍后重试',
                             )
                         : () => _openAcceptedChat(acceptedConversation)
                     : _openVerification,

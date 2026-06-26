@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 
@@ -417,22 +418,26 @@ class ChatRecordSelectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     if (compact) {
       final actions = <Widget>[
         if (onDelete != null)
           _CompactSelectionAction(
-            tooltip: '删除',
+            tooltip: l10n?.groupChatDelete ?? '删除',
             icon: Symbols.delete,
             onTap: count > 0 ? onDelete : null,
           ),
         if (onFavorite != null)
           _CompactSelectionAction(
-            tooltip: '收藏',
+            tooltip: l10n?.groupChatFavorite ?? '收藏',
             icon: Symbols.bookmark,
             onTap: count > 0 ? onFavorite : null,
           ),
         _CompactSelectionAction(
-          tooltip: '转发',
+          tooltip: l10n?.groupChatForward ?? '转发',
           icon: Symbols.ios_share,
           onTap: count > 0 ? onForward : null,
         ),
@@ -470,14 +475,14 @@ class ChatRecordSelectionBar extends StatelessWidget {
                     onPressed: onExit,
                     icon: Icon(Symbols.close, size: 18, color: t.text),
                     label: Text(
-                      '取消',
+                      l10n?.commonCancel ?? '取消',
                       style: AppTheme.sans(size: 13, color: t.text),
                     ),
                   ),
                   Expanded(
                     child: Center(
                       child: Text(
-                        '已选 $count 条',
+                        l10n?.chatRecordSelectedCount(count) ?? '已选 $count 条',
                         style: AppTheme.sans(
                           size: 13,
                           color: t.textMute,
@@ -487,19 +492,19 @@ class ChatRecordSelectionBar extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: '转发',
+                    tooltip: l10n?.groupChatForward ?? '转发',
                     icon: Icon(Symbols.forward, color: t.accent, size: 22),
                     onPressed: count > 0 ? onForward : null,
                   ),
                   if (onFavorite != null)
                     IconButton(
-                      tooltip: '收藏',
+                      tooltip: l10n?.groupChatFavorite ?? '收藏',
                       icon: Icon(Symbols.bookmark, color: t.accent, size: 22),
                       onPressed: count > 0 ? onFavorite : null,
                     ),
                   if (onDelete != null)
                     IconButton(
-                      tooltip: '删除',
+                      tooltip: l10n?.groupChatDelete ?? '删除',
                       icon: Icon(Symbols.delete, color: t.danger, size: 22),
                       onPressed: count > 0 ? onDelete : null,
                     ),
@@ -568,6 +573,10 @@ class _ForwardTargetSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -576,7 +585,7 @@ class _ForwardTargetSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '转发聊天记录',
+              l10n?.chatRecordForwardTitle ?? '转发聊天记录',
               style: AppTheme.sans(
                 size: 20,
                 weight: FontWeight.w600,

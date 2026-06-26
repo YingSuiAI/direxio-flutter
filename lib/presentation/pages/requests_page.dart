@@ -1270,7 +1270,7 @@ class _PendingSection extends StatelessWidget {
           message: _pendingNoticeMessage(
             context,
             notice,
-            fallback: '请求添加你为朋友',
+            fallback: l10n?.requestsRequestAsFriend ?? '请求添加你为朋友',
           ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
@@ -1284,13 +1284,15 @@ class _PendingSection extends StatelessWidget {
     for (final notice in groupNotices) {
       final title = notice.title.trim();
       final id = notice.id.trim();
-      final name = title.isEmpty ? '群聊通知' : title;
+      final name =
+          title.isEmpty ? l10n?.requestsGroupNoticeTitle ?? '群聊通知' : title;
       rows.add(
         _PendingRow(
           name: name,
           message: _roomNoticeMessage(
+            context,
             notice,
-            fallback: '邀请你加入群聊',
+            fallback: l10n?.requestsGroupNoticeFallback ?? '邀请你加入群聊',
           ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
@@ -1309,6 +1311,7 @@ class _PendingSection extends StatelessWidget {
         _PendingRow(
           name: name,
           message: _roomNoticeMessage(
+            context,
             notice,
             fallback: l10n?.requestsChannelNoticeFallback ?? '邀请你加入频道',
           ),
@@ -1376,13 +1379,17 @@ String _contactRequestMessage(
 }
 
 String _roomNoticeMessage(
+  BuildContext context,
   AsSyncPendingItem notice, {
   required String fallback,
 }) {
+  final l10n = _requestsL10n(context);
   final remark = notice.remark.trim();
   if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
-  return normalizedFallback.isEmpty ? '邀请你加入群聊' : normalizedFallback;
+  return normalizedFallback.isEmpty
+      ? l10n?.requestsGroupNoticeFallback ?? '邀请你加入群聊'
+      : normalizedFallback;
 }
 
 class _PendingRow extends StatelessWidget {
@@ -1705,7 +1712,7 @@ class _OutgoingRow extends StatelessWidget {
       name: name,
       message: isRejected
           ? l10n?.requestsMyRequestAsFriend ?? '申请添加对方为朋友'
-          : '申请添加对方为朋友',
+          : l10n?.requestsMyRequestAsFriend ?? '申请添加对方为朋友',
       onTap: mxid.isEmpty
           ? null
           : () => onOpenProfile(

@@ -105,6 +105,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
     ChatMediaAttachmentSender sendAttachment,
     Future<MediaThumbnailCache>? thumbnailCacheFuture,
     String? pendingUploadId,
+    AppLocalizations? l10n,
   ) async {
     await sendProductMediaWithPendingState(
       messenger: messenger,
@@ -138,10 +139,15 @@ class ChatAttachmentPanel extends ConsumerWidget {
         ChatMediaKind.audio => onFileUploadFailed,
         ChatMediaKind.file => onFileUploadFailed,
       },
+      l10n: l10n,
     );
   }
 
   Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     await _pickAndSendImages(
       context,
       ref,
@@ -149,12 +155,16 @@ class ChatAttachmentPanel extends ConsumerWidget {
         original: false,
         limit: chatImagePickerMaxSelection,
       ),
-      emptySelectionMessage: '未选择图片',
+      emptySelectionMessage: l10n?.chatAttachmentNoImageSelected ?? '未选择图片',
       debugLabel: 'chat image pick/send',
     );
   }
 
   Future<void> _takePhoto(BuildContext context, WidgetRef ref) async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     await _pickAndSendImages(
       context,
       ref,
@@ -193,7 +203,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
           );
         }
       },
-      emptySelectionMessage: '未拍摄照片',
+      emptySelectionMessage: l10n?.chatAttachmentNoPhotoTaken ?? '未拍摄照片',
       debugLabel: 'chat camera pick/send',
     );
   }
@@ -210,6 +220,10 @@ class ChatAttachmentPanel extends ConsumerWidget {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final matrixClient = ref.read(matrixClientProvider);
     final thumbnailCacheFuture = ref.read(mediaThumbnailCacheProvider.future);
     final productMediaSender = createProductRoomMediaSender(
@@ -238,6 +252,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
               productMediaSender,
               thumbnailCacheFuture,
               pendingImageUploads[attachment],
+              l10n,
             );
             return;
           }
@@ -266,14 +281,14 @@ class ChatAttachmentPanel extends ConsumerWidget {
       debugPrint('$debugLabel failed at ${e.stage.name}: ${e.cause}');
       _showMediaSnack(
         messenger,
-        e.userMessage,
+        e.userMessageFor(l10n),
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
       debugPrint('$debugLabel failed: $e');
       _showMediaSnack(
         messenger,
-        productSendFailureMessage(e),
+        productSendFailureMessage(e, l10n: l10n),
         duration: const Duration(seconds: 3),
       );
     }
@@ -285,6 +300,10 @@ class ChatAttachmentPanel extends ConsumerWidget {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final matrixClient = ref.read(matrixClientProvider);
     final productMediaSender = createProductRoomMediaSender(
       matrixClient: matrixClient,
@@ -315,6 +334,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
               productMediaSender,
               null,
               null,
+              l10n,
             );
             return;
           }
@@ -328,20 +348,20 @@ class ChatAttachmentPanel extends ConsumerWidget {
         }) {
           _showMediaSnack(messenger, message, duration: duration);
         },
-        emptySelectionMessage: '未选择文件',
+        emptySelectionMessage: l10n?.chatAttachmentNoFileSelected ?? '未选择文件',
       );
     } on ChatMediaSendException catch (e) {
       debugPrint('chat file pick/send failed at ${e.stage.name}: ${e.cause}');
       _showMediaSnack(
         messenger,
-        e.userMessage,
+        e.userMessageFor(l10n),
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
       debugPrint('chat file pick/send failed: $e');
       _showMediaSnack(
         messenger,
-        productSendFailureMessage(e),
+        productSendFailureMessage(e, l10n: l10n),
         duration: const Duration(seconds: 3),
       );
     }
@@ -353,6 +373,10 @@ class ChatAttachmentPanel extends ConsumerWidget {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final matrixClient = ref.read(matrixClientProvider);
     final thumbnailCacheFuture = ref.read(mediaThumbnailCacheProvider.future);
     final productMediaSender = createProductRoomMediaSender(
@@ -396,6 +420,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
               productMediaSender,
               thumbnailCacheFuture,
               null,
+              l10n,
             );
             return;
           }
@@ -410,20 +435,20 @@ class ChatAttachmentPanel extends ConsumerWidget {
         }) {
           _showMediaSnack(messenger, message, duration: duration);
         },
-        emptySelectionMessage: '未选择视频',
+        emptySelectionMessage: l10n?.chatAttachmentNoVideoSelected ?? '未选择视频',
       );
     } on ChatMediaSendException catch (e) {
       debugPrint('chat video pick/send failed at ${e.stage.name}: ${e.cause}');
       _showMediaSnack(
         messenger,
-        e.userMessage,
+        e.userMessageFor(l10n),
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
       debugPrint('chat video pick/send failed: $e');
       _showMediaSnack(
         messenger,
-        productSendFailureMessage(e),
+        productSendFailureMessage(e, l10n: l10n),
         duration: const Duration(seconds: 3),
       );
     }

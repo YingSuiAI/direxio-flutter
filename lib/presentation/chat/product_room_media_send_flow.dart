@@ -6,24 +6,25 @@ import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
 import '../../data/media_thumbnail_cache.dart';
+import '../../l10n/app_localizations.dart';
 import 'chat_media_send_flow.dart';
 import 'product_media_outbox_flow.dart';
 
-String productSendFailureMessage(Object error) {
+String productSendFailureMessage(Object error, {AppLocalizations? l10n}) {
   if (error is AsClientException &&
       error.statusCode == 403 &&
       error.message == 'peer deleted contact') {
-    return '对方已删除联系人关系，消息未送达';
+    return l10n?.chatPeerDeletedContact ?? '对方已删除联系人关系，消息未送达';
   }
   if (error is MatrixException &&
       (error.errorMessage == 'peer deleted contact' ||
           error.toString().contains('peer deleted contact'))) {
-    return '对方已删除联系人关系，消息未送达';
+    return l10n?.chatPeerDeletedContact ?? '对方已删除联系人关系，消息未送达';
   }
   if (error.toString().contains('peer deleted contact')) {
-    return '对方已删除联系人关系，消息未送达';
+    return l10n?.chatPeerDeletedContact ?? '对方已删除联系人关系，消息未送达';
   }
-  return '发送失败：$error';
+  return l10n?.groupChatSendFailed('$error') ?? '发送失败：$error';
 }
 
 ChatMediaAttachmentSender createProductRoomMediaSender({
@@ -150,6 +151,7 @@ Future<void> sendProductMediaWithPendingState({
       onDelivered,
   required FutureOr<void> Function(String pendingUploadId)? onSucceeded,
   required FutureOr<void> Function(String pendingUploadId)? onFailed,
+  AppLocalizations? l10n,
 }) async {
   try {
     ChatMediaSendResult? sentResult;
@@ -197,8 +199,8 @@ Future<void> sendProductMediaWithPendingState({
       'chat media send failed at ${error.stage.name}: ${error.cause}',
     );
     final message = error.stage == ChatMediaSendStage.send
-        ? productSendFailureMessage(error.cause)
-        : error.userMessage;
+        ? productSendFailureMessage(error.cause, l10n: l10n)
+        : error.userMessageFor(l10n);
     if (messenger.mounted) {
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
@@ -211,7 +213,7 @@ Future<void> sendProductMediaWithPendingState({
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         SnackBar(
-          content: Text(productSendFailureMessage(error)),
+          content: Text(productSendFailureMessage(error, l10n: l10n)),
           duration: const Duration(seconds: 3),
         ),
       );

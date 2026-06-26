@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -227,9 +228,13 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return AlertDialog(
       title: Text(
-        '添加群成员',
+        l10n?.groupInviteAddMembersTitle ?? 'Add group members',
         style: AppTheme.sans(
           size: 17,
           weight: FontWeight.w600,
@@ -242,7 +247,7 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
             ? Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  '暂无可邀请联系人',
+                  l10n?.groupInviteNoContacts ?? '暂无可邀请联系人',
                   style: AppTheme.sans(size: 13, color: t.textMute),
                 ),
               )
@@ -283,7 +288,7 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n?.commonCancel ?? '取消'),
         ),
         TextButton(
           onPressed: _selectedMxids.isEmpty
@@ -291,7 +296,7 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
               : () => Navigator.of(context).pop(
                     _selectedMxids.toList(growable: false),
                   ),
-          child: const Text('发送邀请'),
+          child: Text(l10n?.groupInviteSend ?? '发送邀请'),
         ),
       ],
     );

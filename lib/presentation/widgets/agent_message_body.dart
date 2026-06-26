@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 
 class AgentMessageBody extends StatelessWidget {
   const AgentMessageBody(this.text, {super.key, this.selectable = true});
@@ -74,6 +75,10 @@ class _CodeBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
@@ -113,7 +118,7 @@ class _CodeBlock extends StatelessWidget {
                       vertical: 2,
                     ),
                     child: Text(
-                      '复制',
+                      l10n?.groupChatCopy ?? '复制',
                       style: AppTheme.mono(size: 10, color: t.textMute),
                     ),
                   ),

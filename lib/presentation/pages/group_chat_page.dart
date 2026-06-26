@@ -351,6 +351,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final ScrollController _messageScrollCtrl = ScrollController();
   Object? _lastAutoScrolledTimelineItemKey;
   Object? _pendingAutoScrollTimelineItemKey;
+  Timer? _latestAutoScrollRetryTimer;
   bool _pendingViewportScrollToBottom = false;
   double _lastKeyboardInsetBottom = 0;
   double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
@@ -505,6 +506,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       durationMs: recording.durationMs,
     );
     setState(() => _replyTo = null);
+    final l10n = _groupChatL10n(context);
     await sendProductMediaWithPendingState(
       messenger: ScaffoldMessenger.of(context),
       attachment: attachment,
@@ -517,6 +519,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       onDelivered: _recordDeliveredMediaUpload,
       onSucceeded: _removePendingMediaUpload,
       onFailed: _failPendingMediaUpload,
+      l10n: l10n,
     );
   }
 
@@ -824,22 +827,63 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       return;
     }
     _pendingAutoScrollTimelineItemKey = newestItemKey;
+    _latestAutoScrollRetryTimer?.cancel();
+    _scheduleLatestAutoScrollAttempt(
+      newestItemKey,
+      attempt: 0,
+      instant: _lastAutoScrolledTimelineItemKey == null,
+    );
+  }
+
+  void _scheduleLatestAutoScrollAttempt(
+    Object newestItemKey, {
+    required int attempt,
+    required bool instant,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
-      _pendingAutoScrollTimelineItemKey = null;
       final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
-      if (position == null) return;
-      final target = position.maxScrollExtent;
-      _lastAutoScrolledTimelineItemKey = newestItemKey;
-      if ((position.pixels - target).abs() < 1) return;
-      unawaited(
-        _messageScrollCtrl.animateTo(
-          target,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
+      final hasPosition = position != null;
+      final target = position?.maxScrollExtent ?? 0;
+      final isAtLatest = position != null &&
+          (position.pixels - target).abs() < chatLatestAutoScrollTolerance;
+      if (position != null && !isAtLatest) {
+        if (instant) {
+          _messageScrollCtrl.jumpTo(target);
+        } else {
+          unawaited(_messageScrollCtrl.animateTo(
+            target,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          ));
+        }
+      }
+      final shouldRetry = shouldRetryLatestInitialAutoScroll(
+            hasPosition: hasPosition,
+            isAtLatest: isAtLatest,
+            attempt: attempt,
+          ) &&
+          (instant || !hasPosition);
+      if (shouldRetry) {
+        _latestAutoScrollRetryTimer?.cancel();
+        _latestAutoScrollRetryTimer = Timer(
+          chatLatestInitialAutoScrollRetryDelay,
+          () {
+            if (!mounted) return;
+            _scheduleLatestAutoScrollAttempt(
+              newestItemKey,
+              attempt: attempt + 1,
+              instant: instant,
+            );
+          },
+        );
+        return;
+      }
+      _pendingAutoScrollTimelineItemKey = null;
+      if (position != null) {
+        _lastAutoScrolledTimelineItemKey = newestItemKey;
+      }
     });
   }
 
@@ -901,14 +945,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         mimeType: _groupChatEventMimeType(event, fallback: 'image/jpeg'),
       );
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存原图到相册')),
+        SnackBar(content: Text(l10n?.chatImageSavedToAlbum ?? '已保存原图到相册')),
       );
     } on Object catch (err) {
       debugPrint('save group image failed: $err');
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败：$err')),
+        SnackBar(content: Text(l10n?.chatSaveFailed('$err') ?? '保存失败：$err')),
       );
     }
   }
@@ -1530,6 +1582,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
     _targetEventScrollTimer?.cancel();
+    _latestAutoScrollRetryTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
@@ -2001,10 +2054,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       _showGroupCannotSendToast(context);
       return;
     }
+    final l10n = _groupChatL10n(context);
     final bytes = item.bytes;
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
-      final l10n = _groupChatL10n(context);
       final label = switch (item.messageKind) {
         LocalOutboxMessageKind.image => l10n.groupChatImage,
         LocalOutboxMessageKind.video => l10n.groupChatVideo,
@@ -2076,6 +2129,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        l10n: l10n,
       );
     } finally {
       _retryingOutboxIds.remove(item.id);

@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_info_data.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -36,6 +37,10 @@ class _ChannelConversationPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final channel = resolveChannelInfoData(ref, widget.channelId);
     final messages = _messages ??= _initialMessages(channel.id);
     return Scaffold(
@@ -58,7 +63,7 @@ class _ChannelConversationPageState
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '频道已创建',
+                        l10n?.channelCreatedNotice ?? '频道已创建',
                         style: AppTheme.sans(
                           size: 13,
                           weight: FontWeight.w500,
@@ -123,11 +128,15 @@ class _ChannelConversationPageState
       ),
     );
     if (!mounted || action == null) return;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     switch (action) {
       case _ChannelMessageAction.copy:
         await Clipboard.setData(ClipboardData(text: message.body));
         if (!mounted) return;
-        _showSnack('已复制');
+        _showSnack(l10n?.groupChatCopied ?? '已复制');
       case _ChannelMessageAction.delete:
         setState(() {
           _messages = [
@@ -136,15 +145,19 @@ class _ChannelConversationPageState
               if (item.id != message.id) item,
           ];
         });
-        _showSnack('已删除');
+        _showSnack(l10n?.groupChatDeleted ?? '已删除');
       case _ChannelMessageAction.quote:
-        _showSnack('已引用');
+        _showSnack(l10n?.channelConversationQuoted ?? '已引用');
       case _ChannelMessageAction.favorite:
-        _showSnack('已收藏');
+        _showSnack(l10n?.groupChatFavorited ?? '已收藏');
       case _ChannelMessageAction.forward:
-        _showSnack('转发功能即将接入频道真实消息');
+        _showSnack(
+          l10n?.channelConversationForwardPending ?? '转发功能即将接入频道真实消息',
+        );
       case _ChannelMessageAction.multi:
-        _showSnack('多选功能即将接入频道真实消息');
+        _showSnack(
+          l10n?.channelConversationMultiSelectPending ?? '多选功能即将接入频道真实消息',
+        );
     }
   }
 
@@ -659,6 +672,10 @@ class _ConversationWriteBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       height: 76,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -694,7 +711,7 @@ class _ConversationWriteBar extends StatelessWidget {
                 ],
               ),
               child: Text(
-                '按住 说话',
+                l10n?.chatInputHoldToTalk ?? '按住 说话',
                 style: AppTheme.sans(
                   size: 15,
                   weight: FontWeight.w600,

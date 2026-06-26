@@ -146,6 +146,71 @@ void main() {
     expect(find.text('contact:@alice:p2p-im.com:chat_avatar'), findsOneWidget);
     expect(find.text('add-contact:@alice:p2p-im.com'), findsNothing);
   });
+
+  testWidgets('new friends group and channel notices are localized in English',
+      (tester) async {
+    final client = Client('RequestsNoticeEnglishL10nTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [],
+        groupInvites: [
+          AsSyncPendingItem(
+            id: '!group:p2p-im.com',
+            title: '',
+            createdAt: null,
+          ),
+        ],
+        channelNotices: [
+          AsSyncPendingItem(
+            id: '!channel:p2p-im.com',
+            title: '',
+            createdAt: null,
+          ),
+        ],
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: '/requests',
+      routes: [
+        GoRoute(path: '/requests', builder: (_, __) => const RequestsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_LoggedInAuthNotifier.new),
+          asClientProvider.overrideWithValue(_BootstrapAsClient(bootstrap)),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Group notice'), findsOneWidget);
+    expect(find.text('Invited you to join a group chat'), findsOneWidget);
+    expect(find.text('Channel notice'), findsOneWidget);
+    expect(find.text('Invited you to join a channel'), findsOneWidget);
+    expect(find.text('邀请你加入群聊'), findsNothing);
+    expect(find.text('邀请你加入频道'), findsNothing);
+  });
 }
 
 class _LoggedInAuthNotifier extends AuthStateNotifier {

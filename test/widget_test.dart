@@ -3727,6 +3727,150 @@ void main() {
         find.text('chat:$roomId;conversation:$conversationId'), findsOneWidget);
   });
 
+  testWidgets('home push opens direct chat at latest existing message',
+      (tester) async {
+    const roomId = '!home-push-latest:p2p-im.com';
+    const peerMxid = '@alice:p2p-liyanan.com';
+    const conversationId = 'conv_home_push_latest';
+    final client = Client(
+      'DirexioHomePushLatestMessageTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'home-push-existing-history',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                prevBatch: 'home-push-history-start',
+                events: [
+                  for (var i = 0; i < 36; i++)
+                    MatrixEvent(
+                      type: EventTypes.Message,
+                      eventId: '\$home-push-direct-$i',
+                      roomId: roomId,
+                      senderId: peerMxid,
+                      originServerTs: DateTime.utc(2026, 6, 26, 11, i),
+                      content: {
+                        'msgtype': MessageTypes.Text,
+                        'body': 'home push message $i',
+                      },
+                    ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: conversationId,
+                roomId: roomId,
+                kind: asConversationKindDirect,
+                lifecycle: 'active',
+                title: 'Alice',
+                avatarUrl: '',
+                lastMessage: 'home push message 35',
+                hydrationState: 'ready',
+                relationshipStatus: 'accepted',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    final chatPage = find.byType(ChatPage);
+    expect(
+      find.descendant(
+        of: chatPage,
+        matching: find.text('home push message 35'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: chatPage,
+        matching: find.text('home push message 0'),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('messages conversation avatar uses ProductCore avatar',
       (tester) async {
     final client = Client('DirexioConversationAsAvatarTest')
@@ -10026,8 +10170,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text("Enter the other person's domain to search"),
-        findsOneWidget);
+    expect(
+        find.text("Enter the other person's domain to search"), findsOneWidget);
   });
 
   testWidgets(
@@ -20783,6 +20927,10 @@ void main() {
     expect(find.text('Online'), findsNothing);
     expect(find.text('离线'), findsNothing);
     expect(find.text('在线'), findsNothing);
+    expect(
+      find.text('Agent is currently offline. Please wait patiently.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('private chat hides first-message empty state for cached preview',
@@ -21158,6 +21306,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: roomId),
         ),
       ),
@@ -21254,6 +21405,16 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(_TrackingAsClient()),
+          agentStatusProvider.overrideWith(
+            (ref) => Stream.value(
+              const AgentStatus(
+                connected: true,
+                lastSeen: null,
+                roomsJoined: 1,
+                messagesToday: 0,
+              ),
+            ),
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -21263,6 +21424,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: roomId),
         ),
       ),
@@ -21578,12 +21742,25 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          agentStatusProvider.overrideWith(
+            (ref) => Stream.value(
+              const AgentStatus(
+                connected: true,
+                lastSeen: null,
+                roomsJoined: 1,
+                messagesToday: 0,
+              ),
+            ),
+          ),
           localOutboxStoreProvider.overrideWith(
             (ref) async => _MemoryLocalOutboxStore(),
           ),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: roomId),
         ),
       ),
@@ -21592,7 +21769,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), '帮我想一下');
     await tester.pump();
-    await tester.tap(find.text('发送'));
+    await tester.tap(find.byKey(const ValueKey('chat_input_send_button')));
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(matrixSendCalls, 1);

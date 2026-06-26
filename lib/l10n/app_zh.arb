@@ -13,6 +13,33 @@
   "tabContacts": "通讯录",
   "tabChannels": "频道",
   "tabMe": "我的",
+  "homeDeleteChatTitle": "删除聊天记录",
+  "homeDeleteChatMessage": "确定删除「{name}」的所有聊天记录？该操作不可恢复。",
+  "@homeDeleteChatMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeConversationDeleted": "已删除「{name}」",
+  "@homeConversationDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteChatFailed": "删除聊天记录失败: {error}",
+  "@homeDeleteChatFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAgentConversationNotSynced": "Agent 会话还未同步",
+  "homeDeleteChatMenu": "删除聊天",
   "settingsTitle": "设置",
   "settingsGeneral": "通用设置",
   "settingsLanguage": "语言",
@@ -62,11 +89,73 @@
   "settingsDeactivateLoginConfirmTitle": "注销账号",
   "settingsDeactivateLoginConfirmMessage": "14天内，只要登录一次账号，账号注销就会自动取消",
   "commonCancel": "取消",
+  "commonBack": "返回",
+  "commonAdd": "添加",
+  "commonClose": "关闭",
   "commonSave": "保存",
   "commonSearch": "搜索",
+  "commonSend": "发送",
   "commonShare": "分享",
   "commonOnline": "在线",
   "commonOffline": "离线",
+  "toolCallDenied": "被拒",
+  "toolCallArguments": "参数",
+  "toolCallWarnings": "警告",
+  "mcpPermissionTitle": "MCP / Agent 权限",
+  "mcpPermissionDescription": "已授权 Agent 通过 MCP 访问你的聊天数据。点击进入可配置范围、时间、内容脱敏等。",
+  "mcpPermissionAuthorizeNewAgent": "授权新的 Agent",
+  "mcpPermissionAuthorized": "已授权",
+  "mcpPermissionDisabled": "已停用",
+  "mcpPolicyRevokeAction": "撤销",
+  "mcpPolicyRevokeAccess": "撤销授权",
+  "mcpPolicyAuditEmptyTitle": "暂无活动",
+  "mcpPolicyAuditEmptySubtitle": "Agent 调用任何工具都会留下记录",
+  "mcpPolicyCompleted": "已完成",
+  "mcpPolicyWriteBadge": "写",
+  "mcpPolicyConfirmBeforeCall": "调用前需我确认",
+  "mcpPolicySelectedRooms": "已选会话",
+  "mcpPolicyExcludedRooms": "已排除会话",
+  "mcpPolicyAddRoom": "+ 添加",
+  "channelCreatedNotice": "频道已创建",
+  "channelManageEmptyTitle": "还没有可管理的频道",
+  "channelManageEmptySubtitle": "创建频道后，可以在这里管理资料、成员和规则。",
+  "homeDetailPlaceholderTitle": "选择左侧的{tabTitle}查看详情",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "Agent 会像普通联系人一样出现在消息列表中",
+  "homeDetailPlaceholderDefaultSubtitle": "详情区域会在这里展开",
+  "groupDetailMissing": "群组不存在",
+  "groupDetailChatInfoTitle": "聊天信息({count})",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "解散群聊",
+  "groupDetailLeaveTitle": "退出群聊",
+  "groupDetailDissolveMessage": "解散后群聊将从当前服务移除。",
+  "groupDetailLeaveMessage": "退出后你将不再接收该群聊消息。",
+  "groupDetailDissolveAction": "解散",
+  "groupDetailLeaveAction": "退出",
+  "groupDetailLeaveOrDissolveFailed": "{action}群聊失败: {error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "邀请",
   "avatarAdjustTitle": "调整头像",
   "avatarAdjustHint": "双指缩放或拖动图片",
   "avatarAdjustReset": "重置",
@@ -491,12 +580,122 @@
       }
     }
   },
+  "groupCreateCreated": "群聊已创建",
+  "groupCreateFailed": "创建失败: {error}",
+  "@groupCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreateNameHint": "请输入群聊名称",
+  "groupInviteAddMembersTitle": "添加群成员",
+  "channelInviteAddMembersTitle": "邀请频道成员",
+  "groupInviteNoContacts": "暂无可邀请联系人",
+  "groupInviteSend": "发送邀请",
+  "groupManageNameTitle": "群名称",
+  "groupManageNameHint": "输入群名称",
+  "groupManageNameEmpty": "群名称不能为空",
+  "groupManageNameUpdated": "群名称已更新",
+  "groupManageNameUpdateFailed": "修改群名称失败: {error}",
+  "@groupManageNameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageAvatarUpdated": "群头像已更新",
+  "groupManageAvatarUpdateFailed": "修改群头像失败: {error}",
+  "@groupManageAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteEnabled": "已开启全员禁言",
+  "groupManageMuteDisabled": "已解除全员禁言",
+  "groupManageMuteEnableFailed": "开启全员禁言失败: {error}",
+  "@groupManageMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteDisableFailed": "解除全员禁言失败: {error}",
+  "@groupManageMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageInvitePolicyUpdated": "已更新添加成员权限",
+  "groupManageInvitePolicyUpdateFailed": "更新添加成员权限失败: {error}",
+  "@groupManageInvitePolicyUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "mcpPolicySaved": "已保存",
+  "mcpPolicyRevokeTitle": "撤销授权？",
+  "mcpPolicyRevokeMessage": "Agent 将立即失去全部 MCP 权限。",
+  "mcpPolicyBlockedKeywordAdd": "+ 添加",
+  "mcpPolicyBlockedKeywordTitle": "添加屏蔽关键词",
+  "mcpPolicyBlockedKeywordHint": "命中该词的消息将被遮蔽",
   "contactFriendRequestRestored": "已恢复旧会话，可以继续聊天。",
   "contactFriendRequestSent": "好友请求已发送，等待对方接受。",
   "contactDeleteConfirmTitle": "删除好友",
   "contactDeleteConfirmBody": "删除后将不再显示该联系人，会话关系也会同步更新。",
+  "contactDeleteConfirmBodyWithName": "删除 {name} 后，双方的私聊关系会解除。",
+  "@contactDeleteConfirmBodyWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "contactDeleteAction": "删除",
   "contactDeleted": "已删除好友",
+  "contactDeletedName": "已删除 {name}",
+  "@contactDeletedName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "contactApplied": "已申请",
+  "contactFollowFailed": "关注失败: {error}",
+  "@contactFollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactUnfollowFailed": "取消关注失败: {error}",
+  "@contactUnfollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactFriendRequestFailed": "发送好友请求失败: {error}",
+  "@contactFriendRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactDeleteMissingRoom": "删除好友失败: 缺少联系人房间信息",
   "contactDeleteFailed": "删除好友失败: {error}",
   "@contactDeleteFailed": {
     "placeholders": {
@@ -601,8 +800,10 @@
   "requestsIncomingRequestMessage": "请求加为好友",
   "requestsFriendNoticeTitle": "好友申请",
   "requestsFriendNoticeFallback": "好友申请通知",
+  "requestsGroupNoticeTitle": "群聊通知",
+  "requestsGroupNoticeFallback": "邀请你加入群聊",
   "requestsChannelNoticeTitle": "频道通知",
-  "requestsChannelNoticeFallback": "频道通知",
+  "requestsChannelNoticeFallback": "邀请你加入频道",
   "requestsView": "查看",
   "requestsAccept": "接受",
   "requestsReject": "拒绝",
@@ -661,7 +862,27 @@
     }
   },
   "createGroupTitle": "发起群聊",
+  "createGroupMenuTitle": "创建群聊",
+  "createGroupSetupTitle": "创建群聊",
   "createGroupDone": "完成",
+  "createGroupDoneWithCount": "完成({count})",
+  "@createGroupDoneWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createGroupSubmit": "完成创建",
+  "createGroupMembers": "群成员",
+  "createGroupMemberCount": "{count}人",
+  "@createGroupMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createGroupEmptyTitle": "暂无可邀请联系人",
   "createGroupEmptySubtitle": "先添加好友后再发起群聊",
   "createGroupNoResultsTitle": "没有找到好友",
@@ -728,7 +949,7 @@
   "groupInviteFallbackInviter": "对方",
   "groupInviteJoinButton": "加入群聊",
   "groupInviteJoiningButton": "加入中…",
-  "groupInviteAlreadyJoined": "已在群里中",
+  "groupInviteAlreadyJoined": "已在群聊中",
   "groupChatUnknownMember": "未知成员",
   "groupChatVoiceRecordFailed": "语音录制失败：{error}",
   "@groupChatVoiceRecordFailed": {
@@ -957,12 +1178,36 @@
   "chatInputReleaseToCancel": "松开 取消",
   "chatInputReleaseToCancelCompact": "松开取消",
   "chatInputReleaseToSendSwipeCancel": "松开发送，上滑取消",
+  "chatInputMore": "更多",
   "chatAttachmentAlbum": "相册",
   "chatAttachmentCamera": "拍摄",
   "chatAttachmentVideo": "视频",
   "chatAttachmentLocation": "位置",
   "chatAttachmentContactCard": "个人名片",
   "chatAttachmentFile": "文件",
+  "chatAttachmentNoImageSelected": "未选择图片",
+  "chatAttachmentNoPhotoTaken": "未拍摄照片",
+  "chatAttachmentNoFileSelected": "未选择文件",
+  "chatAttachmentNoVideoSelected": "未选择视频",
+  "chatMediaPhoto": "照片",
+  "chatMediaAudio": "语音",
+  "chatMediaGeneric": "媒体",
+  "chatMediaReadFailed": "{label}读取失败，请重新选择",
+  "@chatMediaReadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMediaUploadFailed": "{label}上传失败，请检查网络后重试",
+  "@chatMediaUploadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatLocalMediaMissing": "本地原{label}已丢失，请重新选择{label}",
   "@groupChatLocalMediaMissing": {
     "placeholders": {
@@ -1024,8 +1269,23 @@
   "groupChatQuote": "引用",
   "groupChatSelectMessage": "选择消息",
   "groupChatCancelSelectMessage": "取消选择消息",
+  "chatAiSuggestions": "AI 建议",
+  "chatRecordForwardTitle": "转发聊天记录",
+  "chatVideoCannotPlay": "该视频无法播放",
+  "redPacketMineDetailAction": "查看发出详情",
+  "redPacketDetailAction": "查看领取详情",
+  "redPacketMineDetailTitle": "发出的红包",
+  "redPacketDetailTitle": "红包详情",
   "groupChatMe": "我",
   "groupChatMessageFallback": "消息",
+  "chatReplyTo": "回复 {sender}",
+  "@chatReplyTo": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatQuotedMessage": "引用消息",
   "groupChatRetryFile": "重新发送文件",
   "groupChatRetryMessage": "重新发送消息",
@@ -1033,6 +1293,21 @@
   "groupChatDownloaded": "已下载",
   "groupChatDownloadFile": "下载文件",
   "groupChatRemovedCannotSend": "无法在已退出的群聊中发送消息",
+  "chatPeerAcceptBeforeSend": "对方接受好友请求后才能发送消息",
+  "contactHomeMissing": "联系人不存在",
+  "chatPeerDeletedContact": "对方已删除联系人关系，消息未送达",
+  "chatRecallBody": "撤回后，对方也将看不到这条消息。",
+  "chatImageSavedToAlbum": "已保存原图到相册",
+  "chatGroupSyncingRetryLater": "群聊正在同步，请稍后重试",
+  "chatGroupInviteExpired": "你未被邀请或邀请已失效",
+  "chatJoinGroupFailed": "加入群聊失败: {error}",
+  "@chatJoinGroupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "commonOk": "确定",
   "commonRetry": "重试",
   "commonUser": "用户",
@@ -1041,6 +1316,40 @@
   "chatRecordForwarded": "已转发聊天记录",
   "chatRecordForwardFailed": "转发失败：{error}",
   "@chatRecordForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordOpenFailed": "打开失败：{error}",
+  "@chatRecordOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordSelectedCount": "已选 {count} 条",
+  "@chatRecordSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordMessageCount": "{count} 条消息",
+  "@chatRecordMessageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordEmptyDetails": "暂无消息详情",
+  "chatVideoSavedToAlbum": "已保存原视频到相册",
+  "chatSaveFailed": "保存失败：{error}",
+  "@chatSaveFailed": {
     "placeholders": {
       "error": {
         "type": "String"
@@ -1056,6 +1365,9 @@
   "channelEmptySubtitle": "加入或创建频道后会显示在这里",
   "channelSyncingTitle": "正在同步频道",
   "channelSyncingSubtitle": "请稍候",
+  "channelConversationQuoted": "已引用",
+  "channelConversationForwardPending": "转发功能即将接入频道真实消息",
+  "channelConversationMultiSelectPending": "多选功能即将接入频道真实消息",
   "channelMyChannelsTitle": "我的频道",
   "channelJoinedSection": "已加入",
   "channelCreatedSection": "我创建",
@@ -1371,6 +1683,7 @@
     }
   },
   "meFavoritesLoadFailed": "收藏加载失败",
+  "meFavoriteImagePreviewUrlMissing": "收藏图片地址为空，无法预览",
   "meFavoritesEmptyTitle": "暂无收藏",
   "meFavoritesEmptySubtitle": "长按聊天消息收藏后会显示在这里",
   "meLikesLoadFailed": "点赞加载失败",
@@ -1481,7 +1794,66 @@
       }
     }
   },
+  "channelCreatedNotice": "频道已创建",
+  "channelManageEmptyTitle": "暂无频道",
+  "channelManageEmptySubtitle": "创建的频道会显示在这里",
+  "groupDetailMissing": "群聊不存在",
+  "groupDetailChatInfoTitle": "群聊信息（{count}）",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "解散群聊",
+  "groupDetailLeaveTitle": "退出群聊",
+  "groupDetailDissolveMessage": "解散后，成员将无法继续使用此群聊。",
+  "groupDetailLeaveMessage": "退出后，你将不再接收此群聊消息。",
+  "groupDetailDissolveAction": "解散",
+  "groupDetailLeaveAction": "退出",
+  "groupDetailLeaveOrDissolveFailed": "{action}失败：{error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "邀请",
+  "homeDetailPlaceholderTitle": "请选择一个{tabTitle}项目",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "打开会话查看消息",
+  "homeDetailPlaceholderDefaultSubtitle": "选择项目查看详情",
+  "mcpPermissionTitle": "MCP 权限",
+  "mcpPermissionDescription": "管理哪些 Agent 账号可以调用 MCP 工具。",
+  "mcpPermissionAuthorizeNewAgent": "授权新的 Agent",
+  "mcpPermissionAuthorized": "已授权",
+  "mcpPermissionDisabled": "已停用",
+  "mcpPolicyRevokeAction": "撤销",
+  "mcpPolicyRevokeAccess": "撤销访问",
+  "mcpPolicyAuditEmptyTitle": "暂无审计记录",
+  "mcpPolicyAuditEmptySubtitle": "工具调用记录会显示在这里",
+  "mcpPolicyCompleted": "已完成",
+  "mcpPolicyWriteBadge": "写入",
+  "mcpPolicyConfirmBeforeCall": "调用前确认",
+  "mcpPolicySelectedRooms": "已选择房间",
+  "mcpPolicyExcludedRooms": "已排除房间",
+  "mcpPolicyAddRoom": "添加房间",
+  "toolCallDenied": "已拒绝",
+  "toolCallArguments": "参数",
+  "toolCallWarnings": "警告",
   "commonMe": "我",
   "commonJustNow": "刚刚",
-  "agentChatEmptyTitle": "开始我们的聊天吧"
+  "agentChatEmptyTitle": "开始我们的聊天吧",
+  "agentChatOfflineReply": "目前Agent离线，请耐心等待"
 }

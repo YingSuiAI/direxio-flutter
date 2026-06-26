@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -33,7 +34,7 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   final result = await showGeneralDialog<_CreateGroupResult>(
     context: context,
     barrierDismissible: true,
-    barrierLabel: '关闭',
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (ctx, animation, secondaryAnimation) => _CreateGroupScreen(
       client: client,
@@ -107,13 +108,21 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       }));
     }
     if (context.mounted) {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('群聊已创建')),
+        SnackBar(content: Text(l10n?.groupCreateCreated ?? '群聊已创建')),
       );
       final route = productConversationRoute(resolvedConversation);
       if (route == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('群聊正在同步，请稍后重试')),
+          SnackBar(
+            content: Text(
+              l10n?.chatGroupSyncingRetryLater ?? '群聊正在同步，请稍后重试',
+            ),
+          ),
         );
         return;
       }
@@ -121,8 +130,12 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
     }
   } catch (e) {
     if (!context.mounted) return;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('创建失败: $e')),
+      SnackBar(content: Text(l10n?.groupCreateFailed('$e') ?? '创建失败: $e')),
     );
   }
 }
@@ -443,6 +456,10 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
         ref.watch(currentUserProfileProvider).valueOrNull;
 
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Material(
       color: t.surfaceHover,
       child: GestureDetector(
@@ -462,7 +479,7 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                           left: 16,
                           top: 4,
                           child: _CreateGroupCircleButton(
-                            tooltip: '返回',
+                            tooltip: l10n?.commonBack ?? '返回',
                             icon: Symbols.arrow_back,
                             onTap: _showGroupSetup
                                 ? () => setState(() => _showGroupSetup = false)
@@ -474,7 +491,9 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                           child: Align(
                             alignment: Alignment.topCenter,
                             child: Text(
-                              _showGroupSetup ? '创建群聊' : '发起群聊',
+                              _showGroupSetup
+                                  ? l10n?.createGroupSetupTitle ?? '创建群聊'
+                                  : l10n?.createGroupTitle ?? '发起群聊',
                               style: AppTheme.sans(
                                 size: _showGroupSetup ? 20 : 16,
                                 weight: FontWeight.w700,
@@ -496,6 +515,7 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                             child: _CreateGroupDoneButton(
                               enabled: canComplete,
                               count: _selectedMxids.length,
+                              l10n: l10n,
                               onTap: canComplete ? _showSetup : null,
                             ),
                           ),
@@ -527,14 +547,19 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                     const SizedBox(height: 13),
                     Expanded(
                       child: widget.contacts.isEmpty
-                          ? const _CreateGroupEmptyState(
-                              title: '暂无可邀请联系人',
-                              subtitle: '先添加好友后再发起群聊',
+                          ? _CreateGroupEmptyState(
+                              title: l10n?.createGroupEmptyTitle ??
+                                  '暂无可邀请联系人',
+                              subtitle: l10n?.createGroupEmptySubtitle ??
+                                  '先添加好友后再发起群聊',
                             )
                           : filteredContacts.isEmpty
-                              ? const _CreateGroupEmptyState(
-                                  title: '没有找到好友',
-                                  subtitle: '换个 ID、昵称或邮箱试试',
+                              ? _CreateGroupEmptyState(
+                                  title: l10n?.createGroupNoResultsTitle ??
+                                      '没有找到好友',
+                                  subtitle: l10n
+                                          ?.createGroupNoResultsSubtitle ??
+                                      '换个 ID、昵称或邮箱试试',
                                 )
                               : ListView(
                                   padding:
@@ -643,6 +668,14 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
       ),
     );
   }
+
+  String _defaultGroupName(List<AsSyncContact> contacts) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return _localizedDefaultGroupName(contacts, l10n);
+  }
 }
 
 class _CreateGroupSetupStep extends StatelessWidget {
@@ -713,6 +746,10 @@ class _CreateGroupInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final avatarMembers = <GroupCompositeAvatarMember>[
       GroupCompositeAvatarMember(
         seed: '我',
@@ -745,7 +782,7 @@ class _CreateGroupInfoCard extends StatelessWidget {
               cursorColor: t.accent,
               style: AppTheme.sans(size: 17, color: t.text),
               decoration: InputDecoration(
-                hintText: '请输入群聊名称',
+                hintText: l10n?.groupCreateNameHint ?? '请输入群聊名称',
                 hintStyle: AppTheme.sans(size: 17, color: t.textMute),
                 counterText: '',
                 border: InputBorder.none,
@@ -779,6 +816,10 @@ class _CreateGroupSelectedMembersCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -792,12 +833,13 @@ class _CreateGroupSelectedMembersCard extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  '群成员',
+                  l10n?.createGroupMembers ?? '群成员',
                   style: AppTheme.sans(size: 15, color: t.textMute),
                 ),
                 const Spacer(),
                 Text(
-                  '${selectedContacts.length}人',
+                  l10n?.createGroupMemberCount(selectedContacts.length) ??
+                      '${selectedContacts.length}人',
                   style: AppTheme.sans(size: 15, color: t.textMute),
                 ),
               ],
@@ -855,6 +897,10 @@ class _CreateGroupSubmitBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       color: t.surface,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -871,7 +917,7 @@ class _CreateGroupSubmitBar extends StatelessWidget {
               width: double.infinity,
               child: Center(
                 child: Text(
-                  '完成创建',
+                  l10n?.createGroupSubmit ?? '完成创建',
                   style: AppTheme.sans(
                     size: 17,
                     weight: FontWeight.w700,
@@ -887,7 +933,10 @@ class _CreateGroupSubmitBar extends StatelessWidget {
   }
 }
 
-String _defaultGroupName(List<AsSyncContact> contacts) {
+String _localizedDefaultGroupName(
+  List<AsSyncContact> contacts,
+  AppLocalizations? l10n,
+) {
   final names = contacts
       .map(
         (contact) => contactDisplayNameFromIdentity(
@@ -898,9 +947,17 @@ String _defaultGroupName(List<AsSyncContact> contacts) {
       )
       .where((name) => name.trim().isNotEmpty)
       .toList(growable: false);
-  if (names.isEmpty) return '群聊';
-  final prefix = names.take(3).join('、');
-  return contacts.length > 3 ? '$prefix等人的群聊' : '$prefix的群聊';
+  if (names.isEmpty) return l10n?.createGroupDefaultName ?? '群聊';
+  final separator = switch (l10n?.localeName) {
+    'zh' || 'ja' => '、',
+    null => '、',
+    _ => ', ',
+  };
+  final prefix = names.take(3).join(separator);
+  if (contacts.length <= 3) {
+    return l10n?.createGroupSingleName(prefix) ?? '$prefix的群聊';
+  }
+  return l10n?.createGroupMultipleName(prefix) ?? '$prefix等人的群聊';
 }
 
 Map<String, List<AsSyncContact>> _groupCreateContacts(
@@ -966,11 +1023,13 @@ class _CreateGroupDoneButton extends StatelessWidget {
   const _CreateGroupDoneButton({
     required this.enabled,
     required this.count,
+    required this.l10n,
     required this.onTap,
   });
 
   final bool enabled;
   final int count;
+  final AppLocalizations? l10n;
   final VoidCallback? onTap;
 
   @override
@@ -988,7 +1047,9 @@ class _CreateGroupDoneButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Center(
             child: Text(
-              count > 0 ? '完成($count)' : '完成',
+              count > 0
+                  ? l10n?.createGroupDoneWithCount(count) ?? '完成($count)'
+                  : l10n?.createGroupDone ?? '完成',
               style: AppTheme.sans(
                 size: 12,
                 weight: FontWeight.w700,
@@ -1009,10 +1070,14 @@ class _CreateGroupSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return M3SearchField(
       key: const ValueKey('create_group_search_field'),
       controller: controller,
-      hint: 'ID/昵称/邮箱',
+      hint: l10n?.contactsSearchHint ?? 'ID/昵称/邮箱',
     );
   }
 }

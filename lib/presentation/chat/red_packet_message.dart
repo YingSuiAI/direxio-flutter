@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import 'chat_message_cards.dart';
 
 const redPacketCustomType = 923;
@@ -135,6 +136,10 @@ class RedPacketMessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final title = payload.isMine ? '扫雷红包' : '红包';
     final subtitle = payload.blessing.isEmpty ? '恭喜发财，大吉大利' : payload.blessing;
     final background =
@@ -246,7 +251,9 @@ class RedPacketMessageCard extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
                   child: Text(
-                    payload.isMine ? '查看扫雷红包详情' : '查看红包详情',
+                    payload.isMine
+                        ? l10n?.redPacketMineDetailAction ?? '查看扫雷红包详情'
+                        : l10n?.redPacketDetailAction ?? '查看红包详情',
                     style: AppTheme.sans(
                       size: 12,
                       color: Colors.white.withValues(alpha: 0.82),
@@ -270,10 +277,18 @@ class RedPacketDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
-        title: Text(payload.isMine ? '扫雷红包详情' : '红包详情'),
+        title: Text(
+          payload.isMine
+              ? l10n?.redPacketMineDetailTitle ?? '扫雷红包详情'
+              : l10n?.redPacketDetailTitle ?? '红包详情',
+        ),
         backgroundColor: t.bg,
         foregroundColor: t.text,
         elevation: 0,

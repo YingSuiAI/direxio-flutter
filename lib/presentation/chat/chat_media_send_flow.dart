@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../../l10n/app_localizations.dart';
+
 enum ChatMediaKind {
   image,
   video,
@@ -200,8 +202,31 @@ class ChatMediaSendException implements Exception {
     };
   }
 
+  String userMessageFor(AppLocalizations? l10n) {
+    if (l10n == null) return userMessage;
+    final localizedLabel = _localizedMediaLabel(label, l10n);
+    return switch (stage) {
+      ChatMediaSendStage.read => l10n.chatMediaReadFailed(localizedLabel),
+      ChatMediaSendStage.upload => l10n.chatMediaUploadFailed(localizedLabel),
+      ChatMediaSendStage.send => l10n.groupChatSendFailed('$cause'),
+    };
+  }
+
   @override
   String toString() => 'ChatMediaSendException($stage, $cause)';
+}
+
+String _localizedMediaLabel(String label, AppLocalizations l10n) {
+  return switch (label.trim()) {
+    '图片' => l10n.groupChatImage,
+    '照片' => l10n.chatMediaPhoto,
+    '视频' => l10n.groupChatVideo,
+    '文件' => l10n.groupChatFile,
+    '语音' => l10n.chatMediaAudio,
+    '媒体' => l10n.chatMediaGeneric,
+    final value when value.isNotEmpty => value,
+    _ => l10n.chatMediaGeneric,
+  };
 }
 
 typedef ChatMatrixUpload = Future<Uri> Function(

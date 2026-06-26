@@ -384,6 +384,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final ScrollController _messageScrollCtrl = ScrollController();
   Object? _lastAutoScrolledTimelineItemKey;
   Object? _pendingAutoScrollTimelineItemKey;
+  Timer? _latestAutoScrollRetryTimer;
   bool _pendingViewportScrollToBottom = false;
   double _lastKeyboardInsetBottom = 0;
   double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
@@ -405,6 +406,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   DateTime? _agentThinkingSince;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
+  AppLocalizations? get _l10n =>
+      Localizations.of<AppLocalizations>(context, AppLocalizations);
 
   void _debugMissingRoomState(String phase, {Object? error}) {
     final client = ref.read(matrixClientProvider);
@@ -561,8 +564,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   void _showQuotedMessageUnavailable() {
     if (!mounted) return;
+    final l10n = _l10n;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('原消息暂不可见')),
+      SnackBar(
+          content:
+              Text(l10n?.groupChatOriginalMessageUnavailable ?? '原消息暂不可见')),
     );
   }
 
@@ -619,22 +625,63 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
     _pendingAutoScrollTimelineItemKey = newestItemKey;
+    _latestAutoScrollRetryTimer?.cancel();
+    _scheduleLatestAutoScrollAttempt(
+      newestItemKey,
+      attempt: 0,
+      instant: _lastAutoScrolledTimelineItemKey == null,
+    );
+  }
+
+  void _scheduleLatestAutoScrollAttempt(
+    Object newestItemKey, {
+    required int attempt,
+    required bool instant,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
-      _pendingAutoScrollTimelineItemKey = null;
       final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
-      if (position == null) return;
-      final target = position.maxScrollExtent;
-      _lastAutoScrolledTimelineItemKey = newestItemKey;
-      if ((position.pixels - target).abs() < 1) return;
-      unawaited(
-        _messageScrollCtrl.animateTo(
-          target,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
+      final hasPosition = position != null;
+      final target = position?.maxScrollExtent ?? 0;
+      final isAtLatest = position != null &&
+          (position.pixels - target).abs() < chatLatestAutoScrollTolerance;
+      if (position != null && !isAtLatest) {
+        if (instant) {
+          _messageScrollCtrl.jumpTo(target);
+        } else {
+          unawaited(_messageScrollCtrl.animateTo(
+            target,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          ));
+        }
+      }
+      final shouldRetry = shouldRetryLatestInitialAutoScroll(
+            hasPosition: hasPosition,
+            isAtLatest: isAtLatest,
+            attempt: attempt,
+          ) &&
+          (instant || !hasPosition);
+      if (shouldRetry) {
+        _latestAutoScrollRetryTimer?.cancel();
+        _latestAutoScrollRetryTimer = Timer(
+          chatLatestInitialAutoScrollRetryDelay,
+          () {
+            if (!mounted) return;
+            _scheduleLatestAutoScrollAttempt(
+              newestItemKey,
+              attempt: attempt + 1,
+              instant: instant,
+            );
+          },
+        );
+        return;
+      }
+      _pendingAutoScrollTimelineItemKey = null;
+      if (position != null) {
+        _lastAutoScrolledTimelineItemKey = newestItemKey;
+      }
     });
   }
 
@@ -803,6 +850,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     VoidCallback? onRetry,
   }) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: t.bg,
       body: Center(
@@ -825,7 +876,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 TextButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Symbols.sync),
-                  label: const Text('重试'),
+                  label: Text(l10n?.commonRetry ?? '重试'),
                 ),
               ],
             ],
@@ -1096,6 +1147,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void dispose() {
     _roomSyncSub?.cancel();
     _targetEventScrollTimer?.cancel();
+    _latestAutoScrollRetryTimer?.cancel();
     _initialTimelineEntranceTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _callHistoryFastReloadTimer?.cancel();
@@ -1128,8 +1180,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       syncCache,
     );
     if (!capabilityPolicy.canSendText) {
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('对方接受好友请求后才能发送消息')),
+        SnackBar(
+            content: Text(l10n?.chatPeerAcceptBeforeSend ?? '对方接受好友请求后才能发送消息')),
       );
       return;
     }
@@ -1174,8 +1228,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
       }
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(productSendFailureMessage(e))),
+        SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     }
   }
@@ -1246,9 +1301,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
     } on Object catch (e) {
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('语音录制失败：$e'),
+          content: Text(l10n?.groupChatVoiceRecordFailed('$e') ?? '语音录制失败：$e'),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1267,10 +1323,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (recording == null) return;
       if (recording.durationMs < 700) {
         if (!mounted) return;
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('说话时间太短'),
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text(l10n?.groupChatRecordingTooShort ?? '说话时间太短'),
+            duration: const Duration(seconds: 1),
           ),
         );
         return;
@@ -1309,6 +1366,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     setState(() => _replyTo = null);
     if (_isProductDirectRoomForChat(room, syncCache) &&
         !isPortalAgentDirectRoom(room)) {
+      final l10n = _l10n;
       await sendProductMediaWithPendingState(
         messenger: ScaffoldMessenger.of(context),
         attachment: attachment,
@@ -1321,6 +1379,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        l10n: l10n,
       );
       return;
     }
@@ -1337,8 +1396,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _replyTo = replyTo);
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(productSendFailureMessage(e))),
+        SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     }
   }
@@ -1370,10 +1430,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: e.body));
         if (mounted) {
+          final l10n = _l10n;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已复制'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n?.groupChatCopied ?? '已复制'),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1429,10 +1490,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: _outboxCopyText(item)));
         if (mounted) {
+          final l10n = _l10n;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已复制'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n?.groupChatCopied ?? '已复制'),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1440,20 +1502,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'delete':
         await ref.read(localOutboxProvider.notifier).completeItem(item.id);
         if (mounted) {
+          final l10n = _l10n;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已删除'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n?.groupChatDeleted ?? '已删除'),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
         break;
       case 'fav':
         if (mounted) {
+          final l10n = _l10n;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('发送中的消息暂不能收藏'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content:
+                  Text(l10n?.groupChatCannotFavoriteSending ?? '发送中的消息暂不能收藏'),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1463,10 +1528,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'quote':
       case 'recall':
         if (mounted) {
+          final l10n = _l10n;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('消息发送完成后可使用该操作'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(
+                  l10n?.groupChatActionAvailableAfterSent ?? '消息发送完成后可使用该操作'),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1475,9 +1542,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _recallEvent(Event event) async {
+    final l10n = _l10n;
     if (!event.canRedact) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('没有权限撤回该消息')),
+        SnackBar(
+            content: Text(l10n?.groupChatNoRecallPermission ?? '没有权限撤回该消息')),
       );
       return;
     }
@@ -1487,25 +1556,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         final t = dialogContext.tk;
         return AlertDialog(
           title: Text(
-            '撤回消息',
+            l10n?.groupChatRecallTitle ?? '撤回消息',
             style: AppTheme.sans(size: 17, weight: FontWeight.w600),
           ),
           content: Text(
-            '撤回后，对方也将看不到这条消息。',
+            l10n?.chatRecallBody ?? '撤回后，对方也将看不到这条消息。',
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text(
-                '取消',
+                l10n?.commonCancel ?? '取消',
                 style: AppTheme.sans(size: 15, color: t.textMute),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
-                '撤回',
+                l10n?.groupChatRecall ?? '撤回',
                 style: AppTheme.sans(
                   size: 15,
                   weight: FontWeight.w600,
@@ -1527,13 +1596,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息已撤回')),
+        SnackBar(content: Text(l10n?.groupChatRecalled ?? '消息已撤回')),
       );
     } on Object catch (err) {
       debugPrint('recall message failed: $err');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('撤回消息失败：$err')),
+        SnackBar(
+            content:
+                Text(l10n?.groupChatRecallFailed('$err') ?? '撤回消息失败：$err')),
       );
     }
   }
@@ -1582,11 +1653,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty || _favoritingEventIds.contains(eventId)) return;
     if (mounted) {
+      final l10n = _l10n;
       setState(() => _favoritingEventIds.add(eventId));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('正在收藏到我的节点…'),
-          duration: Duration(milliseconds: 900),
+        SnackBar(
+          content: Text(l10n?.groupChatFavoriting ?? '正在收藏到我的节点…'),
+          duration: const Duration(milliseconds: 900),
         ),
       );
     }
@@ -1594,17 +1666,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final draft = await _favoriteDraftForEvent(event);
       await ref.read(asClientProvider).favoriteMessage(draft);
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已收藏'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n?.groupChatFavorited ?? '已收藏'),
+          duration: const Duration(seconds: 1),
         ),
       );
     } on Object catch (err) {
       debugPrint('favorite message failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('收藏失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatFavoriteFailed('$err') ?? '收藏失败：$err')),
         );
       }
     } finally {
@@ -1682,13 +1758,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _multiSelect = false;
         _selected.clear();
       });
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已转发聊天记录')),
+        SnackBar(content: Text(l10n?.chatRecordForwarded ?? '已转发聊天记录')),
       );
     } on Object catch (err) {
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('转发失败：$err')),
+        SnackBar(
+            content:
+                Text(l10n?.chatRecordForwardFailed('$err') ?? '转发失败：$err')),
       );
     }
   }
@@ -1802,8 +1882,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (err) {
       debugPrint('delete message for me failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除消息失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatDeleteFailed('$err') ?? '删除消息失败：$err')),
         );
       }
     }
@@ -1828,10 +1911,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   String _joinGroupInviteFailureMessage(Object error) {
+    final l10n = _l10n;
     if (error is AsClientException && error.statusCode == 403) {
-      return '你未被邀请或邀请已失效';
+      return l10n?.chatGroupInviteExpired ?? '你未被邀请或邀请已失效';
     }
-    return '加入群聊失败: $error';
+    return l10n?.chatJoinGroupFailed('$error') ?? '加入群聊失败: $error';
   }
 
   Future<void> _joinGroupInvite(GroupInviteContent invite) async {
@@ -1858,8 +1942,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       final route = productConversationRoute(group.productConversation);
       if (route == null) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('群聊正在同步，请稍后重试')),
+          SnackBar(
+              content:
+                  Text(l10n?.chatGroupSyncingRetryLater ?? '群聊正在同步，请稍后重试')),
         );
         return;
       }
@@ -1945,8 +2032,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         payload: payload,
       );
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入频道失败：$e')),
+        SnackBar(content: Text(l10n?.channelJoinFailed('$e') ?? '加入频道失败：$e')),
       );
     } finally {
       if (mounted) setState(() => _joiningChannelShareIds.remove(key));
@@ -2008,15 +2096,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             _downloadedImageEventIds.add(eventId);
           });
         }
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已保存原图到相册')),
+          SnackBar(content: Text(l10n?.chatImageSavedToAlbum ?? '已保存原图到相册')),
         );
       }
     } on Object catch (err) {
       debugPrint('download image failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('下载失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatDownloadFailed('$err') ?? '下载失败：$err')),
         );
       }
     } finally {
@@ -2060,8 +2152,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (err) {
       debugPrint('open file failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开失败：$err')),
+          SnackBar(
+              content: Text(l10n?.groupChatOpenFailed('$err') ?? '打开失败：$err')),
         );
       }
     } finally {
@@ -2088,8 +2182,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (err) {
       debugPrint('open video failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('播放失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatPlaybackFailed('$err') ?? '播放失败：$err')),
         );
       }
     }
@@ -2106,8 +2203,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (err) {
       debugPrint('play voice failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('播放失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatPlaybackFailed('$err') ?? '播放失败：$err')),
         );
       }
     }
@@ -2137,10 +2237,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             _downloadedFileEventIds.add(eventId);
           });
         }
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '已保存到 Files / Portal App / P2P IM Downloads / ${file.uri.pathSegments.last}',
+              l10n?.groupChatDownloadSaved(file.uri.pathSegments.last) ??
+                  '已保存到 Files / Portal App / P2P IM Downloads / ${file.uri.pathSegments.last}',
             ),
           ),
         );
@@ -2148,8 +2250,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (err) {
       debugPrint('download file failed: $err');
       if (mounted) {
+        final l10n = _l10n;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('下载失败：$err')),
+          SnackBar(
+              content:
+                  Text(l10n?.groupChatDownloadFailed('$err') ?? '下载失败：$err')),
         );
       }
     } finally {
@@ -2328,19 +2433,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         item.messageKind != LocalOutboxMessageKind.file) {
       return;
     }
+    final l10n = _l10n;
     final bytes = item.bytes;
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
       final label = switch (item.messageKind) {
-        LocalOutboxMessageKind.image => '图片',
-        LocalOutboxMessageKind.video => '视频',
-        _ => '文件',
+        LocalOutboxMessageKind.image => l10n?.groupChatImage ?? '图片',
+        LocalOutboxMessageKind.video => l10n?.groupChatVideo ?? '视频',
+        _ => l10n?.groupChatFile ?? '文件',
       };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('本地原$label已丢失，请重新选择$label'),
+            content: Text(l10n?.groupChatLocalMediaMissing(label) ??
+                '本地原$label已丢失，请重新选择$label'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -2403,6 +2510,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        l10n: l10n,
       );
     } finally {
       _retryingOutboxIds.remove(item.id);
@@ -2450,8 +2558,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (e) {
       await ref.read(localOutboxProvider.notifier).failItem(item.id);
       if (!mounted) return;
+      final l10n = _l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(productSendFailureMessage(e))),
+        SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     } finally {
       _retryingOutboxIds.remove(item.id);
@@ -2784,8 +2893,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (mounted) setState(() => _agentThinkingSince = null);
       });
     }
-    final showAgentThinking =
-        isAgent && agentThinkingSince != null && !hasAgentReply;
+    final agentStatus =
+        isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
+    final agentIsOnline = agentStatus?.connected ?? false;
+    final showAgentThinking = isAgent &&
+        agentIsOnline &&
+        agentThinkingSince != null &&
+        !hasAgentReply;
+    final showAgentOfflineReply = isAgent && !agentIsOnline;
     final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversation = productDirectConversationForPeer(
       productConversations,
@@ -2821,13 +2936,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final peerIsOnline =
         peerPresence != null && peerPresence != PresenceType.offline;
     final peerIsOffline = peerPresence == PresenceType.offline;
-    final agentStatus =
-        isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
-    final agentIsOnline = agentStatus?.connected ?? false;
     final onlineLabel = l10n?.commonOnline ?? '在线';
     final offlineLabel = l10n?.commonOffline ?? '离线';
     final headerSubtitle = isWaitingForAccept
-        ? '等待对方接受'
+        ? l10n?.requestsWaitingPeerAccept ?? '等待对方接受'
         : isAgent
             ? agentIsOnline
                 ? onlineLabel
@@ -2932,7 +3044,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             onPointerDown: (_) => _closePanels(),
             child: timelineItems.isEmpty &&
                     topSystemNoticeText == null &&
-                    !showAgentThinking
+                    !showAgentThinking &&
+                    !showAgentOfflineReply
                 ? LayoutBuilder(
                     builder: (context, constraints) {
                       final emptyHeight = math.max(
@@ -2972,7 +3085,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 : ChatTimelineListMotion(
                     itemCount: timelineItems.length +
                         (topSystemNoticeText == null ? 0 : 1) +
-                        (showAgentThinking ? 1 : 0),
+                        (showAgentThinking ? 1 : 0) +
+                        (showAgentOfflineReply ? 1 : 0),
                     newestItemKey: newestTimelineItemKey,
                     child: RefreshIndicator(
                       color: t.accent,
@@ -2983,7 +3097,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         padding: messagePadding,
                         itemCount: timelineItems.length +
                             1 +
-                            (showAgentThinking ? 1 : 0),
+                            (showAgentThinking ? 1 : 0) +
+                            (showAgentOfflineReply ? 1 : 0),
                         itemBuilder: (context, i) {
                           if (i == 0) {
                             if (topSystemNoticeText != null) {
@@ -2994,6 +3109,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             return const _E2eFooter();
                           }
                           final itemIndex = i - 1;
+                          if (showAgentOfflineReply &&
+                              itemIndex >= displayTimelineItems.length) {
+                            return chatMessageEntrance(
+                              key: const ValueKey(
+                                'private_message_enter_agent_offline_reply',
+                              ),
+                              isMe: false,
+                              index: itemIndex,
+                              enabled: true,
+                              child: _SAgentOfflineReplyBubble(
+                                text: l10n?.agentChatOfflineReply ??
+                                    '目前Agent离线，请耐心等待',
+                                avatarSeed: name,
+                                avatarUrl: peerAvatarUrl,
+                                avatarAsset: agentAvatarAsset,
+                              ),
+                            );
+                          }
                           if (showAgentThinking &&
                               itemIndex >= displayTimelineItems.length) {
                             return chatMessageEntrance(
@@ -3059,7 +3192,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     avatarUrl: currentUserAvatarUrl,
                                     outboxStatus: _InlineOutboxStatusIcon(
                                       status: pending.status,
-                                      label: '消息',
+                                      label: l10n?.groupChatMessageFallback ??
+                                          'Message',
                                       onRetry: () => unawaited(
                                         _retryFailedTextMessage(pending),
                                       ),
@@ -3876,7 +4010,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVoiceRecordStop: _stopVoiceRecording,
                   onVoiceRecordCancel: _cancelVoiceRecording,
                   enabled: canSendMessages,
-                  hintText: isWaitingForAccept ? '等待对方接受后才能发送消息' : '',
+                  hintText: isWaitingForAccept
+                      ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
+                      : '',
                 ),
               if (_showPlusPanel)
                 ChatAttachmentPanel(
@@ -4259,6 +4395,56 @@ class _SAgentThinkingBubble extends StatelessWidget {
   }
 }
 
+class _SAgentOfflineReplyBubble extends StatelessWidget {
+  const _SAgentOfflineReplyBubble({
+    required this.text,
+    required this.avatarSeed,
+    this.avatarUrl,
+    this.avatarAsset,
+  });
+
+  final String text;
+  final String avatarSeed;
+  final String? avatarUrl;
+  final String? avatarAsset;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return _bubbleRow(
+      context: context,
+      isMe: false,
+      multiSelect: false,
+      selected: false,
+      avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: DecoratedBox(
+          key: const ValueKey('agent_offline_reply_bubble'),
+          decoration: BoxDecoration(
+            color: t.surfaceHigh,
+            borderRadius: chatDirectionalBubbleRadius(false),
+            border: Border.all(color: t.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Text(
+              text,
+              style: AppTheme.sans(
+                size: 17,
+                weight: FontWeight.w500,
+                color: t.text,
+              ).copyWith(height: 1.25),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SChatBubble extends StatelessWidget {
   const _SChatBubble({
     super.key,
@@ -4476,6 +4662,10 @@ class _QuotedMessageBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
     final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.78) : t.textMute;
     final block = Container(
@@ -4504,7 +4694,9 @@ class _QuotedMessageBlock extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            quote.text.isEmpty ? '消息' : quote.text,
+            quote.text.isEmpty
+                ? l10n?.groupChatMessageFallback ?? '消息'
+                : quote.text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -5576,6 +5768,10 @@ class _FileDownloadStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     if (downloading) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -5590,7 +5786,7 @@ class _FileDownloadStatusIcon extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '下载中',
+            l10n?.groupChatDownloading ?? '下载中',
             style: AppTheme.sans(
               size: 11,
               color: t.accent,
@@ -5602,7 +5798,7 @@ class _FileDownloadStatusIcon extends StatelessWidget {
     }
     if (downloaded) {
       return Text(
-        '已下载',
+        l10n?.groupChatDownloaded ?? '已下载',
         style: AppTheme.sans(
           size: 11,
           color: t.accent,
@@ -5821,8 +6017,10 @@ Future<void> _openImgPreview(
 
 void _showPendingContactToast(BuildContext context) {
   if (!context.mounted) return;
+  final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('对方接受好友请求后才能发送消息')),
+    SnackBar(
+        content: Text(l10n?.chatPeerAcceptBeforeSend ?? '对方接受好友请求后才能发送消息')),
   );
 }
 
@@ -5886,6 +6084,10 @@ class _ReplyBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       decoration: BoxDecoration(
         color: t.surfaceHover,
@@ -5906,7 +6108,7 @@ class _ReplyBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '回复 $sender',
+                  l10n?.chatReplyTo(sender) ?? '回复 $sender',
                   style: AppTheme.sans(
                     size: 11,
                     color: t.accent,

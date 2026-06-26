@@ -70,6 +70,50 @@ void main() {
 
     expect(chatScrollPositionWithDimensions(controller), same(position));
   });
+
+  test(
+    'latest initial auto-scroll retries while dimensions are missing',
+    () {
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: false,
+          isAtLatest: false,
+          attempt: 0,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: false,
+          isAtLatest: false,
+          attempt: chatLatestInitialAutoScrollMaxAttempts,
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'latest initial auto-scroll keeps settling until it reaches latest',
+    () {
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: true,
+          isAtLatest: false,
+          attempt: 1,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: true,
+          isAtLatest: true,
+          attempt: 1,
+        ),
+        isFalse,
+      );
+    },
+  );
 }
 
 class _FakeScrollContext implements ScrollContext {

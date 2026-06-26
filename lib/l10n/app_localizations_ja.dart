@@ -39,6 +39,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get tabMe => '自分';
 
   @override
+  String get homeDeleteChatTitle => 'チャット履歴を削除';
+
+  @override
+  String homeDeleteChatMessage(String name) {
+    return '「$name」のすべてのチャット履歴を削除しますか？この操作は元に戻せません。';
+  }
+
+  @override
+  String homeConversationDeleted(String name) {
+    return '「$name」を削除しました';
+  }
+
+  @override
+  String homeDeleteChatFailed(String error) {
+    return 'チャット履歴の削除に失敗しました: $error';
+  }
+
+  @override
+  String get homeAgentConversationNotSynced => 'Agent 会話はまだ同期されていません';
+
+  @override
+  String get homeDeleteChatMenu => 'チャットを削除';
+
+  @override
   String get settingsTitle => '設定';
 
   @override
@@ -170,10 +194,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonCancel => 'キャンセル';
 
   @override
+  String get commonBack => '戻る';
+
+  @override
+  String get commonAdd => '追加';
+
+  @override
+  String get commonClose => '閉じる';
+
+  @override
   String get commonSave => '保存';
 
   @override
   String get commonSearch => '検索';
+
+  @override
+  String get commonSend => '送信';
 
   @override
   String get commonShare => '共有';
@@ -183,6 +219,114 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonOffline => 'オフライン';
+
+  @override
+  String get toolCallDenied => '拒否されました';
+
+  @override
+  String get toolCallArguments => '引数';
+
+  @override
+  String get toolCallWarnings => '警告';
+
+  @override
+  String get mcpPermissionTitle => 'MCP権限';
+
+  @override
+  String get mcpPermissionDescription => 'MCPツールを呼び出せるAgentアカウントを管理します。';
+
+  @override
+  String get mcpPermissionAuthorizeNewAgent => '新しいAgentを許可';
+
+  @override
+  String get mcpPermissionAuthorized => '許可済み';
+
+  @override
+  String get mcpPermissionDisabled => '無効';
+
+  @override
+  String get mcpPolicyRevokeAction => '取り消す';
+
+  @override
+  String get mcpPolicyRevokeAccess => 'アクセスを取り消す';
+
+  @override
+  String get mcpPolicyAuditEmptyTitle => '監査記録はありません';
+
+  @override
+  String get mcpPolicyAuditEmptySubtitle => 'ツール呼び出し記録はここに表示されます';
+
+  @override
+  String get mcpPolicyCompleted => '完了';
+
+  @override
+  String get mcpPolicyWriteBadge => '書込';
+
+  @override
+  String get mcpPolicyConfirmBeforeCall => '呼び出し前に確認';
+
+  @override
+  String get mcpPolicySelectedRooms => '選択したルーム';
+
+  @override
+  String get mcpPolicyExcludedRooms => '除外したルーム';
+
+  @override
+  String get mcpPolicyAddRoom => 'ルームを追加';
+
+  @override
+  String get channelCreatedNotice => 'チャンネルを作成しました';
+
+  @override
+  String get channelManageEmptyTitle => 'チャンネルはまだありません';
+
+  @override
+  String get channelManageEmptySubtitle => '作成したチャンネルはここに表示されます';
+
+  @override
+  String homeDetailPlaceholderTitle(String tabTitle) {
+    return '$tabTitleの項目を選択してください';
+  }
+
+  @override
+  String get homeDetailPlaceholderChatsSubtitle => '会話を開くとメッセージを表示できます';
+
+  @override
+  String get homeDetailPlaceholderDefaultSubtitle => '項目を選択すると詳細を表示できます';
+
+  @override
+  String get groupDetailMissing => 'グループチャットが見つかりません';
+
+  @override
+  String groupDetailChatInfoTitle(int count) {
+    return 'グループチャット情報（$count）';
+  }
+
+  @override
+  String get groupDetailDissolveTitle => 'グループチャットを解散';
+
+  @override
+  String get groupDetailLeaveTitle => 'グループチャットを退出';
+
+  @override
+  String get groupDetailDissolveMessage => '解散すると、メンバーはこのグループチャットを利用できなくなります。';
+
+  @override
+  String get groupDetailLeaveMessage => '退出すると、このグループチャットのメッセージを受信しなくなります。';
+
+  @override
+  String get groupDetailDissolveAction => '解散';
+
+  @override
+  String get groupDetailLeaveAction => '退出';
+
+  @override
+  String groupDetailLeaveOrDissolveFailed(String action, String error) {
+    return '$actionに失敗しました：$error';
+  }
+
+  @override
+  String get groupDetailInvite => '招待';
 
   @override
   String get avatarAdjustTitle => 'アバターを調整';
@@ -1029,6 +1173,96 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get groupCreateCreated => 'グループチャットを作成しました';
+
+  @override
+  String groupCreateFailed(String error) {
+    return '作成に失敗しました: $error';
+  }
+
+  @override
+  String get groupCreateNameHint => 'グループ名を入力';
+
+  @override
+  String get groupInviteAddMembersTitle => 'グループメンバーを追加';
+
+  @override
+  String get channelInviteAddMembersTitle => 'チャンネルメンバーを招待';
+
+  @override
+  String get groupInviteNoContacts => '招待できる連絡先はありません';
+
+  @override
+  String get groupInviteSend => '招待を送信';
+
+  @override
+  String get groupManageNameTitle => 'グループ名';
+
+  @override
+  String get groupManageNameHint => 'グループ名を入力';
+
+  @override
+  String get groupManageNameEmpty => 'グループ名を入力してください';
+
+  @override
+  String get groupManageNameUpdated => 'グループ名を更新しました';
+
+  @override
+  String groupManageNameUpdateFailed(String error) {
+    return 'グループ名の更新に失敗しました: $error';
+  }
+
+  @override
+  String get groupManageAvatarUpdated => 'グループアバターを更新しました';
+
+  @override
+  String groupManageAvatarUpdateFailed(String error) {
+    return 'グループアバターの更新に失敗しました: $error';
+  }
+
+  @override
+  String get groupManageMuteEnabled => '全員ミュートを有効にしました';
+
+  @override
+  String get groupManageMuteDisabled => '全員ミュートを解除しました';
+
+  @override
+  String groupManageMuteEnableFailed(String error) {
+    return '全員ミュートの有効化に失敗しました: $error';
+  }
+
+  @override
+  String groupManageMuteDisableFailed(String error) {
+    return '全員ミュートの解除に失敗しました: $error';
+  }
+
+  @override
+  String get groupManageInvitePolicyUpdated => 'メンバー招待権限を更新しました';
+
+  @override
+  String groupManageInvitePolicyUpdateFailed(String error) {
+    return 'メンバー招待権限の更新に失敗しました: $error';
+  }
+
+  @override
+  String get mcpPolicySaved => '保存しました';
+
+  @override
+  String get mcpPolicyRevokeTitle => '権限を取り消しますか？';
+
+  @override
+  String get mcpPolicyRevokeMessage => 'Agent はすべての MCP 権限をただちに失います。';
+
+  @override
+  String get mcpPolicyBlockedKeywordAdd => '+ 追加';
+
+  @override
+  String get mcpPolicyBlockedKeywordTitle => 'ブロックキーワードを追加';
+
+  @override
+  String get mcpPolicyBlockedKeywordHint => 'この単語に一致するメッセージはマスクされます';
+
+  @override
   String get contactFriendRequestRestored => '以前の会話を復元しました。続けてチャットできます。';
 
   @override
@@ -1042,10 +1276,41 @@ class AppLocalizationsJa extends AppLocalizations {
       '削除すると、この連絡先は表示されなくなり、会話の関係も同期して更新されます。';
 
   @override
+  String contactDeleteConfirmBodyWithName(String name) {
+    return '$nameを削除すると、双方のダイレクトチャット関係が解除されます。';
+  }
+
+  @override
   String get contactDeleteAction => '削除';
 
   @override
   String get contactDeleted => '友だちを削除しました';
+
+  @override
+  String contactDeletedName(String name) {
+    return '$nameを削除しました';
+  }
+
+  @override
+  String get contactApplied => '申請済み';
+
+  @override
+  String contactFollowFailed(String error) {
+    return 'フォローに失敗しました: $error';
+  }
+
+  @override
+  String contactUnfollowFailed(String error) {
+    return 'フォロー解除に失敗しました: $error';
+  }
+
+  @override
+  String contactFriendRequestFailed(String error) {
+    return '友だちリクエストの送信に失敗しました: $error';
+  }
+
+  @override
+  String get contactDeleteMissingRoom => '友だちの削除に失敗しました: 連絡先ルーム情報がありません';
 
   @override
   String contactDeleteFailed(String error) {
@@ -1218,10 +1483,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get requestsFriendNoticeFallback => '友だち申請通知';
 
   @override
+  String get requestsGroupNoticeTitle => 'グループ通知';
+
+  @override
+  String get requestsGroupNoticeFallback => 'グループチャットに招待されました';
+
+  @override
   String get requestsChannelNoticeTitle => 'チャンネル通知';
 
   @override
-  String get requestsChannelNoticeFallback => 'チャンネル通知';
+  String get requestsChannelNoticeFallback => 'チャンネルに招待されました';
 
   @override
   String get requestsView => '表示';
@@ -1284,7 +1555,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String get createGroupTitle => 'グループチャットを開始';
 
   @override
+  String get createGroupMenuTitle => 'グループチャットを開始';
+
+  @override
+  String get createGroupSetupTitle => 'グループチャットを作成';
+
+  @override
   String get createGroupDone => '完了';
+
+  @override
+  String createGroupDoneWithCount(int count) {
+    return '完了($count)';
+  }
+
+  @override
+  String get createGroupSubmit => '作成';
+
+  @override
+  String get createGroupMembers => 'グループメンバー';
+
+  @override
+  String createGroupMemberCount(int count) {
+    return '$count人';
+  }
 
   @override
   String get createGroupEmptyTitle => '招待できる友だちがいません';
@@ -1812,6 +2105,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chatInputReleaseToSendSwipeCancel => '離して送信、上にスワイプでキャンセル';
 
   @override
+  String get chatInputMore => 'その他';
+
+  @override
   String get chatAttachmentAlbum => 'アルバム';
 
   @override
@@ -1828,6 +2124,37 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get chatAttachmentFile => 'ファイル';
+
+  @override
+  String get chatAttachmentNoImageSelected => '画像が選択されていません';
+
+  @override
+  String get chatAttachmentNoPhotoTaken => '写真が撮影されていません';
+
+  @override
+  String get chatAttachmentNoFileSelected => 'ファイルが選択されていません';
+
+  @override
+  String get chatAttachmentNoVideoSelected => '動画が選択されていません';
+
+  @override
+  String get chatMediaPhoto => '写真';
+
+  @override
+  String get chatMediaAudio => '音声メッセージ';
+
+  @override
+  String get chatMediaGeneric => 'メディア';
+
+  @override
+  String chatMediaReadFailed(String label) {
+    return '$labelの読み取りに失敗しました。選択し直してください';
+  }
+
+  @override
+  String chatMediaUploadFailed(String label) {
+    return '$labelのアップロードに失敗しました。ネットワークを確認して再試行してください';
+  }
 
   @override
   String groupChatLocalMediaMissing(String label) {
@@ -1918,10 +2245,36 @@ class AppLocalizationsJa extends AppLocalizations {
   String get groupChatCancelSelectMessage => 'メッセージの選択を解除';
 
   @override
+  String get chatAiSuggestions => 'AI の提案';
+
+  @override
+  String get chatRecordForwardTitle => 'チャット履歴を転送';
+
+  @override
+  String get chatVideoCannotPlay => 'この動画は再生できません';
+
+  @override
+  String get redPacketMineDetailAction => '送信詳細を見る';
+
+  @override
+  String get redPacketDetailAction => '詳細を見る';
+
+  @override
+  String get redPacketMineDetailTitle => '送信したレッドパケット';
+
+  @override
+  String get redPacketDetailTitle => 'レッドパケット詳細';
+
+  @override
   String get groupChatMe => '自分';
 
   @override
   String get groupChatMessageFallback => 'メッセージ';
+
+  @override
+  String chatReplyTo(String sender) {
+    return '$senderに返信';
+  }
 
   @override
   String get groupChatQuotedMessage => '引用メッセージ';
@@ -1945,6 +2298,32 @@ class AppLocalizationsJa extends AppLocalizations {
   String get groupChatRemovedCannotSend => '退出済みのグループではメッセージを送信できません';
 
   @override
+  String get chatPeerAcceptBeforeSend => '相手が友だちリクエストを承認するとメッセージを送信できます';
+
+  @override
+  String get contactHomeMissing => '連絡先が見つかりません';
+
+  @override
+  String get chatPeerDeletedContact => '相手が連絡先関係を削除したため、メッセージは配信されませんでした。';
+
+  @override
+  String get chatRecallBody => '取り消すと、相手もこのメッセージを見られなくなります。';
+
+  @override
+  String get chatImageSavedToAlbum => '元の画像を写真に保存しました';
+
+  @override
+  String get chatGroupSyncingRetryLater => 'グループチャットを同期中です。しばらくしてから再試行してください。';
+
+  @override
+  String get chatGroupInviteExpired => '招待されていないか、招待の有効期限が切れています';
+
+  @override
+  String chatJoinGroupFailed(String error) {
+    return 'グループへの参加に失敗しました: $error';
+  }
+
+  @override
   String get commonOk => 'OK';
 
   @override
@@ -1966,6 +2345,32 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String chatRecordForwardFailed(String error) {
     return '転送に失敗しました：$error';
+  }
+
+  @override
+  String chatRecordOpenFailed(String error) {
+    return '開けませんでした：$error';
+  }
+
+  @override
+  String chatRecordSelectedCount(int count) {
+    return '$count件選択済み';
+  }
+
+  @override
+  String chatRecordMessageCount(int count) {
+    return '$count件のメッセージ';
+  }
+
+  @override
+  String get chatRecordEmptyDetails => 'メッセージ詳細はありません';
+
+  @override
+  String get chatVideoSavedToAlbum => '元の動画をアルバムに保存しました';
+
+  @override
+  String chatSaveFailed(String error) {
+    return '保存に失敗しました：$error';
   }
 
   @override
@@ -1995,6 +2400,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelSyncingSubtitle => 'しばらくお待ちください';
+
+  @override
+  String get channelConversationQuoted => '引用しました';
+
+  @override
+  String get channelConversationForwardPending => '転送機能はまもなく実チャンネルメッセージに対応します';
+
+  @override
+  String get channelConversationMultiSelectPending =>
+      '複数選択機能はまもなく実チャンネルメッセージに対応します';
 
   @override
   String get channelMyChannelsTitle => '自分のチャンネル';
@@ -2514,6 +2929,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get meFavoritesLoadFailed => 'お気に入りの読み込みに失敗しました';
 
   @override
+  String get meFavoriteImagePreviewUrlMissing => 'お気に入り画像のURLが空のためプレビューできません';
+
+  @override
   String get meFavoritesEmptyTitle => 'お気に入りはまだありません';
 
   @override
@@ -2661,4 +3079,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get agentChatEmptyTitle => 'チャットを始めましょう';
+
+  @override
+  String get agentChatOfflineReply => '現在Agentはオフラインです。しばらくお待ちください';
 }

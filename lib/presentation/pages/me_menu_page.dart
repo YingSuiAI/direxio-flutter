@@ -1973,8 +1973,13 @@ Future<void> _openFavoriteImage(
 ) {
   final fullLoader = _favoriteImageProviderLoader(ref, favorite);
   if (fullLoader == null) {
+    final l10n = _l10n(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('收藏图片地址为空，无法预览')),
+      SnackBar(
+        content: Text(
+          l10n?.meFavoriteImagePreviewUrlMissing ?? '收藏图片地址为空，无法预览',
+        ),
+      ),
     );
     return Future.value();
   }

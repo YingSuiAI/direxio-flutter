@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
 import '../utils/chat_file_actions.dart';
@@ -76,6 +77,10 @@ class ChatRecordDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final items = chatRecordItems(payload);
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -117,7 +122,8 @@ class ChatRecordDetailPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '共 ${payload.itemCount} 条消息',
+                  l10n?.chatRecordMessageCount(payload.itemCount) ??
+                      '共 ${payload.itemCount} 条消息',
                   style: AppTheme.sans(size: 12, color: t.textMute),
                 ),
               ],
@@ -128,7 +134,7 @@ class ChatRecordDetailPage extends ConsumerWidget {
               child: items.isEmpty
                   ? Center(
                       child: Text(
-                        '这条聊天记录没有可展示的明细',
+                        l10n?.chatRecordEmptyDetails ?? '这条聊天记录没有可展示的明细',
                         style: AppTheme.sans(size: 14, color: t.textMute),
                       ),
                     )
@@ -237,6 +243,10 @@ class _ChatRecordNestedBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final isMe = item.isMe;
     final textColor = isMe ? t.onAccent : t.text;
     final mutedColor = isMe ? t.onAccent.withValues(alpha: 0.72) : t.textMute;
@@ -289,7 +299,8 @@ class _ChatRecordNestedBubble extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '共 ${payload.itemCount} 条消息',
+                        l10n?.chatRecordMessageCount(payload.itemCount) ??
+                            '共 ${payload.itemCount} 条消息',
                         style: AppTheme.sans(size: 12, color: mutedColor),
                       ),
                     ],
@@ -523,8 +534,14 @@ Future<void> _openChatRecordMedia(
     await ref.read(chatRecordNativePreviewerProvider).open(ref, item);
   } on Object catch (err) {
     if (!context.mounted) return;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('打开失败：$err')),
+      SnackBar(
+        content: Text(l10n?.chatRecordOpenFailed('$err') ?? '打开失败：$err'),
+      ),
     );
   }
 }

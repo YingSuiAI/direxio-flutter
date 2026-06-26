@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../providers/as_client_provider.dart';
@@ -236,16 +237,20 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
 
   Future<void> _showRenameDialog(String currentName) async {
     if (_renaming) return;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final next = await _showTextEditDialog(
       context,
-      title: '群名称',
+      title: l10n?.groupManageNameTitle ?? '群名称',
       initialValue: currentName,
-      hintText: '输入群名称',
+      hintText: l10n?.groupManageNameHint ?? '输入群名称',
     );
     if (!mounted || next == null) return;
     final name = next.trim();
     if (name.isEmpty) {
-      _showSnack('群名称不能为空');
+      _showSnack(l10n?.groupManageNameEmpty ?? '群名称不能为空');
       return;
     }
     await _renameGroup(name);
@@ -280,11 +285,21 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
             (state) => state.withGroupProfile(widget.roomId, name: appliedName),
           );
       if (!mounted) return;
-      _showSnack('群名称已更新');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(l10n?.groupManageNameUpdated ?? '群名称已更新');
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _groupNameOverride = previousName);
-      _showSnack('修改群名称失败: $e');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(
+        l10n?.groupManageNameUpdateFailed('$e') ?? '修改群名称失败: $e',
+      );
     } finally {
       if (mounted) setState(() => _renaming = false);
     }
@@ -311,7 +326,13 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showSnack('修改群头像失败: $e');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(
+        l10n?.groupManageAvatarUpdateFailed('$e') ?? '修改群头像失败: $e',
+      );
     } finally {
       if (mounted) setState(() => _avatarChanging = false);
     }
@@ -350,7 +371,11 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
             avatarUrl: avatarUrl,
           ),
         );
-    _showSnack('群头像已更新');
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    _showSnack(l10n?.groupManageAvatarUpdated ?? '群头像已更新');
   }
 
   Future<void> _setGroupMuted(bool muted) async {
@@ -371,11 +396,27 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withGroupMuted(widget.roomId, muted: muted),
           );
-      _showSnack(muted ? '已开启全员禁言' : '已解除全员禁言');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(
+        muted
+            ? l10n?.groupManageMuteEnabled ?? '已开启全员禁言'
+            : l10n?.groupManageMuteDisabled ?? '已解除全员禁言',
+      );
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _muted = previous);
-      _showSnack(muted ? '开启全员禁言失败: $e' : '解除全员禁言失败: $e');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(
+        muted
+            ? l10n?.groupManageMuteEnableFailed('$e') ?? '开启全员禁言失败: $e'
+            : l10n?.groupManageMuteDisableFailed('$e') ?? '解除全员禁言失败: $e',
+      );
     } finally {
       if (mounted) setState(() => _muteChanging = false);
     }
@@ -398,10 +439,20 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
             (state) => state.withGroupInvitePolicy(widget.roomId, applied),
           );
       if (!mounted) return;
-      _showSnack('已更新添加成员权限');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(l10n?.groupManageInvitePolicyUpdated ?? '已更新添加成员权限');
     } on Object catch (e) {
       if (!mounted) return;
-      _showSnack('更新添加成员权限失败: $e');
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      _showSnack(
+        l10n?.groupManageInvitePolicyUpdateFailed('$e') ?? '更新添加成员权限失败: $e',
+      );
     } finally {
       if (mounted) setState(() => _updatingInvitePolicy = false);
     }
@@ -422,6 +473,10 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     required Future<void> Function() onConfirm,
   }) async {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -437,7 +492,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
           TextButton(
             onPressed: () => Navigator.of(c).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: t.textMute),
             ),
           ),
@@ -779,6 +834,10 @@ class _GroupManageTextEditDialogState
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return AlertDialog(
       title: Text(
         widget.title,
@@ -794,14 +853,14 @@ class _GroupManageTextEditDialogState
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n?.commonCancel ?? '取消',
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text),
           child: Text(
-            '保存',
+            l10n?.commonSave ?? '保存',
             style: AppTheme.sans(
               size: 15,
               weight: FontWeight.w600,

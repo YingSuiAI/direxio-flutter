@@ -10,6 +10,33 @@
   "tabContacts": "Contacts",
   "tabChannels": "Channels",
   "tabMe": "Me",
+  "homeDeleteChatTitle": "Delete Chat History",
+  "homeDeleteChatMessage": "Delete all chat history for \"{name}\"? This cannot be undone.",
+  "@homeDeleteChatMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeConversationDeleted": "Deleted \"{name}\"",
+  "@homeConversationDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteChatFailed": "Failed to delete chat history: {error}",
+  "@homeDeleteChatFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAgentConversationNotSynced": "Agent conversation has not synced yet",
+  "homeDeleteChatMenu": "Delete chat",
   "settingsTitle": "Settings",
   "settingsGeneral": "General",
   "settingsLanguage": "Language",
@@ -59,11 +86,73 @@
   "settingsDeactivateLoginConfirmTitle": "Delete Account",
   "settingsDeactivateLoginConfirmMessage": "Within 14 days, logging in once will automatically cancel account deletion.",
   "commonCancel": "Cancel",
+  "commonBack": "Back",
+  "commonAdd": "Add",
+  "commonClose": "Close",
   "commonSave": "Save",
   "commonSearch": "Search",
+  "commonSend": "Send",
   "commonShare": "Share",
   "commonOnline": "Online",
   "commonOffline": "Offline",
+  "toolCallDenied": "Denied",
+  "toolCallArguments": "Arguments",
+  "toolCallWarnings": "Warnings",
+  "mcpPermissionTitle": "MCP / Agent Permissions",
+  "mcpPermissionDescription": "Authorized Agents can access your chat data through MCP. Open one to configure scope, time, and redaction.",
+  "mcpPermissionAuthorizeNewAgent": "Authorize new Agent",
+  "mcpPermissionAuthorized": "Authorized",
+  "mcpPermissionDisabled": "Disabled",
+  "mcpPolicyRevokeAction": "Revoke",
+  "mcpPolicyRevokeAccess": "Revoke access",
+  "mcpPolicyAuditEmptyTitle": "No activity",
+  "mcpPolicyAuditEmptySubtitle": "Agent tool calls will be recorded here",
+  "mcpPolicyCompleted": "Completed",
+  "mcpPolicyWriteBadge": "Write",
+  "mcpPolicyConfirmBeforeCall": "Ask me before calling",
+  "mcpPolicySelectedRooms": "Selected conversations",
+  "mcpPolicyExcludedRooms": "Excluded conversations",
+  "mcpPolicyAddRoom": "+ Add",
+  "channelCreatedNotice": "Channel created",
+  "channelManageEmptyTitle": "No manageable channels yet",
+  "channelManageEmptySubtitle": "After creating channels, you can manage profiles, members, and rules here.",
+  "homeDetailPlaceholderTitle": "Select {tabTitle} on the left to view details",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "Agent appears in the message list like a normal contact",
+  "homeDetailPlaceholderDefaultSubtitle": "Details will appear here",
+  "groupDetailMissing": "Group not found",
+  "groupDetailChatInfoTitle": "Chat Info ({count})",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "Dissolve group chat",
+  "groupDetailLeaveTitle": "Leave group chat",
+  "groupDetailDissolveMessage": "After dissolving, this group chat will be removed from the current service.",
+  "groupDetailLeaveMessage": "After leaving, you will no longer receive messages from this group chat.",
+  "groupDetailDissolveAction": "Dissolve",
+  "groupDetailLeaveAction": "Leave",
+  "groupDetailLeaveOrDissolveFailed": "Failed to {action} group chat: {error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "Invite",
   "avatarAdjustTitle": "Adjust avatar",
   "avatarAdjustHint": "Pinch to zoom or drag the image",
   "avatarAdjustReset": "Reset",
@@ -488,12 +577,122 @@
       }
     }
   },
+  "groupCreateCreated": "Group chat created",
+  "groupCreateFailed": "Create failed: {error}",
+  "@groupCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreateNameHint": "Enter a group name",
+  "groupInviteAddMembersTitle": "Add group members",
+  "channelInviteAddMembersTitle": "Invite channel members",
+  "groupInviteNoContacts": "No contacts available to invite",
+  "groupInviteSend": "Send Invite",
+  "groupManageNameTitle": "Group Name",
+  "groupManageNameHint": "Enter group name",
+  "groupManageNameEmpty": "Group name cannot be empty",
+  "groupManageNameUpdated": "Group name updated",
+  "groupManageNameUpdateFailed": "Failed to update group name: {error}",
+  "@groupManageNameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageAvatarUpdated": "Group avatar updated",
+  "groupManageAvatarUpdateFailed": "Failed to update group avatar: {error}",
+  "@groupManageAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteEnabled": "All-member mute enabled",
+  "groupManageMuteDisabled": "All-member mute disabled",
+  "groupManageMuteEnableFailed": "Failed to enable all-member mute: {error}",
+  "@groupManageMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageMuteDisableFailed": "Failed to disable all-member mute: {error}",
+  "@groupManageMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupManageInvitePolicyUpdated": "Member invite permission updated",
+  "groupManageInvitePolicyUpdateFailed": "Failed to update member invite permission: {error}",
+  "@groupManageInvitePolicyUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "mcpPolicySaved": "Saved",
+  "mcpPolicyRevokeTitle": "Revoke access?",
+  "mcpPolicyRevokeMessage": "The Agent will immediately lose all MCP permissions.",
+  "mcpPolicyBlockedKeywordAdd": "+ Add",
+  "mcpPolicyBlockedKeywordTitle": "Add Blocked Keyword",
+  "mcpPolicyBlockedKeywordHint": "Messages matching this word will be masked",
   "contactFriendRequestRestored": "Previous conversation restored. You can continue chatting.",
   "contactFriendRequestSent": "Friend request sent. Waiting for acceptance.",
   "contactDeleteConfirmTitle": "Delete Friend",
   "contactDeleteConfirmBody": "After deletion, this contact will no longer appear and the conversation relationship will be updated.",
+  "contactDeleteConfirmBodyWithName": "After deleting {name}, the direct chat relationship will be removed for both sides.",
+  "@contactDeleteConfirmBodyWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "contactDeleteAction": "Delete",
   "contactDeleted": "Friend deleted",
+  "contactDeletedName": "Deleted {name}",
+  "@contactDeletedName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "contactApplied": "Requested",
+  "contactFollowFailed": "Follow failed: {error}",
+  "@contactFollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactUnfollowFailed": "Unfollow failed: {error}",
+  "@contactUnfollowFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactFriendRequestFailed": "Failed to send friend request: {error}",
+  "@contactFriendRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactDeleteMissingRoom": "Failed to delete friend: missing contact room information",
   "contactDeleteFailed": "Failed to delete friend: {error}",
   "@contactDeleteFailed": {
     "placeholders": {
@@ -598,8 +797,10 @@
   "requestsIncomingRequestMessage": "Friend request",
   "requestsFriendNoticeTitle": "Friend request",
   "requestsFriendNoticeFallback": "Friend request notice",
+  "requestsGroupNoticeTitle": "Group notice",
+  "requestsGroupNoticeFallback": "Invited you to join a group chat",
   "requestsChannelNoticeTitle": "Channel notice",
-  "requestsChannelNoticeFallback": "Channel notice",
+  "requestsChannelNoticeFallback": "Invited you to join a channel",
   "requestsView": "View",
   "requestsAccept": "Accept",
   "requestsReject": "Reject",
@@ -658,7 +859,27 @@
     }
   },
   "createGroupTitle": "Start Group Chat",
+  "createGroupMenuTitle": "Start Group Chat",
+  "createGroupSetupTitle": "Create Group Chat",
   "createGroupDone": "Done",
+  "createGroupDoneWithCount": "Done({count})",
+  "@createGroupDoneWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createGroupSubmit": "Create",
+  "createGroupMembers": "Group Members",
+  "createGroupMemberCount": "{count, plural, =1{1 member} other{{count} members}}",
+  "@createGroupMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createGroupEmptyTitle": "No friends to invite",
   "createGroupEmptySubtitle": "Add friends before starting a group chat",
   "createGroupNoResultsTitle": "No friends found",
@@ -954,12 +1175,36 @@
   "chatInputReleaseToCancel": "Release to cancel",
   "chatInputReleaseToCancelCompact": "Release to cancel",
   "chatInputReleaseToSendSwipeCancel": "Release to send, swipe up to cancel",
+  "chatInputMore": "More",
   "chatAttachmentAlbum": "Album",
   "chatAttachmentCamera": "Camera",
   "chatAttachmentVideo": "Video",
   "chatAttachmentLocation": "Location",
   "chatAttachmentContactCard": "Contact card",
   "chatAttachmentFile": "File",
+  "chatAttachmentNoImageSelected": "No image selected",
+  "chatAttachmentNoPhotoTaken": "No photo taken",
+  "chatAttachmentNoFileSelected": "No file selected",
+  "chatAttachmentNoVideoSelected": "No video selected",
+  "chatMediaPhoto": "photo",
+  "chatMediaAudio": "voice message",
+  "chatMediaGeneric": "media",
+  "chatMediaReadFailed": "Failed to read {label}. Select it again.",
+  "@chatMediaReadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMediaUploadFailed": "Failed to upload {label}. Check the network and try again.",
+  "@chatMediaUploadFailed": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatLocalMediaMissing": "The original local {label} is missing. Select the {label} again.",
   "@groupChatLocalMediaMissing": {
     "placeholders": {
@@ -1021,8 +1266,23 @@
   "groupChatQuote": "Quote",
   "groupChatSelectMessage": "Select message",
   "groupChatCancelSelectMessage": "Deselect message",
+  "chatAiSuggestions": "AI suggestions",
+  "chatRecordForwardTitle": "Forward Chat History",
+  "chatVideoCannotPlay": "This video cannot be played",
+  "redPacketMineDetailAction": "View sent details",
+  "redPacketDetailAction": "View details",
+  "redPacketMineDetailTitle": "Sent Red Packet",
+  "redPacketDetailTitle": "Red Packet Details",
   "groupChatMe": "Me",
   "groupChatMessageFallback": "Message",
+  "chatReplyTo": "Reply to {sender}",
+  "@chatReplyTo": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
   "groupChatQuotedMessage": "Quoted message",
   "groupChatRetryFile": "Resend file",
   "groupChatRetryMessage": "Resend message",
@@ -1030,6 +1290,21 @@
   "groupChatDownloaded": "Downloaded",
   "groupChatDownloadFile": "Download file",
   "groupChatRemovedCannotSend": "You cannot send messages in a group you left",
+  "chatPeerAcceptBeforeSend": "You can send messages after the other person accepts the friend request",
+  "contactHomeMissing": "Contact not found",
+  "chatPeerDeletedContact": "The other person deleted the contact relationship. Message not delivered.",
+  "chatRecallBody": "After recall, the other person will no longer see this message.",
+  "chatImageSavedToAlbum": "Original image saved to Photos",
+  "chatGroupSyncingRetryLater": "Group chat is syncing. Try again later.",
+  "chatGroupInviteExpired": "You were not invited or the invitation has expired",
+  "chatJoinGroupFailed": "Failed to join group: {error}",
+  "@chatJoinGroupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "commonOk": "OK",
   "commonRetry": "Retry",
   "commonUser": "User",
@@ -1038,6 +1313,40 @@
   "chatRecordForwarded": "Chat record forwarded",
   "chatRecordForwardFailed": "Forward failed: {error}",
   "@chatRecordForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordOpenFailed": "Failed to open: {error}",
+  "@chatRecordOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatRecordSelectedCount": "{count} selected",
+  "@chatRecordSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordMessageCount": "{count} messages",
+  "@chatRecordMessageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRecordEmptyDetails": "No message details",
+  "chatVideoSavedToAlbum": "Original video saved to album",
+  "chatSaveFailed": "Save failed: {error}",
+  "@chatSaveFailed": {
     "placeholders": {
       "error": {
         "type": "String"
@@ -1053,6 +1362,9 @@
   "channelEmptySubtitle": "Channels you join or create will appear here.",
   "channelSyncingTitle": "Syncing channels",
   "channelSyncingSubtitle": "Please wait",
+  "channelConversationQuoted": "Quoted",
+  "channelConversationForwardPending": "Forwarding will support real channel messages soon",
+  "channelConversationMultiSelectPending": "Multi-select will support real channel messages soon",
   "channelMyChannelsTitle": "My Channels",
   "channelJoinedSection": "Joined",
   "channelCreatedSection": "Created",
@@ -1368,6 +1680,7 @@
     }
   },
   "meFavoritesLoadFailed": "Failed to load favorites",
+  "meFavoriteImagePreviewUrlMissing": "Favorite image URL is empty and cannot be previewed",
   "meFavoritesEmptyTitle": "No favorites yet",
   "meFavoritesEmptySubtitle": "Long-press chat messages to save them here.",
   "meLikesLoadFailed": "Failed to load likes",
@@ -1478,7 +1791,66 @@
       }
     }
   },
+  "channelCreatedNotice": "Channel created",
+  "channelManageEmptyTitle": "No channels yet",
+  "channelManageEmptySubtitle": "Created channels will appear here",
+  "groupDetailMissing": "Group chat not found",
+  "groupDetailChatInfoTitle": "Group Chat Info ({count})",
+  "@groupDetailChatInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupDetailDissolveTitle": "Dissolve group chat",
+  "groupDetailLeaveTitle": "Leave group chat",
+  "groupDetailDissolveMessage": "After dissolving, members will no longer be able to use this group chat.",
+  "groupDetailLeaveMessage": "After leaving, you will no longer receive messages from this group chat.",
+  "groupDetailDissolveAction": "Dissolve",
+  "groupDetailLeaveAction": "Leave",
+  "groupDetailLeaveOrDissolveFailed": "{action} failed: {error}",
+  "@groupDetailLeaveOrDissolveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupDetailInvite": "Invite",
+  "homeDetailPlaceholderTitle": "Select a {tabTitle} item",
+  "@homeDetailPlaceholderTitle": {
+    "placeholders": {
+      "tabTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDetailPlaceholderChatsSubtitle": "Open a conversation to view messages",
+  "homeDetailPlaceholderDefaultSubtitle": "Select an item to view details",
+  "mcpPermissionTitle": "MCP Permissions",
+  "mcpPermissionDescription": "Manage which Agent accounts can call MCP tools.",
+  "mcpPermissionAuthorizeNewAgent": "Authorize new Agent",
+  "mcpPermissionAuthorized": "Authorized",
+  "mcpPermissionDisabled": "Disabled",
+  "mcpPolicyRevokeAction": "Revoke",
+  "mcpPolicyRevokeAccess": "Revoke access",
+  "mcpPolicyAuditEmptyTitle": "No audit records",
+  "mcpPolicyAuditEmptySubtitle": "Tool call records will appear here",
+  "mcpPolicyCompleted": "Completed",
+  "mcpPolicyWriteBadge": "WRITE",
+  "mcpPolicyConfirmBeforeCall": "Confirm before calling",
+  "mcpPolicySelectedRooms": "Selected rooms",
+  "mcpPolicyExcludedRooms": "Excluded rooms",
+  "mcpPolicyAddRoom": "Add room",
+  "toolCallDenied": "Denied",
+  "toolCallArguments": "Arguments",
+  "toolCallWarnings": "Warnings",
   "commonMe": "Me",
   "commonJustNow": "Just now",
-  "agentChatEmptyTitle": "Start our chat"
+  "agentChatEmptyTitle": "Start our chat",
+  "agentChatOfflineReply": "Agent is currently offline. Please wait patiently."
 }

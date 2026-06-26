@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 
 class ToolCallBubble extends StatefulWidget {
   const ToolCallBubble({
@@ -34,6 +35,10 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final color = widget.denied ? t.danger : t.accent;
     final argsJson = const JsonEncoder.withIndent('  ').convert(widget.args);
 
@@ -72,7 +77,9 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                     Expanded(
                       child: Text(
                         widget.denied
-                            ? (widget.deniedReason ?? '被拒')
+                            ? (widget.deniedReason ??
+                                l10n?.toolCallDenied ??
+                                '被拒')
                             : widget.resultSummary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -106,7 +113,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                     Divider(height: 1, color: t.border),
                     const SizedBox(height: 6),
                     Text(
-                      '参数',
+                      l10n?.toolCallArguments ?? '参数',
                       style: AppTheme.mono(
                         size: 10,
                         color: t.textMute,
@@ -130,7 +137,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                     if (widget.warnings.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
-                        '警告',
+                        l10n?.toolCallWarnings ?? '警告',
                         style: AppTheme.mono(
                           size: 10,
                           color: t.textMute,

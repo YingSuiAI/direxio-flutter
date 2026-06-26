@@ -533,6 +533,7 @@ class _HomePageState extends ConsumerState<HomePage>
                     Expanded(
                       child: _DetailPlaceholder(
                         tabTitle: _homeTabTitle(l10n, _tab),
+                        isChatsTab: _tab == 0,
                       ),
                     ),
                   ],
@@ -1527,31 +1528,32 @@ Future<void> _deleteHomeConversation(
   final trimmed = roomId.trim();
   if (trimmed.isEmpty) return;
   final authNotifier = ref.read(authStateNotifierProvider.notifier);
+  final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
   final ok = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
       final t = dialogContext.tk;
       return AlertDialog(
         title: Text(
-          '删除聊天记录',
+          l10n?.homeDeleteChatTitle ?? '删除聊天记录',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定删除「$name」的所有聊天记录？该操作不可恢复。',
+          l10n?.homeDeleteChatMessage(name) ?? '确定删除「$name」的所有聊天记录？该操作不可恢复。',
           style: AppTheme.sans(size: 15, color: t.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: t.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              '删除',
+              l10n?.groupChatDelete ?? '删除',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -1570,7 +1572,8 @@ Future<void> _deleteHomeConversation(
     hideHomeConversation(ref, trimmed);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已删除「$name」')),
+        SnackBar(
+            content: Text(l10n?.homeConversationDeleted(name) ?? '已删除「$name」')),
       );
     }
     try {
@@ -1584,7 +1587,9 @@ Future<void> _deleteHomeConversation(
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('删除聊天记录失败: $error')),
+      SnackBar(
+          content:
+              Text(l10n?.homeDeleteChatFailed('$error') ?? '删除聊天记录失败: $error')),
     );
   }
 }
@@ -1969,11 +1974,28 @@ class _ChatCtxMenuCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _row(context, isPinned ? Symbols.keep_off : Symbols.push_pin,
-                isPinned ? '取消置顶' : '置顶', () {
-              Navigator.of(context).pop();
-              onTogglePin();
-              _toast(context, isPinned ? '已取消置顶「$name」' : '已置顶「$name」');
+            Builder(builder: (context) {
+              final l10n = Localizations.of<AppLocalizations>(
+                context,
+                AppLocalizations,
+              );
+              return _row(
+                context,
+                isPinned ? Symbols.keep_off : Symbols.push_pin,
+                isPinned
+                    ? l10n?.channelMenuUnpin ?? '取消置顶'
+                    : l10n?.channelMenuPin ?? '置顶',
+                () {
+                  Navigator.of(context).pop();
+                  onTogglePin();
+                  _toast(
+                    context,
+                    isPinned
+                        ? l10n?.channelMenuUnpinned(name) ?? '已取消置顶「$name」'
+                        : l10n?.channelMenuPinned(name) ?? '已置顶「$name」',
+                  );
+                },
+              );
             }),
             const Divider(
               height: 1,
@@ -1981,10 +2003,24 @@ class _ChatCtxMenuCard extends StatelessWidget {
               indent: 16,
               endIndent: 16,
             ),
-            _row(context, Symbols.visibility_off, '不显示', () {
-              Navigator.of(context).pop();
-              onHide();
-              _toast(context, '已隐藏「$name」');
+            Builder(builder: (context) {
+              final l10n = Localizations.of<AppLocalizations>(
+                context,
+                AppLocalizations,
+              );
+              return _row(
+                context,
+                Symbols.visibility_off,
+                l10n?.channelMenuHide ?? '不显示',
+                () {
+                  Navigator.of(context).pop();
+                  onHide();
+                  _toast(
+                    context,
+                    l10n?.channelMenuHidden(name) ?? '已隐藏「$name」',
+                  );
+                },
+              );
             }),
             const Divider(
               height: 1,
@@ -1992,10 +2028,22 @@ class _ChatCtxMenuCard extends StatelessWidget {
               indent: 16,
               endIndent: 16,
             ),
-            _row(context, Symbols.delete, '删除聊天', () {
-              Navigator.of(context).pop();
-              onDelete();
-            }, danger: true),
+            Builder(builder: (context) {
+              final l10n = Localizations.of<AppLocalizations>(
+                context,
+                AppLocalizations,
+              );
+              return _row(
+                context,
+                Symbols.delete,
+                l10n?.homeDeleteChatMenu ?? '删除聊天',
+                () {
+                  Navigator.of(context).pop();
+                  onDelete();
+                },
+                danger: true,
+              );
+            }),
           ],
         ),
       ),
@@ -2199,8 +2247,13 @@ Future<void> _openAgentContactChat(
   }
   if (roomId.isEmpty) {
     if (!context.mounted) return;
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Agent 会话还未同步')),
+      SnackBar(
+        content: Text(
+          l10n?.homeAgentConversationNotSynced ?? 'Agent 会话还未同步',
+        ),
+      ),
     );
     return;
   }
@@ -2715,13 +2768,21 @@ class _AgentContactEntryTile extends StatelessWidget {
 }
 
 class _DetailPlaceholder extends StatelessWidget {
-  const _DetailPlaceholder({required this.tabTitle});
+  const _DetailPlaceholder({
+    required this.tabTitle,
+    required this.isChatsTab,
+  });
 
   final String tabTitle;
+  final bool isChatsTab;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Container(
       color: t.bg,
       child: Center(
@@ -2731,12 +2792,16 @@ class _DetailPlaceholder extends StatelessWidget {
             Icon(Symbols.forum, size: 48, color: t.textMute),
             const SizedBox(height: 14),
             Text(
-              '选择左侧的$tabTitle查看详情',
+              l10n?.homeDetailPlaceholderTitle(tabTitle) ??
+                  '选择左侧的$tabTitle查看详情',
               style: AppTheme.sans(size: 14, color: t.textMute),
             ),
             const SizedBox(height: 6),
             Text(
-              tabTitle == '消息' ? 'Agent 会像普通联系人一样出现在消息列表中' : '详情区域会在这里展开',
+              isChatsTab
+                  ? l10n?.homeDetailPlaceholderChatsSubtitle ??
+                      'Agent 会像普通联系人一样出现在消息列表中'
+                  : l10n?.homeDetailPlaceholderDefaultSubtitle ?? '详情区域会在这里展开',
               style: AppTheme.sans(size: 12, color: t.textMute),
             ),
           ],

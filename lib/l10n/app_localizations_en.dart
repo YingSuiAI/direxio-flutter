@@ -39,6 +39,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabMe => 'Me';
 
   @override
+  String get homeDeleteChatTitle => 'Delete Chat History';
+
+  @override
+  String homeDeleteChatMessage(String name) {
+    return 'Delete all chat history for \"$name\"? This cannot be undone.';
+  }
+
+  @override
+  String homeConversationDeleted(String name) {
+    return 'Deleted \"$name\"';
+  }
+
+  @override
+  String homeDeleteChatFailed(String error) {
+    return 'Failed to delete chat history: $error';
+  }
+
+  @override
+  String get homeAgentConversationNotSynced =>
+      'Agent conversation has not synced yet';
+
+  @override
+  String get homeDeleteChatMenu => 'Delete chat';
+
+  @override
   String get settingsTitle => 'Settings';
 
   @override
@@ -173,10 +198,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonCancel => 'Cancel';
 
   @override
+  String get commonBack => 'Back';
+
+  @override
+  String get commonAdd => 'Add';
+
+  @override
+  String get commonClose => 'Close';
+
+  @override
   String get commonSave => 'Save';
 
   @override
   String get commonSearch => 'Search';
+
+  @override
+  String get commonSend => 'Send';
 
   @override
   String get commonShare => 'Share';
@@ -186,6 +223,120 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonOffline => 'Offline';
+
+  @override
+  String get toolCallDenied => 'Denied';
+
+  @override
+  String get toolCallArguments => 'Arguments';
+
+  @override
+  String get toolCallWarnings => 'Warnings';
+
+  @override
+  String get mcpPermissionTitle => 'MCP Permissions';
+
+  @override
+  String get mcpPermissionDescription =>
+      'Manage which Agent accounts can call MCP tools.';
+
+  @override
+  String get mcpPermissionAuthorizeNewAgent => 'Authorize new Agent';
+
+  @override
+  String get mcpPermissionAuthorized => 'Authorized';
+
+  @override
+  String get mcpPermissionDisabled => 'Disabled';
+
+  @override
+  String get mcpPolicyRevokeAction => 'Revoke';
+
+  @override
+  String get mcpPolicyRevokeAccess => 'Revoke access';
+
+  @override
+  String get mcpPolicyAuditEmptyTitle => 'No audit records';
+
+  @override
+  String get mcpPolicyAuditEmptySubtitle =>
+      'Tool call records will appear here';
+
+  @override
+  String get mcpPolicyCompleted => 'Completed';
+
+  @override
+  String get mcpPolicyWriteBadge => 'WRITE';
+
+  @override
+  String get mcpPolicyConfirmBeforeCall => 'Confirm before calling';
+
+  @override
+  String get mcpPolicySelectedRooms => 'Selected rooms';
+
+  @override
+  String get mcpPolicyExcludedRooms => 'Excluded rooms';
+
+  @override
+  String get mcpPolicyAddRoom => 'Add room';
+
+  @override
+  String get channelCreatedNotice => 'Channel created';
+
+  @override
+  String get channelManageEmptyTitle => 'No channels yet';
+
+  @override
+  String get channelManageEmptySubtitle => 'Created channels will appear here';
+
+  @override
+  String homeDetailPlaceholderTitle(String tabTitle) {
+    return 'Select a $tabTitle item';
+  }
+
+  @override
+  String get homeDetailPlaceholderChatsSubtitle =>
+      'Open a conversation to view messages';
+
+  @override
+  String get homeDetailPlaceholderDefaultSubtitle =>
+      'Select an item to view details';
+
+  @override
+  String get groupDetailMissing => 'Group chat not found';
+
+  @override
+  String groupDetailChatInfoTitle(int count) {
+    return 'Group Chat Info ($count)';
+  }
+
+  @override
+  String get groupDetailDissolveTitle => 'Dissolve group chat';
+
+  @override
+  String get groupDetailLeaveTitle => 'Leave group chat';
+
+  @override
+  String get groupDetailDissolveMessage =>
+      'After dissolving, members will no longer be able to use this group chat.';
+
+  @override
+  String get groupDetailLeaveMessage =>
+      'After leaving, you will no longer receive messages from this group chat.';
+
+  @override
+  String get groupDetailDissolveAction => 'Dissolve';
+
+  @override
+  String get groupDetailLeaveAction => 'Leave';
+
+  @override
+  String groupDetailLeaveOrDissolveFailed(String action, String error) {
+    return '$action failed: $error';
+  }
+
+  @override
+  String get groupDetailInvite => 'Invite';
 
   @override
   String get avatarAdjustTitle => 'Adjust avatar';
@@ -1059,6 +1210,99 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get groupCreateCreated => 'Group chat created';
+
+  @override
+  String groupCreateFailed(String error) {
+    return 'Create failed: $error';
+  }
+
+  @override
+  String get groupCreateNameHint => 'Enter a group name';
+
+  @override
+  String get groupInviteAddMembersTitle => 'Add group members';
+
+  @override
+  String get channelInviteAddMembersTitle => 'Invite channel members';
+
+  @override
+  String get groupInviteNoContacts => 'No contacts available to invite';
+
+  @override
+  String get groupInviteSend => 'Send Invite';
+
+  @override
+  String get groupManageNameTitle => 'Group Name';
+
+  @override
+  String get groupManageNameHint => 'Enter group name';
+
+  @override
+  String get groupManageNameEmpty => 'Group name cannot be empty';
+
+  @override
+  String get groupManageNameUpdated => 'Group name updated';
+
+  @override
+  String groupManageNameUpdateFailed(String error) {
+    return 'Failed to update group name: $error';
+  }
+
+  @override
+  String get groupManageAvatarUpdated => 'Group avatar updated';
+
+  @override
+  String groupManageAvatarUpdateFailed(String error) {
+    return 'Failed to update group avatar: $error';
+  }
+
+  @override
+  String get groupManageMuteEnabled => 'All-member mute enabled';
+
+  @override
+  String get groupManageMuteDisabled => 'All-member mute disabled';
+
+  @override
+  String groupManageMuteEnableFailed(String error) {
+    return 'Failed to enable all-member mute: $error';
+  }
+
+  @override
+  String groupManageMuteDisableFailed(String error) {
+    return 'Failed to disable all-member mute: $error';
+  }
+
+  @override
+  String get groupManageInvitePolicyUpdated =>
+      'Member invite permission updated';
+
+  @override
+  String groupManageInvitePolicyUpdateFailed(String error) {
+    return 'Failed to update member invite permission: $error';
+  }
+
+  @override
+  String get mcpPolicySaved => 'Saved';
+
+  @override
+  String get mcpPolicyRevokeTitle => 'Revoke access?';
+
+  @override
+  String get mcpPolicyRevokeMessage =>
+      'The Agent will immediately lose all MCP permissions.';
+
+  @override
+  String get mcpPolicyBlockedKeywordAdd => '+ Add';
+
+  @override
+  String get mcpPolicyBlockedKeywordTitle => 'Add Blocked Keyword';
+
+  @override
+  String get mcpPolicyBlockedKeywordHint =>
+      'Messages matching this word will be masked';
+
+  @override
   String get contactFriendRequestRestored =>
       'Previous conversation restored. You can continue chatting.';
 
@@ -1074,10 +1318,42 @@ class AppLocalizationsEn extends AppLocalizations {
       'After deletion, this contact will no longer appear and the conversation relationship will be updated.';
 
   @override
+  String contactDeleteConfirmBodyWithName(String name) {
+    return 'After deleting $name, the direct chat relationship will be removed for both sides.';
+  }
+
+  @override
   String get contactDeleteAction => 'Delete';
 
   @override
   String get contactDeleted => 'Friend deleted';
+
+  @override
+  String contactDeletedName(String name) {
+    return 'Deleted $name';
+  }
+
+  @override
+  String get contactApplied => 'Requested';
+
+  @override
+  String contactFollowFailed(String error) {
+    return 'Follow failed: $error';
+  }
+
+  @override
+  String contactUnfollowFailed(String error) {
+    return 'Unfollow failed: $error';
+  }
+
+  @override
+  String contactFriendRequestFailed(String error) {
+    return 'Failed to send friend request: $error';
+  }
+
+  @override
+  String get contactDeleteMissingRoom =>
+      'Failed to delete friend: missing contact room information';
 
   @override
   String contactDeleteFailed(String error) {
@@ -1252,10 +1528,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get requestsFriendNoticeFallback => 'Friend request notice';
 
   @override
+  String get requestsGroupNoticeTitle => 'Group notice';
+
+  @override
+  String get requestsGroupNoticeFallback => 'Invited you to join a group chat';
+
+  @override
   String get requestsChannelNoticeTitle => 'Channel notice';
 
   @override
-  String get requestsChannelNoticeFallback => 'Channel notice';
+  String get requestsChannelNoticeFallback => 'Invited you to join a channel';
 
   @override
   String get requestsView => 'View';
@@ -1319,7 +1601,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createGroupTitle => 'Start Group Chat';
 
   @override
+  String get createGroupMenuTitle => 'Start Group Chat';
+
+  @override
+  String get createGroupSetupTitle => 'Create Group Chat';
+
+  @override
   String get createGroupDone => 'Done';
+
+  @override
+  String createGroupDoneWithCount(int count) {
+    return 'Done($count)';
+  }
+
+  @override
+  String get createGroupSubmit => 'Create';
+
+  @override
+  String get createGroupMembers => 'Group Members';
+
+  @override
+  String createGroupMemberCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count members',
+      one: '1 member',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get createGroupEmptyTitle => 'No friends to invite';
@@ -1860,6 +2170,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Release to send, swipe up to cancel';
 
   @override
+  String get chatInputMore => 'More';
+
+  @override
   String get chatAttachmentAlbum => 'Album';
 
   @override
@@ -1876,6 +2189,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatAttachmentFile => 'File';
+
+  @override
+  String get chatAttachmentNoImageSelected => 'No image selected';
+
+  @override
+  String get chatAttachmentNoPhotoTaken => 'No photo taken';
+
+  @override
+  String get chatAttachmentNoFileSelected => 'No file selected';
+
+  @override
+  String get chatAttachmentNoVideoSelected => 'No video selected';
+
+  @override
+  String get chatMediaPhoto => 'photo';
+
+  @override
+  String get chatMediaAudio => 'voice message';
+
+  @override
+  String get chatMediaGeneric => 'media';
+
+  @override
+  String chatMediaReadFailed(String label) {
+    return 'Failed to read $label. Select it again.';
+  }
+
+  @override
+  String chatMediaUploadFailed(String label) {
+    return 'Failed to upload $label. Check the network and try again.';
+  }
 
   @override
   String groupChatLocalMediaMissing(String label) {
@@ -1970,10 +2314,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupChatCancelSelectMessage => 'Deselect message';
 
   @override
+  String get chatAiSuggestions => 'AI suggestions';
+
+  @override
+  String get chatRecordForwardTitle => 'Forward Chat History';
+
+  @override
+  String get chatVideoCannotPlay => 'This video cannot be played';
+
+  @override
+  String get redPacketMineDetailAction => 'View sent details';
+
+  @override
+  String get redPacketDetailAction => 'View details';
+
+  @override
+  String get redPacketMineDetailTitle => 'Sent Red Packet';
+
+  @override
+  String get redPacketDetailTitle => 'Red Packet Details';
+
+  @override
   String get groupChatMe => 'Me';
 
   @override
   String get groupChatMessageFallback => 'Message';
+
+  @override
+  String chatReplyTo(String sender) {
+    return 'Reply to $sender';
+  }
 
   @override
   String get groupChatQuotedMessage => 'Quoted message';
@@ -1998,6 +2368,37 @@ class AppLocalizationsEn extends AppLocalizations {
       'You cannot send messages in a group you left';
 
   @override
+  String get chatPeerAcceptBeforeSend =>
+      'You can send messages after the other person accepts the friend request';
+
+  @override
+  String get contactHomeMissing => 'Contact not found';
+
+  @override
+  String get chatPeerDeletedContact =>
+      'The other person deleted the contact relationship. Message not delivered.';
+
+  @override
+  String get chatRecallBody =>
+      'After recall, the other person will no longer see this message.';
+
+  @override
+  String get chatImageSavedToAlbum => 'Original image saved to Photos';
+
+  @override
+  String get chatGroupSyncingRetryLater =>
+      'Group chat is syncing. Try again later.';
+
+  @override
+  String get chatGroupInviteExpired =>
+      'You were not invited or the invitation has expired';
+
+  @override
+  String chatJoinGroupFailed(String error) {
+    return 'Failed to join group: $error';
+  }
+
+  @override
   String get commonOk => 'OK';
 
   @override
@@ -2019,6 +2420,32 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String chatRecordForwardFailed(String error) {
     return 'Forward failed: $error';
+  }
+
+  @override
+  String chatRecordOpenFailed(String error) {
+    return 'Failed to open: $error';
+  }
+
+  @override
+  String chatRecordSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String chatRecordMessageCount(int count) {
+    return '$count messages';
+  }
+
+  @override
+  String get chatRecordEmptyDetails => 'No message details';
+
+  @override
+  String get chatVideoSavedToAlbum => 'Original video saved to album';
+
+  @override
+  String chatSaveFailed(String error) {
+    return 'Save failed: $error';
   }
 
   @override
@@ -2050,6 +2477,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelSyncingSubtitle => 'Please wait';
+
+  @override
+  String get channelConversationQuoted => 'Quoted';
+
+  @override
+  String get channelConversationForwardPending =>
+      'Forwarding will support real channel messages soon';
+
+  @override
+  String get channelConversationMultiSelectPending =>
+      'Multi-select will support real channel messages soon';
 
   @override
   String get channelMyChannelsTitle => 'My Channels';
@@ -2578,6 +3016,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meFavoritesLoadFailed => 'Failed to load favorites';
 
   @override
+  String get meFavoriteImagePreviewUrlMissing =>
+      'Favorite image URL is empty and cannot be previewed';
+
+  @override
   String get meFavoritesEmptyTitle => 'No favorites yet';
 
   @override
@@ -2728,4 +3170,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentChatEmptyTitle => 'Start our chat';
+
+  @override
+  String get agentChatOfflineReply =>
+      'Agent is currently offline. Please wait patiently.';
 }

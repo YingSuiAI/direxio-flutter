@@ -5,21 +5,26 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 
 typedef VideoPreviewAction = Future<void> Function();
 
 Future<void> openChatVideoPreview(
   BuildContext context, {
   required File file,
-  String title = '视频',
+  String? title,
   VideoPreviewAction? onSaveToAlbum,
 }) {
+  final l10n = Localizations.of<AppLocalizations>(
+    context,
+    AppLocalizations,
+  );
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (_) => ChatVideoPreviewPage(
         file: file,
-        title: title,
+        title: title ?? l10n?.groupChatVideo ?? '视频',
         onSaveToAlbum: onSaveToAlbum,
       ),
     ),
@@ -91,13 +96,21 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
       await action();
       if (!mounted) return;
       setState(() => _saved = true);
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存原视频到相册')),
+        SnackBar(content: Text(l10n?.chatVideoSavedToAlbum ?? '已保存原视频到相册')),
       );
     } on Object catch (err) {
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败：$err')),
+        SnackBar(content: Text(l10n?.chatSaveFailed('$err') ?? '保存失败：$err')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -179,12 +192,16 @@ class _VideoPreviewHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Row(
       children: [
         IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
           icon: const Icon(Symbols.close, color: Colors.white, size: 26),
-          tooltip: '关闭',
+          tooltip: l10n?.commonClose ?? '关闭',
         ),
         Expanded(
           child: Text(
@@ -306,6 +323,10 @@ class _VideoPreviewError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -315,7 +336,7 @@ class _VideoPreviewError extends StatelessWidget {
             const Icon(Symbols.error, color: Colors.white70, size: 40),
             const SizedBox(height: 12),
             Text(
-              '视频无法播放',
+              l10n?.chatVideoCannotPlay ?? '视频无法播放',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,

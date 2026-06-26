@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../mcp/mcp_policy.dart';
 import '../mcp/mcp_audit.dart';
 import '../providers/product_conversations_provider.dart';
@@ -41,15 +42,23 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
   void _save() {
     ref.read(mcpPolicyStoreProvider.notifier).update(widget.agentId, _draft);
     if (mounted) {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('已保存')));
+      ).showSnackBar(SnackBar(content: Text(l10n?.mcpPolicySaved ?? '已保存')));
       context.pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     if (!_initialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -72,7 +81,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
                   child: TextButton(
                     onPressed: _save,
                     child: Text(
-                      '保存',
+                      l10n?.commonSave ?? '保存',
                       style: AppTheme.sans(
                         size: 14,
                         weight: FontWeight.w600,
@@ -105,7 +114,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildConfigTab(t),
+                  _buildConfigTab(t, l10n),
                   _AuditTab(entries: audit),
                 ],
               ),
@@ -116,7 +125,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
     );
   }
 
-  Widget _buildConfigTab(PortalTokens t) {
+  Widget _buildConfigTab(PortalTokens t, AppLocalizations? l10n) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
@@ -326,12 +335,14 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text('撤销授权？'),
-                  content: const Text('Agent 将立即失去全部 MCP 权限。'),
+                  title: Text(l10n?.mcpPolicyRevokeTitle ?? '撤销授权？'),
+                  content: Text(
+                    l10n?.mcpPolicyRevokeMessage ?? 'Agent 将立即失去全部 MCP 权限。',
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('取消'),
+                      child: Text(l10n?.commonCancel ?? '取消'),
                     ),
                     TextButton(
                       onPressed: () {
@@ -339,7 +350,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
                         _save();
                       },
                       child: Text(
-                        '撤销',
+                        l10n?.mcpPolicyRevokeAction ?? 'Revoke',
                         style: TextStyle(color: context.tk.danger),
                       ),
                     ),
@@ -361,7 +372,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
                     Icon(Symbols.gpp_bad, size: 16, color: t.danger),
                     const SizedBox(width: 8),
                     Text(
-                      '撤销授权',
+                      l10n?.mcpPolicyRevokeAccess ?? 'Revoke access',
                       style: AppTheme.sans(
                         size: 14,
                         weight: FontWeight.w500,
@@ -386,6 +397,10 @@ class _AuditTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     if (entries.isEmpty) {
       return Center(
         child: Column(
@@ -393,10 +408,13 @@ class _AuditTab extends StatelessWidget {
           children: [
             Icon(Symbols.description, size: 32, color: t.textMute),
             const SizedBox(height: 8),
-            Text('暂无活动', style: AppTheme.sans(size: 13, color: t.textMute)),
+            Text(
+              l10n?.mcpPolicyAuditEmptyTitle ?? '暂无活动',
+              style: AppTheme.sans(size: 13, color: t.textMute),
+            ),
             const SizedBox(height: 4),
             Text(
-              'Agent 调用任何工具都会留下记录',
+              l10n?.mcpPolicyAuditEmptySubtitle ?? 'Agent 调用任何工具都会留下记录',
               style: AppTheme.sans(size: 11, color: t.textMute),
             ),
           ],
@@ -433,6 +451,7 @@ class _AuditRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     final color = e.outcome == McpAuditOutcome.denied
         ? t.danger
         : e.outcome == McpAuditOutcome.confirmRequired
@@ -479,7 +498,7 @@ class _AuditRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  e.deniedReason ?? e.resultSummary ?? '已完成',
+                  e.deniedReason ?? e.resultSummary ?? l10n.mcpPolicyCompleted,
                   style: AppTheme.sans(size: 12, color: t.textMute),
                 ),
                 if (e.warnings.isNotEmpty) ...[
@@ -578,6 +597,10 @@ class _ToolRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Row(
@@ -610,7 +633,7 @@ class _ToolRow extends StatelessWidget {
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(
-                          '写',
+                          l10n?.mcpPolicyWriteBadge ?? '写',
                           style: AppTheme.mono(
                             size: 9,
                             weight: FontWeight.w600,
@@ -636,7 +659,7 @@ class _ToolRow extends StatelessWidget {
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       Text(
-                        '调用前需我确认',
+                        l10n?.mcpPolicyConfirmBeforeCall ?? '调用前需我确认',
                         style: AppTheme.sans(size: 12, color: t.textMute),
                       ),
                     ],
@@ -696,6 +719,10 @@ class _RoomPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final allRooms = ref.watch(productConversationsProvider).valueOrNull ??
         const <AsConversation>[];
     final roomById = {
@@ -708,7 +735,9 @@ class _RoomPicker extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            draft.roomScope == RoomScope.whitelist ? '已选会话' : '已排除会话',
+            draft.roomScope == RoomScope.whitelist
+                ? l10n?.mcpPolicySelectedRooms ?? '已选会话'
+                : l10n?.mcpPolicyExcludedRooms ?? '已排除会话',
             style: AppTheme.mono(size: 11, color: t.textMute),
           ),
           const SizedBox(height: 8),
@@ -733,7 +762,7 @@ class _RoomPicker extends ConsumerWidget {
                 );
               }),
               ActionChip(
-                label: const Text('+ 添加'),
+                label: Text(l10n?.mcpPolicyAddRoom ?? '+ 添加'),
                 onPressed: () async {
                   final picked = await showModalBottomSheet<String>(
                     context: context,
@@ -919,6 +948,10 @@ class _ChipsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Column(
@@ -947,29 +980,32 @@ class _ChipsRow extends StatelessWidget {
                 ),
               ),
               ActionChip(
-                label: const Text('+ 添加'),
+                label: Text(l10n?.mcpPolicyBlockedKeywordAdd ?? '+ 添加'),
                 onPressed: () async {
                   final ctrl = TextEditingController();
                   final result = await showDialog<String>(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: const Text('添加屏蔽关键词'),
+                      title: Text(
+                        l10n?.mcpPolicyBlockedKeywordTitle ?? '添加屏蔽关键词',
+                      ),
                       content: TextField(
                         controller: ctrl,
                         autofocus: true,
-                        decoration: const InputDecoration(
-                          hintText: '命中该词的消息将被遮蔽',
+                        decoration: InputDecoration(
+                          hintText: l10n?.mcpPolicyBlockedKeywordHint ??
+                              '命中该词的消息将被遮蔽',
                         ),
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text('取消'),
+                          child: Text(l10n?.commonCancel ?? '取消'),
                         ),
                         TextButton(
                           onPressed: () =>
                               Navigator.pop(context, ctrl.text.trim()),
-                          child: const Text('添加'),
+                          child: Text(l10n?.commonAdd ?? '添加'),
                         ),
                       ],
                     ),

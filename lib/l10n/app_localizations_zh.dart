@@ -39,6 +39,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tabMe => '我的';
 
   @override
+  String get homeDeleteChatTitle => '删除聊天记录';
+
+  @override
+  String homeDeleteChatMessage(String name) {
+    return '确定删除「$name」的所有聊天记录？该操作不可恢复。';
+  }
+
+  @override
+  String homeConversationDeleted(String name) {
+    return '已删除「$name」';
+  }
+
+  @override
+  String homeDeleteChatFailed(String error) {
+    return '删除聊天记录失败: $error';
+  }
+
+  @override
+  String get homeAgentConversationNotSynced => 'Agent 会话还未同步';
+
+  @override
+  String get homeDeleteChatMenu => '删除聊天';
+
+  @override
   String get settingsTitle => '设置';
 
   @override
@@ -169,10 +193,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonCancel => '取消';
 
   @override
+  String get commonBack => '返回';
+
+  @override
+  String get commonAdd => '添加';
+
+  @override
+  String get commonClose => '关闭';
+
+  @override
   String get commonSave => '保存';
 
   @override
   String get commonSearch => '搜索';
+
+  @override
+  String get commonSend => '发送';
 
   @override
   String get commonShare => '分享';
@@ -182,6 +218,114 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonOffline => '离线';
+
+  @override
+  String get toolCallDenied => '已拒绝';
+
+  @override
+  String get toolCallArguments => '参数';
+
+  @override
+  String get toolCallWarnings => '警告';
+
+  @override
+  String get mcpPermissionTitle => 'MCP 权限';
+
+  @override
+  String get mcpPermissionDescription => '管理哪些 Agent 账号可以调用 MCP 工具。';
+
+  @override
+  String get mcpPermissionAuthorizeNewAgent => '授权新的 Agent';
+
+  @override
+  String get mcpPermissionAuthorized => '已授权';
+
+  @override
+  String get mcpPermissionDisabled => '已停用';
+
+  @override
+  String get mcpPolicyRevokeAction => '撤销';
+
+  @override
+  String get mcpPolicyRevokeAccess => '撤销访问';
+
+  @override
+  String get mcpPolicyAuditEmptyTitle => '暂无审计记录';
+
+  @override
+  String get mcpPolicyAuditEmptySubtitle => '工具调用记录会显示在这里';
+
+  @override
+  String get mcpPolicyCompleted => '已完成';
+
+  @override
+  String get mcpPolicyWriteBadge => '写入';
+
+  @override
+  String get mcpPolicyConfirmBeforeCall => '调用前确认';
+
+  @override
+  String get mcpPolicySelectedRooms => '已选择房间';
+
+  @override
+  String get mcpPolicyExcludedRooms => '已排除房间';
+
+  @override
+  String get mcpPolicyAddRoom => '添加房间';
+
+  @override
+  String get channelCreatedNotice => '频道已创建';
+
+  @override
+  String get channelManageEmptyTitle => '暂无频道';
+
+  @override
+  String get channelManageEmptySubtitle => '创建的频道会显示在这里';
+
+  @override
+  String homeDetailPlaceholderTitle(String tabTitle) {
+    return '请选择一个$tabTitle项目';
+  }
+
+  @override
+  String get homeDetailPlaceholderChatsSubtitle => '打开会话查看消息';
+
+  @override
+  String get homeDetailPlaceholderDefaultSubtitle => '选择项目查看详情';
+
+  @override
+  String get groupDetailMissing => '群聊不存在';
+
+  @override
+  String groupDetailChatInfoTitle(int count) {
+    return '群聊信息（$count）';
+  }
+
+  @override
+  String get groupDetailDissolveTitle => '解散群聊';
+
+  @override
+  String get groupDetailLeaveTitle => '退出群聊';
+
+  @override
+  String get groupDetailDissolveMessage => '解散后，成员将无法继续使用此群聊。';
+
+  @override
+  String get groupDetailLeaveMessage => '退出后，你将不再接收此群聊消息。';
+
+  @override
+  String get groupDetailDissolveAction => '解散';
+
+  @override
+  String get groupDetailLeaveAction => '退出';
+
+  @override
+  String groupDetailLeaveOrDissolveFailed(String action, String error) {
+    return '$action失败：$error';
+  }
+
+  @override
+  String get groupDetailInvite => '邀请';
 
   @override
   String get avatarAdjustTitle => '调整头像';
@@ -1024,6 +1168,96 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get groupCreateCreated => '群聊已创建';
+
+  @override
+  String groupCreateFailed(String error) {
+    return '创建失败: $error';
+  }
+
+  @override
+  String get groupCreateNameHint => '请输入群聊名称';
+
+  @override
+  String get groupInviteAddMembersTitle => '添加群成员';
+
+  @override
+  String get channelInviteAddMembersTitle => '邀请频道成员';
+
+  @override
+  String get groupInviteNoContacts => '暂无可邀请联系人';
+
+  @override
+  String get groupInviteSend => '发送邀请';
+
+  @override
+  String get groupManageNameTitle => '群名称';
+
+  @override
+  String get groupManageNameHint => '输入群名称';
+
+  @override
+  String get groupManageNameEmpty => '群名称不能为空';
+
+  @override
+  String get groupManageNameUpdated => '群名称已更新';
+
+  @override
+  String groupManageNameUpdateFailed(String error) {
+    return '修改群名称失败: $error';
+  }
+
+  @override
+  String get groupManageAvatarUpdated => '群头像已更新';
+
+  @override
+  String groupManageAvatarUpdateFailed(String error) {
+    return '修改群头像失败: $error';
+  }
+
+  @override
+  String get groupManageMuteEnabled => '已开启全员禁言';
+
+  @override
+  String get groupManageMuteDisabled => '已解除全员禁言';
+
+  @override
+  String groupManageMuteEnableFailed(String error) {
+    return '开启全员禁言失败: $error';
+  }
+
+  @override
+  String groupManageMuteDisableFailed(String error) {
+    return '解除全员禁言失败: $error';
+  }
+
+  @override
+  String get groupManageInvitePolicyUpdated => '已更新添加成员权限';
+
+  @override
+  String groupManageInvitePolicyUpdateFailed(String error) {
+    return '更新添加成员权限失败: $error';
+  }
+
+  @override
+  String get mcpPolicySaved => '已保存';
+
+  @override
+  String get mcpPolicyRevokeTitle => '撤销授权？';
+
+  @override
+  String get mcpPolicyRevokeMessage => 'Agent 将立即失去全部 MCP 权限。';
+
+  @override
+  String get mcpPolicyBlockedKeywordAdd => '+ 添加';
+
+  @override
+  String get mcpPolicyBlockedKeywordTitle => '添加屏蔽关键词';
+
+  @override
+  String get mcpPolicyBlockedKeywordHint => '命中该词的消息将被遮蔽';
+
+  @override
   String get contactFriendRequestRestored => '已恢复旧会话，可以继续聊天。';
 
   @override
@@ -1036,10 +1270,41 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactDeleteConfirmBody => '删除后将不再显示该联系人，会话关系也会同步更新。';
 
   @override
+  String contactDeleteConfirmBodyWithName(String name) {
+    return '删除 $name 后，双方的私聊关系会解除。';
+  }
+
+  @override
   String get contactDeleteAction => '删除';
 
   @override
   String get contactDeleted => '已删除好友';
+
+  @override
+  String contactDeletedName(String name) {
+    return '已删除 $name';
+  }
+
+  @override
+  String get contactApplied => '已申请';
+
+  @override
+  String contactFollowFailed(String error) {
+    return '关注失败: $error';
+  }
+
+  @override
+  String contactUnfollowFailed(String error) {
+    return '取消关注失败: $error';
+  }
+
+  @override
+  String contactFriendRequestFailed(String error) {
+    return '发送好友请求失败: $error';
+  }
+
+  @override
+  String get contactDeleteMissingRoom => '删除好友失败: 缺少联系人房间信息';
 
   @override
   String contactDeleteFailed(String error) {
@@ -1212,10 +1477,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get requestsFriendNoticeFallback => '好友申请通知';
 
   @override
+  String get requestsGroupNoticeTitle => '群聊通知';
+
+  @override
+  String get requestsGroupNoticeFallback => '邀请你加入群聊';
+
+  @override
   String get requestsChannelNoticeTitle => '频道通知';
 
   @override
-  String get requestsChannelNoticeFallback => '频道通知';
+  String get requestsChannelNoticeFallback => '邀请你加入频道';
 
   @override
   String get requestsView => '查看';
@@ -1278,7 +1549,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get createGroupTitle => '发起群聊';
 
   @override
+  String get createGroupMenuTitle => '创建群聊';
+
+  @override
+  String get createGroupSetupTitle => '创建群聊';
+
+  @override
   String get createGroupDone => '完成';
+
+  @override
+  String createGroupDoneWithCount(int count) {
+    return '完成($count)';
+  }
+
+  @override
+  String get createGroupSubmit => '完成创建';
+
+  @override
+  String get createGroupMembers => '群成员';
+
+  @override
+  String createGroupMemberCount(int count) {
+    return '$count人';
+  }
 
   @override
   String get createGroupEmptyTitle => '暂无可邀请联系人';
@@ -1375,7 +1668,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get groupInviteJoiningButton => '加入中…';
 
   @override
-  String get groupInviteAlreadyJoined => '已在群里中';
+  String get groupInviteAlreadyJoined => '已在群聊中';
 
   @override
   String get groupChatUnknownMember => '未知成员';
@@ -1806,6 +2099,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputReleaseToSendSwipeCancel => '松开发送，上滑取消';
 
   @override
+  String get chatInputMore => '更多';
+
+  @override
   String get chatAttachmentAlbum => '相册';
 
   @override
@@ -1822,6 +2118,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatAttachmentFile => '文件';
+
+  @override
+  String get chatAttachmentNoImageSelected => '未选择图片';
+
+  @override
+  String get chatAttachmentNoPhotoTaken => '未拍摄照片';
+
+  @override
+  String get chatAttachmentNoFileSelected => '未选择文件';
+
+  @override
+  String get chatAttachmentNoVideoSelected => '未选择视频';
+
+  @override
+  String get chatMediaPhoto => '照片';
+
+  @override
+  String get chatMediaAudio => '语音';
+
+  @override
+  String get chatMediaGeneric => '媒体';
+
+  @override
+  String chatMediaReadFailed(String label) {
+    return '$label读取失败，请重新选择';
+  }
+
+  @override
+  String chatMediaUploadFailed(String label) {
+    return '$label上传失败，请检查网络后重试';
+  }
 
   @override
   String groupChatLocalMediaMissing(String label) {
@@ -1912,10 +2239,36 @@ class AppLocalizationsZh extends AppLocalizations {
   String get groupChatCancelSelectMessage => '取消选择消息';
 
   @override
+  String get chatAiSuggestions => 'AI 建议';
+
+  @override
+  String get chatRecordForwardTitle => '转发聊天记录';
+
+  @override
+  String get chatVideoCannotPlay => '该视频无法播放';
+
+  @override
+  String get redPacketMineDetailAction => '查看发出详情';
+
+  @override
+  String get redPacketDetailAction => '查看领取详情';
+
+  @override
+  String get redPacketMineDetailTitle => '发出的红包';
+
+  @override
+  String get redPacketDetailTitle => '红包详情';
+
+  @override
   String get groupChatMe => '我';
 
   @override
   String get groupChatMessageFallback => '消息';
+
+  @override
+  String chatReplyTo(String sender) {
+    return '回复 $sender';
+  }
 
   @override
   String get groupChatQuotedMessage => '引用消息';
@@ -1939,6 +2292,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get groupChatRemovedCannotSend => '无法在已退出的群聊中发送消息';
 
   @override
+  String get chatPeerAcceptBeforeSend => '对方接受好友请求后才能发送消息';
+
+  @override
+  String get contactHomeMissing => '联系人不存在';
+
+  @override
+  String get chatPeerDeletedContact => '对方已删除联系人关系，消息未送达';
+
+  @override
+  String get chatRecallBody => '撤回后，对方也将看不到这条消息。';
+
+  @override
+  String get chatImageSavedToAlbum => '已保存原图到相册';
+
+  @override
+  String get chatGroupSyncingRetryLater => '群聊正在同步，请稍后重试';
+
+  @override
+  String get chatGroupInviteExpired => '你未被邀请或邀请已失效';
+
+  @override
+  String chatJoinGroupFailed(String error) {
+    return '加入群聊失败: $error';
+  }
+
+  @override
   String get commonOk => '确定';
 
   @override
@@ -1959,6 +2338,32 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String chatRecordForwardFailed(String error) {
     return '转发失败：$error';
+  }
+
+  @override
+  String chatRecordOpenFailed(String error) {
+    return '打开失败：$error';
+  }
+
+  @override
+  String chatRecordSelectedCount(int count) {
+    return '已选 $count 条';
+  }
+
+  @override
+  String chatRecordMessageCount(int count) {
+    return '$count 条消息';
+  }
+
+  @override
+  String get chatRecordEmptyDetails => '暂无消息详情';
+
+  @override
+  String get chatVideoSavedToAlbum => '已保存原视频到相册';
+
+  @override
+  String chatSaveFailed(String error) {
+    return '保存失败：$error';
   }
 
   @override
@@ -1987,6 +2392,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelSyncingSubtitle => '请稍候';
+
+  @override
+  String get channelConversationQuoted => '已引用';
+
+  @override
+  String get channelConversationForwardPending => '转发功能即将接入频道真实消息';
+
+  @override
+  String get channelConversationMultiSelectPending => '多选功能即将接入频道真实消息';
 
   @override
   String get channelMyChannelsTitle => '我的频道';
@@ -2504,6 +2918,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get meFavoritesLoadFailed => '收藏加载失败';
 
   @override
+  String get meFavoriteImagePreviewUrlMissing => '收藏图片地址为空，无法预览';
+
+  @override
   String get meFavoritesEmptyTitle => '暂无收藏';
 
   @override
@@ -2651,4 +3068,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agentChatEmptyTitle => '开始我们的聊天吧';
+
+  @override
+  String get agentChatOfflineReply => '目前Agent离线，请耐心等待';
 }

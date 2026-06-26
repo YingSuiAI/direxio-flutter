@@ -113,7 +113,7 @@ class _HomePlusMenuLabels {
     );
     return _HomePlusMenuLabels(
       addFriend: l10n?.addContactTitle ?? '添加好友',
-      createGroup: l10n?.createGroupTitle ?? '创建群聊',
+      createGroup: l10n?.createGroupMenuTitle ?? '创建群聊',
       scan: _scanLabelFor(context, l10n),
     );
   }

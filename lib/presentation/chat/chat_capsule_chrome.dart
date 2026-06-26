@@ -552,6 +552,10 @@ class ChatSelectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -574,7 +578,7 @@ class ChatSelectionHeader extends StatelessWidget {
                         vertical: 8,
                       ),
                       child: Text(
-                        '取消',
+                        l10n?.commonCancel ?? '取消',
                         style: AppTheme.sans(
                           size: 16,
                           weight: FontWeight.w600,
@@ -586,7 +590,7 @@ class ChatSelectionHeader extends StatelessWidget {
                 ),
               ),
               Text(
-                '已选择 $count条消息',
+                l10n?.chatRecordSelectedCount(count) ?? '已选择 $count条消息',
                 style: AppTheme.sans(size: 12, color: t.textMute),
               ),
             ],
@@ -943,7 +947,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                 size: 14, color: t.accent),
                             const SizedBox(width: 4),
                             Text(
-                              'AI 建议',
+                              l10n?.chatAiSuggestions ?? 'AI suggestions',
                               style: AppTheme.sans(
                                 size: 12,
                                 color: t.textMute,
@@ -1127,7 +1131,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                 height: _composerButtonSize,
                                 child: _AssetCircleCapsuleButton(
                                   assetName: _assetChatPlus,
-                                  tooltip: '更多',
+                                  tooltip: l10n?.chatInputMore ?? '更多',
                                   active: widget.plusActive,
                                   enabled: widget.enabled,
                                   onTap: _togglePlusPanel,
@@ -1494,8 +1498,12 @@ class _ComposerSendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Tooltip(
-      message: '发送',
+      message: l10n?.commonSend ?? '发送',
       child: Material(
         color: enabled ? t.accent : t.textMute.withValues(alpha: 0.32),
         borderRadius: BorderRadius.circular(10),
@@ -1508,7 +1516,7 @@ class _ComposerSendButton extends StatelessWidget {
             height: 36,
             child: Center(
               child: Text(
-                '发送',
+                l10n?.commonSend ?? '发送',
                 style: AppTheme.sans(
                   size: 15,
                   color: t.onAccent,

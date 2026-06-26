@@ -1,25 +1,36 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
-import 'as_client_provider.dart';
+import 'as_sync_cache_provider.dart';
 
 enum AgentBridgePresenceState { connecting, online, offline, error, unknown }
 
 class AgentBridgePresence {
-  const AgentBridgePresence({required this.state, this.status, this.error});
+  const AgentBridgePresence({
+    required this.state,
+    this.presence,
+    this.error,
+    this.source = '',
+  });
 
   const AgentBridgePresence.connecting()
       : state = AgentBridgePresenceState.connecting,
-        status = null,
+        presence = null,
+        error = null,
+        source = '';
+
+  const AgentBridgePresence.unknown({
+    this.source = 'owner_presence_contract_unavailable',
+  })  : state = AgentBridgePresenceState.unknown,
+        presence = null,
         error = null;
 
   final AgentBridgePresenceState state;
-  final AgentStatus? status;
+  final AsAgentPresence? presence;
   final Object? error;
+  final String source;
 
-  bool get bridgeConnected => status?.connected ?? false;
+  bool get bridgeConnected => presence?.connected ?? false;
 
   String get label {
     return switch (state) {
@@ -27,59 +38,32 @@ class AgentBridgePresence {
       AgentBridgePresenceState.online => '在线',
       AgentBridgePresenceState.offline => '离线',
       AgentBridgePresenceState.error => '状态异常',
-      AgentBridgePresenceState.unknown => '未知',
+      AgentBridgePresenceState.unknown => '状态未知',
     };
   }
 }
 
-final agentBridgePresenceProvider =
-    StreamProvider.autoDispose<AgentBridgePresence>((ref) {
-  final asClient = ref.watch(asClientProvider);
-  final controller = StreamController<AgentBridgePresence>();
-  Timer? timer;
-
-  Future<void> load() async {
-    try {
-      final status = await asClient.getAgentStatus();
-      if (!controller.isClosed) {
-        controller.add(agentBridgePresenceFromStatus(status));
-      }
-    } catch (error) {
-      if (!controller.isClosed) {
-        controller.add(agentBridgePresenceFromError(error));
-      }
-    }
-  }
-
-  controller.add(const AgentBridgePresence.connecting());
-  unawaited(load());
-  timer = Timer.periodic(
-    const Duration(seconds: 10),
-    (_) => unawaited(load()),
-  );
-  ref.onDispose(() {
-    timer?.cancel();
-    unawaited(controller.close());
-  });
-  return controller.stream;
-});
-
-AgentBridgePresence agentBridgePresenceFromStatus(AgentStatus status) {
-  if (!status.configured &&
-      !status.connected &&
-      status.agentRoomId.trim().isEmpty) {
-    return AgentBridgePresence(
-      state: AgentBridgePresenceState.unknown,
-      status: status,
-    );
+/// Agent header presence uses the owner-readable product contract:
+/// `sync.bootstrap.agent_presence` for the initial value and `agent.presence`
+/// owner SSE events for live updates through [asSyncCacheProvider].
+final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
+  final syncCache = ref.watch(asSyncCacheProvider);
+  final bootstrapLoaded = syncCache.bootstrap != null;
+  final presence =
+      syncCache.agentPresence ?? syncCache.bootstrap?.agentPresence;
+  if (presence == null) {
+    return bootstrapLoaded
+        ? const AgentBridgePresence.unknown()
+        : const AgentBridgePresence.connecting();
   }
   return AgentBridgePresence(
-    state: status.online
+    state: presence.online
         ? AgentBridgePresenceState.online
         : AgentBridgePresenceState.offline,
-    status: status,
+    presence: presence,
+    source: 'sync.bootstrap.agent_presence/agent.presence',
   );
-}
+});
 
 AgentBridgePresence agentBridgePresenceFromError(Object error) {
   return AgentBridgePresence(

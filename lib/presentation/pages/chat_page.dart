@@ -2801,10 +2801,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final peerIsOnline =
         peerPresence != null && peerPresence != PresenceType.offline;
     final peerIsOffline = peerPresence == PresenceType.offline;
-    final agentPresence = isAgent
-        ? ref.watch(agentBridgePresenceProvider).valueOrNull ??
-            const AgentBridgePresence.connecting()
-        : null;
+    final agentPresence =
+        isAgent ? ref.watch(agentBridgePresenceProvider) : null;
     final agentPresenceState = agentPresence?.state;
     final headerSubtitle = isWaitingForAccept
         ? '等待对方接受'
@@ -2818,11 +2816,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? '离线'
                         : null;
     final headerSubtitleStatus = isAgent
-        ? agentPresenceState == AgentBridgePresenceState.online
-            ? ChatCapsuleSubtitleStatus.online
-            : agentPresenceState == AgentBridgePresenceState.connecting
-                ? null
-                : ChatCapsuleSubtitleStatus.offline
+        ? switch (agentPresenceState) {
+            AgentBridgePresenceState.online => ChatCapsuleSubtitleStatus.online,
+            AgentBridgePresenceState.offline =>
+              ChatCapsuleSubtitleStatus.offline,
+            _ => null,
+          }
         : (peerIsTyping || peerIsOnline
             ? ChatCapsuleSubtitleStatus.online
             : peerIsOffline

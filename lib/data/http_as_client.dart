@@ -304,7 +304,7 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<AgentStatus> getAgentStatus() async {
+  Future<AgentStatus> getLegacyAgentStatus() async {
     final body = await _getJson('agent/status');
     return AgentStatus.fromJson(body);
   }

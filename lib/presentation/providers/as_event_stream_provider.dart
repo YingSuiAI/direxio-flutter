@@ -21,6 +21,9 @@ typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
 typedef AsBootstrapRefresh = Future<AsSyncBootstrap> Function();
 typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
+typedef AsAgentPresenceChanged = FutureOr<void> Function(
+  AsAgentPresence presence,
+);
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
@@ -50,6 +53,11 @@ final asEventStreamRefreshProvider =
           );
       ref.invalidate(productConversationsProvider);
     },
+    onAgentPresenceChanged: (presence) {
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withAgentPresence(presence),
+          );
+    },
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');
     },
@@ -68,6 +76,7 @@ class AsEventStreamRefreshController {
     required AsBootstrapRefresh loadBootstrap,
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
     AsCallChanged? onCallChanged,
+    AsAgentPresenceChanged? onAgentPresenceChanged,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -75,6 +84,7 @@ class AsEventStreamRefreshController {
         _loadBootstrap = loadBootstrap,
         _onBootstrapLoaded = onBootstrapLoaded,
         _onCallChanged = onCallChanged,
+        _onAgentPresenceChanged = onAgentPresenceChanged,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -83,6 +93,7 @@ class AsEventStreamRefreshController {
   final AsBootstrapRefresh _loadBootstrap;
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
   final AsCallChanged? _onCallChanged;
+  final AsAgentPresenceChanged? _onAgentPresenceChanged;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -140,6 +151,11 @@ class AsEventStreamRefreshController {
       unawaited(_handleCallChanged(call));
       return;
     }
+    final agentPresence = asAgentPresenceFromEvent(event);
+    if (agentPresence != null) {
+      unawaited(_handleAgentPresenceChanged(agentPresence));
+      return;
+    }
     if (_refreshInFlight) {
       _refreshQueued = true;
       return;
@@ -170,6 +186,14 @@ class AsEventStreamRefreshController {
       _onError?.call(error, stackTrace);
     }
   }
+
+  Future<void> _handleAgentPresenceChanged(AsAgentPresence presence) async {
+    try {
+      await _onAgentPresenceChanged?.call(presence);
+    } catch (error, stackTrace) {
+      _onError?.call(error, stackTrace);
+    }
+  }
 }
 
 AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
@@ -179,4 +203,17 @@ AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
     return AsCallSession.fromJson(rawCall.cast<String, dynamic>());
   }
   return AsCallSession.fromJson(event.payload);
+}
+
+AsAgentPresence? asAgentPresenceFromEvent(AsEventStreamEvent event) {
+  if (event.type != 'agent.presence') return null;
+  final rawPresence = event.payload['agent_presence'];
+  final payload =
+      rawPresence is Map ? rawPresence.cast<String, dynamic>() : event.payload;
+  final presence = AsAgentPresence.fromJson(payload);
+  final eventRoomId = event.roomId.trim();
+  if (presence.agentRoomId.trim().isEmpty && eventRoomId.isNotEmpty) {
+    return presence.copyWith(agentRoomId: eventRoomId);
+  }
+  return presence;
 }

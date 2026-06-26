@@ -5,9 +5,12 @@ import '../chat/chat_unread_policy.dart';
 import '../utils/chat_visibility_policy.dart';
 import '../utils/contact_identity_label.dart';
 
+const Object _unsetAgentPresence = Object();
+
 class AsSyncCacheState {
   const AsSyncCacheState({
     this.bootstrap,
+    this.agentPresence,
     this.localContactStatusesByRoomId = const {},
     this.localContactEntriesByRoomId = const {},
     this.localDeletedEventIdsByRoomId = const {},
@@ -17,6 +20,7 @@ class AsSyncCacheState {
   });
 
   final AsSyncBootstrap? bootstrap;
+  final AsAgentPresence? agentPresence;
   final Map<String, String> localContactStatusesByRoomId;
   final Map<String, ContactEntry> localContactEntriesByRoomId;
   final Map<String, Set<String>> localDeletedEventIdsByRoomId;
@@ -225,6 +229,7 @@ class AsSyncCacheState {
 
   AsSyncCacheState copyWith({
     AsSyncBootstrap? bootstrap,
+    Object? agentPresence = _unsetAgentPresence,
     Map<String, String>? localContactStatusesByRoomId,
     Map<String, ContactEntry>? localContactEntriesByRoomId,
     Map<String, Set<String>>? localDeletedEventIdsByRoomId,
@@ -240,6 +245,9 @@ class AsSyncCacheState {
             bootstrap,
             previousAgentRoomId: this.bootstrap?.agentRoomId,
           );
+    final nextAgentPresence = identical(agentPresence, _unsetAgentPresence)
+        ? effectiveBootstrap?.agentPresence ?? this.agentPresence
+        : agentPresence as AsAgentPresence?;
     final nextBootstrap = effectiveBootstrap == null
         ? this.bootstrap
         : applyLocalReadMarkersToBootstrap(
@@ -296,6 +304,7 @@ class AsSyncCacheState {
     }
     return AsSyncCacheState(
       bootstrap: nextBootstrap,
+      agentPresence: nextAgentPresence,
       localContactStatusesByRoomId: Map.unmodifiable(nextLocalStatuses),
       localContactEntriesByRoomId: Map.unmodifiable(nextLocalEntries),
       localDeletedEventIdsByRoomId: _freezeDeletedMap(
@@ -305,6 +314,24 @@ class AsSyncCacheState {
       localClearedBeforeTs: localClearedBeforeTs ?? this.localClearedBeforeTs,
       localRoomClearedBeforeTs: Map.unmodifiable(
           localRoomClearedBeforeTs ?? this.localRoomClearedBeforeTs),
+    );
+  }
+
+  AsSyncCacheState withAgentPresence(AsAgentPresence presence) {
+    final current = bootstrap;
+    final currentRoomId = current?.agentRoomId.trim() ?? '';
+    final incomingRoomId = presence.agentRoomId.trim();
+    final roomId = incomingRoomId.isNotEmpty ? incomingRoomId : currentRoomId;
+    final normalized = roomId == incomingRoomId
+        ? presence
+        : presence.copyWith(agentRoomId: roomId);
+    final nextBootstrap = current?.copyWith(
+      agentRoomId: roomId.isNotEmpty ? roomId : current.agentRoomId,
+      agentPresence: normalized,
+    );
+    return copyWith(
+      bootstrap: nextBootstrap,
+      agentPresence: normalized,
     );
   }
 
@@ -776,16 +803,20 @@ AsSyncBootstrap _bootstrapWithPreservedAgentRoomId(
   final preservedAgentRoomId = incomingAgentRoomId.isNotEmpty
       ? incomingAgentRoomId
       : _validAgentRoomId(previousAgentRoomId ?? '');
-  if (preservedAgentRoomId == next.agentRoomId.trim()) return next;
-  return AsSyncBootstrap(
-    syncedAt: next.syncedAt,
-    user: next.user,
+  final presence = next.agentPresence;
+  final presenceRoomId = presence?.agentRoomId.trim() ?? '';
+  final normalizedPresence = presence != null &&
+          presenceRoomId.isEmpty &&
+          preservedAgentRoomId.isNotEmpty
+      ? presence.copyWith(agentRoomId: preservedAgentRoomId)
+      : presence;
+  if (preservedAgentRoomId == next.agentRoomId.trim() &&
+      identical(normalizedPresence, presence)) {
+    return next;
+  }
+  return next.copyWith(
     agentRoomId: preservedAgentRoomId,
-    rooms: next.rooms,
-    contacts: next.contacts,
-    groups: next.groups,
-    channels: next.channels,
-    pending: next.pending,
+    agentPresence: normalizedPresence,
   );
 }
 

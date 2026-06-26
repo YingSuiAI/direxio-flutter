@@ -9,6 +9,8 @@
 
 import 'dart:convert';
 
+const Object _unset = Object();
+
 const groupInvitePolicyOwner = 'owner';
 const groupInvitePolicyAllMembers = 'all_members';
 const asCallMediaTypeVoice = 'voice';
@@ -90,7 +92,11 @@ class AgentConfig {
       );
 }
 
-/// §5.3 Agent bridge presence status.
+/// Legacy `agent.status` response model.
+///
+/// Current Flutter UI must not use this as bridge presence. The action is a
+/// deprecated diagnostic over agent-token `/_p2p/events` counters, not an
+/// owner-readable online/offline contract.
 class AgentStatus {
   const AgentStatus({
     required this.connected,
@@ -132,6 +138,62 @@ class AgentStatus {
           : null,
       roomsJoined: j['rooms_joined'] as int? ?? 0,
       messagesToday: j['messages_today'] as int? ?? 0,
+    );
+  }
+}
+
+class AsAgentPresence {
+  const AsAgentPresence({
+    required this.online,
+    required this.connected,
+    this.configured = false,
+    this.enabled = false,
+    this.displayName = '',
+    this.agentRoomId = '',
+  });
+
+  final bool online;
+  final bool connected;
+  final bool configured;
+  final bool enabled;
+  final String displayName;
+  final String agentRoomId;
+
+  factory AsAgentPresence.fromJson(Map<String, dynamic> json) {
+    return AsAgentPresence(
+      online: _parseBool(json['online']),
+      connected: _parseBool(json['connected']),
+      configured: _parseBool(json['configured']),
+      enabled: _parseBool(json['enabled']),
+      displayName: json['display_name'] as String? ?? '',
+      agentRoomId: json['agent_room_id'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'online': online,
+        'connected': connected,
+        'configured': configured,
+        'enabled': enabled,
+        if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
+        if (agentRoomId.trim().isNotEmpty) 'agent_room_id': agentRoomId.trim(),
+      };
+
+  AsAgentPresence copyWith({
+    bool? online,
+    bool? connected,
+    bool? configured,
+    bool? enabled,
+    String? displayName,
+    String? agentRoomId,
+  }) {
+    return AsAgentPresence(
+      online: online ?? this.online,
+      connected: connected ?? this.connected,
+      configured: configured ?? this.configured,
+      enabled: enabled ?? this.enabled,
+      displayName: displayName ?? this.displayName,
+      agentRoomId: agentRoomId ?? this.agentRoomId,
     );
   }
 }
@@ -673,11 +735,13 @@ class AsSyncBootstrap {
     required this.channels,
     required this.pending,
     this.agentRoomId = '',
+    this.agentPresence,
   });
 
   final DateTime syncedAt;
   final AsSyncUser user;
   final String agentRoomId;
+  final AsAgentPresence? agentPresence;
   final List<AsSyncRoomSummary> rooms;
   final List<AsSyncContact> contacts;
   final List<AsSyncRoomSummary> groups;
@@ -685,12 +749,21 @@ class AsSyncBootstrap {
   final AsSyncPending pending;
 
   factory AsSyncBootstrap.fromJson(Map<String, dynamic> json) {
+    final rawAgentPresence =
+        (json['agent_presence'] as Map?)?.cast<String, dynamic>();
+    final agentPresence = rawAgentPresence == null
+        ? null
+        : AsAgentPresence.fromJson(rawAgentPresence);
+    final agentRoomId = (json['agent_room_id'] as String? ?? '').trim();
     return AsSyncBootstrap(
       syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
       user: AsSyncUser.fromJson(
         (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
-      agentRoomId: json['agent_room_id'] as String? ?? '',
+      agentRoomId: agentRoomId.isNotEmpty
+          ? agentRoomId
+          : agentPresence?.agentRoomId ?? '',
+      agentPresence: agentPresence,
       rooms: _parseList(json['rooms'], AsSyncRoomSummary.fromJson),
       contacts: _parseList(json['contacts'], AsSyncContact.fromJson),
       groups: _parseList(json['groups'], AsSyncRoomSummary.fromJson),
@@ -706,12 +779,40 @@ class AsSyncBootstrap {
       'synced_at': syncedAt.toUtc().toIso8601String(),
       'user': user.toJson(),
       if (agentRoomId.trim().isNotEmpty) 'agent_room_id': agentRoomId.trim(),
+      if (agentPresence != null) 'agent_presence': agentPresence!.toJson(),
       'rooms': rooms.map((room) => room.toJson()).toList(),
       'contacts': contacts.map((contact) => contact.toJson()).toList(),
       'groups': groups.map((group) => group.toJson()).toList(),
       'channels': channels.map((channel) => channel.toJson()).toList(),
       'pending': pending.toJson(),
     };
+  }
+
+  AsSyncBootstrap copyWith({
+    DateTime? syncedAt,
+    AsSyncUser? user,
+    String? agentRoomId,
+    Object? agentPresence = _unset,
+    List<AsSyncRoomSummary>? rooms,
+    List<AsSyncContact>? contacts,
+    List<AsSyncRoomSummary>? groups,
+    List<AsSyncRoomSummary>? channels,
+    AsSyncPending? pending,
+  }) {
+    final nextAgentPresence = identical(agentPresence, _unset)
+        ? this.agentPresence
+        : agentPresence as AsAgentPresence?;
+    return AsSyncBootstrap(
+      syncedAt: syncedAt ?? this.syncedAt,
+      user: user ?? this.user,
+      agentRoomId: agentRoomId ?? this.agentRoomId,
+      agentPresence: nextAgentPresence,
+      rooms: rooms ?? this.rooms,
+      contacts: contacts ?? this.contacts,
+      groups: groups ?? this.groups,
+      channels: channels ?? this.channels,
+      pending: pending ?? this.pending,
+    );
   }
 }
 
@@ -2371,8 +2472,12 @@ abstract class AsClient {
   /// P2P product API action.
   Future<AgentConfig> updateAgentConfig(AgentConfig config);
 
-  /// P2P product API action.
-  Future<AgentStatus> getAgentStatus();
+  /// Legacy P2P product API action.
+  ///
+  /// Do not use this for the agent conversation header; current server builds
+  /// need an owner-readable bridge presence contract before Flutter can show
+  /// real online/offline state.
+  Future<AgentStatus> getLegacyAgentStatus();
 
   /// P2P product API action.
   Future<List<FollowEntry>> getFollows();
@@ -2816,6 +2921,8 @@ bool? _parseNullableBool(Object? value) {
   }
   return null;
 }
+
+bool _parseBool(Object? value) => _parseNullableBool(value) ?? false;
 
 String _parseChannelDisplayName(Map<String, dynamic> json) {
   return _firstString(json, const [

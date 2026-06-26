@@ -1295,8 +1295,7 @@ void main() {
     expect(status.allHealthy, isFalse);
   });
 
-  test('agent status parses online separately from event stream connection',
-      () async {
+  test('legacy agent status parses deprecated diagnostic response', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
@@ -1318,7 +1317,7 @@ void main() {
       }),
     );
 
-    final status = await client.getAgentStatus();
+    final status = await client.getLegacyAgentStatus();
 
     expect(status.connected, isTrue);
     expect(status.online, isFalse);
@@ -1407,6 +1406,33 @@ void main() {
     expect(expired, isFalse);
     expect(events.single.seq, 43);
     expect(events.single.payload['reason'], 'call');
+  });
+
+  test('streamEvents decodes owner agent presence events', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          [
+            'id: 45',
+            'event: agent.presence',
+            r'data: {"seq":45,"type":"agent.presence","room_id":"!real:server","payload":{"online":true,"connected":true,"configured":true,"enabled":true,"display_name":"Agent","agent_room_id":"!real:server"},"created_at":"2026-06-26T00:00:00Z"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents().toList();
+
+    expect(events.single.seq, 45);
+    expect(events.single.type, 'agent.presence');
+    expect(events.single.roomId, '!real:server');
+    expect(events.single.payload['online'], isTrue);
+    expect(events.single.payload['connected'], isTrue);
   });
 
   test('streamEvents bypasses Matrix response stream timeout wrapper',

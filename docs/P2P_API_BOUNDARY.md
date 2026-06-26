@@ -49,13 +49,13 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Channel join-request review actions return a top-level status with the same approval/join states. The client must preserve that top-level status; approving a request is not a successful join unless the returned status is `joined`.
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
-- Agent/API actions: `agent.*` and `apis.*`. `agent.status.connected`
-  means active agent-token `GET /_p2p/events` presence, not enabled
-  configuration. `agent.status.online` is the user-facing online bit
-  (`enabled && connected`). The UI must show online from `online`, keep
-  `connected` as bridge/event-stream diagnostics, treat configured but not
-  online agents as offline, and treat unconfigured/no-room responses as
-  unknown.
+- Agent/API actions: `agent.*` and `apis.*`. Agent room header presence uses
+  `sync.bootstrap.agent_presence` for the initial value and owner
+  `GET /_p2p/events` events with `type=agent.presence` for live updates.
+  `online` controls the UI online/offline state. `connected` is only the
+  active agent-token SSE connection fact and must remain separate from typing,
+  thinking, or streaming reply generation. Legacy `agent.status`/`agents.status`
+  is not a default Flutter header status source.
 
 ## Matrix Responsibilities
 

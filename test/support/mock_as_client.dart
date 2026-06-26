@@ -115,7 +115,7 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AgentStatus> getAgentStatus() async {
+  Future<AgentStatus> getLegacyAgentStatus() async {
     await Future.delayed(_latency);
     return AgentStatus(
       connected: true,

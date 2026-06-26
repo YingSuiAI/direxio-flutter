@@ -1,103 +1,100 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/agent_bridge_presence_provider.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 
 void main() {
-  test('parses server online separately from connected event-stream presence',
-      () {
-    final status = AgentStatus.fromJson(const {
-      'connected': true,
-      'online': false,
-      'enabled': false,
-      'configured': true,
-      'display_name': 'Agent',
-      'agent_room_id': '!agent:example.com',
-    });
-
-    expect(status.connected, isTrue);
-    expect(status.online, isFalse);
-    expect(status.enabled, isFalse);
-  });
-
-  test('maps active agent-token stream to online bridge presence', () {
-    const status = AgentStatus(
-      connected: true,
-      online: true,
-      configured: true,
-      displayName: 'Agent',
-      agentRoomId: '!agent:example.com',
-      lastSeen: null,
-      roomsJoined: 0,
-      messagesToday: 0,
+  test('uses bootstrap agent_presence as initial header status', () {
+    final container = ProviderContainer(
+      overrides: [
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(
+            bootstrap: _bootstrap(
+              const AsAgentPresence(
+                online: true,
+                connected: true,
+                configured: true,
+                enabled: true,
+                displayName: 'Agent',
+                agentRoomId: '!agent:example.com',
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+    addTearDown(container.dispose);
 
-    final presence = agentBridgePresenceFromStatus(status);
+    final presence = container.read(agentBridgePresenceProvider);
 
     expect(presence.state, AgentBridgePresenceState.online);
-    expect(presence.bridgeConnected, isTrue);
     expect(presence.label, '在线');
-  });
-
-  test('maps missing active agent-token stream to offline bridge presence', () {
-    const status = AgentStatus(
-      connected: false,
-      online: false,
-      configured: true,
-      displayName: 'Agent',
-      agentRoomId: '!agent:example.com',
-      lastSeen: null,
-      roomsJoined: 0,
-      messagesToday: 0,
-    );
-
-    final presence = agentBridgePresenceFromStatus(status);
-
-    expect(presence.state, AgentBridgePresenceState.offline);
-    expect(presence.bridgeConnected, isFalse);
-    expect(presence.label, '离线');
-  });
-
-  test('keeps disabled connected bridge offline in the UI', () {
-    const status = AgentStatus(
-      connected: true,
-      online: false,
-      configured: true,
-      displayName: 'Agent',
-      agentRoomId: '!agent:example.com',
-      lastSeen: null,
-      roomsJoined: 0,
-      messagesToday: 0,
-    );
-
-    final presence = agentBridgePresenceFromStatus(status);
-
-    expect(presence.state, AgentBridgePresenceState.offline);
     expect(presence.bridgeConnected, isTrue);
-    expect(presence.label, '离线');
+    expect(presence.presence?.agentRoomId, '!agent:example.com');
   });
 
-  test('keeps unconfigured agent status distinct from offline', () {
-    const status = AgentStatus(
-      connected: false,
-      online: false,
-      configured: false,
-      displayName: '',
-      agentRoomId: '',
-      lastSeen: null,
-      roomsJoined: 0,
-      messagesToday: 0,
+  test('uses online for UI state and keeps connected as bridge fact', () {
+    final container = ProviderContainer(
+      overrides: [
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(
+            bootstrap: _bootstrap(
+              const AsAgentPresence(
+                online: false,
+                connected: true,
+                configured: true,
+                enabled: false,
+                agentRoomId: '!agent:example.com',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final presence = container.read(agentBridgePresenceProvider);
+
+    expect(presence.state, AgentBridgePresenceState.offline);
+    expect(presence.label, '离线');
+    expect(presence.bridgeConnected, isTrue);
+  });
+
+  test('distinguishes bootstrap loading from missing presence contract', () {
+    final loadingContainer = ProviderContainer();
+    addTearDown(loadingContainer.dispose);
+    expect(
+      loadingContainer.read(agentBridgePresenceProvider).state,
+      AgentBridgePresenceState.connecting,
     );
 
-    final presence = agentBridgePresenceFromStatus(status);
-
-    expect(presence.state, AgentBridgePresenceState.unknown);
-    expect(presence.label, '未知');
+    final missingContainer = ProviderContainer(
+      overrides: [
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: _bootstrap(null)),
+        ),
+      ],
+    );
+    addTearDown(missingContainer.dispose);
+    expect(
+      missingContainer.read(agentBridgePresenceProvider).state,
+      AgentBridgePresenceState.unknown,
+    );
+    expect(missingContainer.read(agentBridgePresenceProvider).label, '状态未知');
   });
+}
 
-  test('maps polling errors to explicit error state', () {
-    final presence = agentBridgePresenceFromError(StateError('boom'));
-
-    expect(presence.state, AgentBridgePresenceState.error);
-    expect(presence.label, '状态异常');
-  });
+AsSyncBootstrap _bootstrap(AsAgentPresence? presence) {
+  return AsSyncBootstrap(
+    syncedAt: DateTime.utc(2026, 6, 26),
+    user: const AsSyncUser(userId: '@owner:example.com'),
+    agentRoomId: presence?.agentRoomId ?? '',
+    agentPresence: presence,
+    rooms: const [],
+    contacts: const [],
+    groups: const [],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
 }

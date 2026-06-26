@@ -33,6 +33,9 @@ void main() {
     expect(loaded.contacts.single.deletedEventIds, [r'$deleted']);
     expect(loaded.rooms.single.name, 'Yanan');
     expect(loaded.pending.friendRequests.single.title, 'Alice');
+    expect(loaded.agentPresence?.online, isTrue);
+    expect(loaded.agentPresence?.connected, isTrue);
+    expect(loaded.agentPresence?.agentRoomId, '!agent:p2p-im.com');
   });
 
   test('write replaces the snapshot instead of appending stale contacts',
@@ -83,6 +86,31 @@ void main() {
     expect(bootstrap.contacts.single.status, 'pending_inbound');
     expect(bootstrap.contacts.single.remark, '我是 Bob');
   });
+
+  test('parses bootstrap agent_presence for header status', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-26T00:00:00Z',
+      'user': {'user_id': '@owner:example.com'},
+      'agent_presence': {
+        'online': true,
+        'connected': true,
+        'configured': true,
+        'enabled': true,
+        'display_name': 'Agent',
+        'agent_room_id': '!real:server',
+      },
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+
+    expect(bootstrap.agentRoomId, '!real:server');
+    expect(bootstrap.agentPresence?.online, isTrue);
+    expect(bootstrap.agentPresence?.connected, isTrue);
+    expect(bootstrap.toJson()['agent_presence'], isA<Map<String, dynamic>>());
+  });
 }
 
 AsSyncBootstrap _bootstrap({
@@ -93,6 +121,15 @@ AsSyncBootstrap _bootstrap({
   return AsSyncBootstrap(
     syncedAt: DateTime.parse('2026-05-28T08:00:00Z'),
     user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    agentRoomId: '!agent:p2p-im.com',
+    agentPresence: const AsAgentPresence(
+      online: true,
+      connected: true,
+      configured: true,
+      enabled: true,
+      displayName: 'Agent',
+      agentRoomId: '!agent:p2p-im.com',
+    ),
     rooms: const [
       AsSyncRoomSummary(
         roomId: '!agent:p2p-im.com',

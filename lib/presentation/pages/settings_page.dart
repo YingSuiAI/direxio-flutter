@@ -360,10 +360,8 @@ String _languageDialogTitle(AppLocalizations? l10n) {
 }
 
 const _supportedLanguageModes = [
-  AppLocaleMode.system,
   AppLocaleMode.zh,
   AppLocaleMode.en,
-  AppLocaleMode.ja,
 ];
 
 String _languageLabel(AppLocalizations? l10n, AppLocaleMode mode) {

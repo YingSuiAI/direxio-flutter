@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -159,18 +160,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _showGettingStartedGuide() async {
     if (_guideOpen) return;
-    const loginTokens = PortalTokens.dark;
     setState(() => _guideOpen = true);
     try {
       await showGeneralDialog<void>(
         context: context,
         barrierDismissible: true,
         barrierLabel: MaterialLocalizations.of(context).closeButtonLabel,
-        barrierColor: loginTokens.surface.withValues(alpha: 0.7),
+        barrierColor:
+            const Color(0xFF383838).withValues(alpha: 0.7), // theme-fixed
         transitionDuration: const Duration(milliseconds: 180),
-        pageBuilder: (_, __, ___) => const _GettingStartedGuideDialog(
-          tokens: loginTokens,
-        ),
+        pageBuilder: (_, __, ___) => const _GettingStartedGuideDialog(),
         transitionBuilder: (_, animation, __, child) {
           final curved = CurvedAnimation(
             parent: animation,
@@ -353,9 +352,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 }
 
 class _GettingStartedGuideDialog extends StatelessWidget {
-  const _GettingStartedGuideDialog({required this.tokens});
+  const _GettingStartedGuideDialog();
 
-  final PortalTokens tokens;
+  static const _cardTop = Color(0xFF2776FA); // theme-fixed
+  static const _cardBottom = Color(0xFF132138); // theme-fixed
+  static const _borderBottom = Color(0xFF2674F6); // theme-fixed
+  static const _linkColor = Color(0xFF3DD0FF); // theme-fixed
 
   @override
   Widget build(BuildContext context) {
@@ -363,50 +365,86 @@ class _GettingStartedGuideDialog extends StatelessWidget {
       context,
       AppLocalizations,
     );
-    final size = MediaQuery.sizeOf(context);
     return SafeArea(
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 315,
-              maxHeight: size.height - 80,
+        child: SizedBox(
+          key: const ValueKey('login_guide_dialog_card'),
+          width: 315,
+          height: 517,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.61),
+                  _borderBottom,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(30),
             ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      tokens.primaryContainer,
-                      tokens.surface,
-                    ],
-                    stops: const [0, 0.78],
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                ),
+            child: Padding(
+              padding: const EdgeInsets.all(1),
+              child: Material(
+                type: MaterialType.transparency,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                  borderRadius: BorderRadius.circular(29),
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_cardTop, _cardBottom],
+                        stops: [0, 0.7738],
+                      ),
+                    ),
+                    child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        _GuideIllustration(tokens: tokens),
-                        const SizedBox(height: 16),
-                        _GuideParagraph(
-                          text: l10n?.loginGuideIntroPrimary ??
-                              'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer',
-                          tokens: tokens,
+                        const Positioned(
+                          top: 15,
+                          left: 65,
+                          child: Image(
+                            key: ValueKey('login_guide_illustration'),
+                            image: AssetImage(
+                              'assets/images/login_guide_illustration.png',
+                            ),
+                            width: 199,
+                            height: 169,
+                            fit: BoxFit.contain,
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        _GuideParagraph(
-                          text: l10n?.loginGuideIntroSecondary ??
-                              'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai',
-                          tokens: tokens,
+                        Positioned(
+                          top: 182,
+                          left: 15,
+                          width: 283,
+                          child: _GuideRichParagraph(
+                            text: l10n?.loginGuideIntroPrimary ??
+                                'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer',
+                            highlightedText:
+                                'https://github.com/YingSuiAI/direxio-deployer',
+                            copyValue:
+                                'https://github.com/YingSuiAI/direxio-deployer',
+                            copyKey: const ValueKey(
+                              'login_guide_copy_deployer_url',
+                            ),
+                            linkColor: _linkColor,
+                          ),
+                        ),
+                        Positioned(
+                          top: 309,
+                          left: 15,
+                          width: 282,
+                          child: _GuideRichParagraph(
+                            text: l10n?.loginGuideIntroSecondary ??
+                                'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai',
+                            highlightedText: 'direxio.ai',
+                            copyValue: 'https://direxio.ai',
+                            copyKey: const ValueKey(
+                              'login_guide_copy_official_site',
+                            ),
+                            linkColor: _linkColor,
+                          ),
                         ),
                       ],
                     ),
@@ -421,97 +459,62 @@ class _GettingStartedGuideDialog extends StatelessWidget {
   }
 }
 
-class _GuideIllustration extends StatelessWidget {
-  const _GuideIllustration({required this.tokens});
-
-  final PortalTokens tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 199,
-      height: 169,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 169,
-            height: 169,
-            decoration: BoxDecoration(
-              color: tokens.surface.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: tokens.onPrimaryContainer.withValues(alpha: 0.18),
-              ),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(26),
-            child: Image.asset(
-              'assets/images/2d-logo.png',
-              width: 151,
-              height: 151,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned(
-            top: 11,
-            right: 0,
-            child: Container(
-              height: 33,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: tokens.surface.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: tokens.onPrimaryContainer.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Symbols.smart_toy,
-                    size: 16,
-                    color: tokens.accent,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'AI',
-                    style: AppTheme.sans(
-                      size: 13,
-                      weight: FontWeight.w700,
-                      color: tokens.onPrimaryContainer,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GuideParagraph extends StatelessWidget {
-  const _GuideParagraph({
+class _GuideRichParagraph extends StatelessWidget {
+  const _GuideRichParagraph({
     required this.text,
-    required this.tokens,
+    required this.highlightedText,
+    required this.copyValue,
+    required this.copyKey,
+    required this.linkColor,
   });
 
   final String text;
-  final PortalTokens tokens;
+  final String highlightedText;
+  final String copyValue;
+  final Key copyKey;
+  final Color linkColor;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: AppTheme.sans(
-        size: 14,
-        weight: FontWeight.w600,
-        color: tokens.onPrimaryContainer,
-      ).copyWith(height: 1.42),
+    final baseStyle = AppTheme.sans(
+      size: 14,
+      weight: FontWeight.w600,
+      color: Colors.white,
+    ).copyWith(height: 1.21);
+    final linkStyle = baseStyle.copyWith(color: linkColor);
+    final start = text.indexOf(highlightedText);
+    final spans = <InlineSpan>[];
+    if (start < 0) {
+      spans.add(TextSpan(text: text, style: baseStyle));
+    } else {
+      final before = text.substring(0, start);
+      final after = text.substring(start + highlightedText.length);
+      if (before.isNotEmpty) {
+        spans.add(TextSpan(text: before, style: baseStyle));
+      }
+      spans.add(TextSpan(text: highlightedText, style: linkStyle));
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: GestureDetector(
+            key: copyKey,
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Clipboard.setData(ClipboardData(text: copyValue)),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Icon(
+                Symbols.content_copy,
+                size: 15,
+                color: linkColor,
+              ),
+            ),
+          ),
+        ),
+      );
+      if (after.isNotEmpty) spans.add(TextSpan(text: after, style: baseStyle));
+    }
+    return RichText(
+      text: TextSpan(children: spans),
     );
   }
 }

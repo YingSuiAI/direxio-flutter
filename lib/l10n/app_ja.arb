@@ -342,6 +342,8 @@
   "addContactVerificationSend": "申請を送信",
   "addContactRequestSent": "友だち申請を送信しました。承認を待っています。",
   "addContactCannotAddSelf": "自分を追加することはできません",
+  "addContactOpenChatMissing": "チャットを開けませんでした: 会話情報がありません",
+  "addContactChatSyncing": "チャットを同期中です。しばらくしてから再試行してください。",
   "addContactRequestFailed": "友だち申請の送信に失敗しました: {error}",
   "@addContactRequestFailed": {
     "placeholders": {
@@ -381,6 +383,18 @@
   "chatInfoTitle": "チャット情報",
   "chatInfoMissingConversation": "会話が見つかりません",
   "chatInfoSearchRecords": "チャット履歴を検索",
+  "roomSearchTitle": "チャット履歴を検索",
+  "roomSearchHint": "このチャットを検索",
+  "roomSearchEmptyPrompt": "キーワードを入力してこのチャットを検索",
+  "roomSearchNoResults": "「{query}」を含むメッセージは見つかりません",
+  "@roomSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "roomSearchMessageFallback": "メッセージ",
   "chatInfoContactMissingRemark": "連絡先情報がないため、備考を設定できません",
   "chatInfoSelfBlockDisabled": "現在のユーザーはブロックできません",
   "chatInfoSelfReportDisabled": "現在のユーザーは報告できません",
@@ -576,6 +590,7 @@
   "requestsRejected": "拒否済み",
   "requestsPeerRejected": "相手が拒否しました",
   "requestsAdded": "追加済み",
+  "requestsBecameFriends": "友だちになりました",
   "requestsEmptyPending": "友だち申請はありません",
   "requestsEmptyAdded": "追加済みの連絡先はありません",
   "requestsRequestAsFriend": "あなたを友だちに追加しようとしています",

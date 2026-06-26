@@ -1553,6 +1553,18 @@ abstract class AppLocalizations {
   /// **'不能添加自己'**
   String get addContactCannotAddSelf;
 
+  /// No description provided for @addContactOpenChatMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开聊天失败: 缺少会话信息'**
+  String get addContactOpenChatMissing;
+
+  /// No description provided for @addContactChatSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天会话同步中，请稍后重试'**
+  String get addContactChatSyncing;
+
   /// No description provided for @addContactRequestFailed.
   ///
   /// In zh, this message translates to:
@@ -1744,6 +1756,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索聊天记录'**
   String get chatInfoSearchRecords;
+
+  /// No description provided for @roomSearchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查找聊天记录'**
+  String get roomSearchTitle;
+
+  /// No description provided for @roomSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索当前会话'**
+  String get roomSearchHint;
+
+  /// No description provided for @roomSearchEmptyPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入关键词搜索当前会话'**
+  String get roomSearchEmptyPrompt;
+
+  /// No description provided for @roomSearchNoResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到包含「{query}」的消息'**
+  String roomSearchNoResults(String query);
+
+  /// No description provided for @roomSearchMessageFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get roomSearchMessageFallback;
 
   /// No description provided for @chatInfoContactMissingRemark.
   ///
@@ -2290,6 +2332,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已添加'**
   String get requestsAdded;
+
+  /// No description provided for @requestsBecameFriends.
+  ///
+  /// In zh, this message translates to:
+  /// **'已成为朋友'**
+  String get requestsBecameFriends;
 
   /// No description provided for @requestsEmptyPending.
   ///

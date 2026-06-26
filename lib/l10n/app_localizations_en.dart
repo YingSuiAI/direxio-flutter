@@ -757,7 +757,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addContactTitle => 'Add Friend';
 
   @override
-  String get addContactEmptyHint => 'Enter a nickname or Portal URL to search';
+  String get addContactEmptyHint =>
+      'Enter the other person\'s domain to search';
 
   @override
   String get addContactDomainNotProductUser =>
@@ -790,6 +791,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addContactCannotAddSelf => 'You cannot add yourself';
+
+  @override
+  String get addContactOpenChatMissing =>
+      'Failed to open chat: missing conversation information';
+
+  @override
+  String get addContactChatSyncing => 'Chat is syncing. Try again later.';
 
   @override
   String addContactRequestFailed(String error) {
@@ -892,6 +900,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInfoSearchRecords => 'Search Chat';
+
+  @override
+  String get roomSearchTitle => 'Search Chat History';
+
+  @override
+  String get roomSearchHint => 'Search this chat';
+
+  @override
+  String get roomSearchEmptyPrompt => 'Enter keywords to search this chat';
+
+  @override
+  String roomSearchNoResults(String query) {
+    return 'No messages found for \"$query\"';
+  }
+
+  @override
+  String get roomSearchMessageFallback => 'Message';
 
   @override
   String get chatInfoContactMissingRemark =>
@@ -1200,6 +1225,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get requestsAdded => 'Added';
+
+  @override
+  String get requestsBecameFriends => 'You are now friends';
 
   @override
   String get requestsEmptyPending => 'No friend requests';

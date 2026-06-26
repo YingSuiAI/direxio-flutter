@@ -766,6 +766,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addContactCannotAddSelf => '不能添加自己';
 
   @override
+  String get addContactOpenChatMissing => '打开聊天失败: 缺少会话信息';
+
+  @override
+  String get addContactChatSyncing => '聊天会话同步中，请稍后重试';
+
+  @override
   String addContactRequestFailed(String error) {
     return '发送好友请求失败: $error';
   }
@@ -862,6 +868,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatInfoSearchRecords => '搜索聊天记录';
+
+  @override
+  String get roomSearchTitle => '查找聊天记录';
+
+  @override
+  String get roomSearchHint => '搜索当前会话';
+
+  @override
+  String get roomSearchEmptyPrompt => '输入关键词搜索当前会话';
+
+  @override
+  String roomSearchNoResults(String query) {
+    return '没有找到包含「$query」的消息';
+  }
+
+  @override
+  String get roomSearchMessageFallback => '消息';
 
   @override
   String get chatInfoContactMissingRemark => '缺少联系人信息，无法设置备注';
@@ -1163,6 +1186,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get requestsAdded => '已添加';
+
+  @override
+  String get requestsBecameFriends => '已成为朋友';
 
   @override
   String get requestsEmptyPending => '暂无好友请求';

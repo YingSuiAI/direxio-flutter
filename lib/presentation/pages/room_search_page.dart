@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/matrix_message_search_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../widgets/m3/m3_search_field.dart';
@@ -78,6 +79,8 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
   }
 
   Future<List<_RoomSearchResult>> _remoteResults(String query) async {
+    final l10n = AppLocalizations.of(context);
+    final senderFallback = l10n.roomSearchMessageFallback;
     try {
       final results = await ref.read(matrixMessageSearchClientProvider).search(
             query,
@@ -86,7 +89,13 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
           );
       final client = ref.read(matrixClientProvider);
       return results
-          .map((result) => _RoomSearchResult.remote(result, client))
+          .map(
+            (result) => _RoomSearchResult.remote(
+              result,
+              client,
+              senderFallback: senderFallback,
+            ),
+          )
           .toList(growable: false);
     } catch (error) {
       debugPrint('room Matrix search failed: $error');
@@ -160,32 +169,36 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: t.bg,
       body: Column(
         children: [
-          _RoomSearchToolbar(onBack: () => context.pop()),
+          _RoomSearchToolbar(
+            title: l10n.roomSearchTitle,
+            onBack: () => context.pop(),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: M3SearchField(
               controller: _controller,
-              hint: '搜索当前会话',
+              hint: l10n.roomSearchHint,
               autofocus: true,
               onChanged: _onChanged,
             ),
           ),
-          Expanded(child: _buildBody(t)),
+          Expanded(child: _buildBody(t, l10n)),
         ],
       ),
     );
   }
 
-  Widget _buildBody(PortalTokens t) {
+  Widget _buildBody(PortalTokens t, AppLocalizations l10n) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_lastQuery.isEmpty) {
       return Center(
         child: Text(
-          '输入关键词搜索当前会话',
+          l10n.roomSearchEmptyPrompt,
           style: AppTheme.sans(size: 13, color: t.textMute),
         ),
       );
@@ -193,7 +206,7 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
     if (_results.isEmpty) {
       return Center(
         child: Text(
-          '没有找到包含「$_lastQuery」的消息',
+          l10n.roomSearchNoResults(_lastQuery),
           style: AppTheme.sans(size: 13, color: t.textMute),
         ),
       );
@@ -244,8 +257,9 @@ class _RoomSearchResult {
 
   factory _RoomSearchResult.remote(
     MatrixMessageSearchResult result,
-    Client client,
-  ) {
+    Client client, {
+    required String senderFallback,
+  }) {
     final room = client.getRoomById(result.roomId);
     var senderName = result.senderId.trim();
     if (room != null && senderName.isNotEmpty) {
@@ -255,7 +269,7 @@ class _RoomSearchResult {
     }
     return _RoomSearchResult(
       eventId: result.eventId,
-      senderName: senderName.isEmpty ? '消息' : senderName,
+      senderName: senderName.isEmpty ? senderFallback : senderName,
       content: result.body,
       timestamp: result.timestamp,
     );
@@ -341,8 +355,9 @@ class _RoomSearchTile extends StatelessWidget {
 }
 
 class _RoomSearchToolbar extends StatelessWidget {
-  const _RoomSearchToolbar({required this.onBack});
+  const _RoomSearchToolbar({required this.title, required this.onBack});
 
+  final String title;
   final VoidCallback onBack;
 
   @override
@@ -362,7 +377,7 @@ class _RoomSearchToolbar extends StatelessWidget {
                 child: _RoomSearchBackButton(onTap: onBack),
               ),
               Text(
-                '查找聊天记录',
+                title,
                 style: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w600,

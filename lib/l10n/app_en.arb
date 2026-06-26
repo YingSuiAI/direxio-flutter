@@ -332,7 +332,7 @@
   "setupPasswordDone": "Finish setup",
   "setupPasswordMismatch": "The two passphrases do not match",
   "addContactTitle": "Add Friend",
-  "addContactEmptyHint": "Enter a nickname or Portal URL to search",
+  "addContactEmptyHint": "Enter the other person's domain to search",
   "addContactDomainNotProductUser": "This domain is not a product user",
   "addContactMessageAfterAdding": "Add this friend before sending messages",
   "addContactVoiceAfterAdding": "Add this friend before starting an audio call",
@@ -342,6 +342,8 @@
   "addContactVerificationSend": "Send Request",
   "addContactRequestSent": "Friend request sent. Waiting for acceptance.",
   "addContactCannotAddSelf": "You cannot add yourself",
+  "addContactOpenChatMissing": "Failed to open chat: missing conversation information",
+  "addContactChatSyncing": "Chat is syncing. Try again later.",
   "addContactRequestFailed": "Failed to send friend request: {error}",
   "@addContactRequestFailed": {
     "placeholders": {
@@ -381,6 +383,18 @@
   "chatInfoTitle": "Chat Info",
   "chatInfoMissingConversation": "Conversation not found",
   "chatInfoSearchRecords": "Search Chat",
+  "roomSearchTitle": "Search Chat History",
+  "roomSearchHint": "Search this chat",
+  "roomSearchEmptyPrompt": "Enter keywords to search this chat",
+  "roomSearchNoResults": "No messages found for \"{query}\"",
+  "@roomSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "roomSearchMessageFallback": "Message",
   "chatInfoContactMissingRemark": "Missing contact information. Cannot set remark.",
   "chatInfoSelfBlockDisabled": "You cannot block the current user",
   "chatInfoSelfReportDisabled": "You cannot report the current user",
@@ -576,6 +590,7 @@
   "requestsRejected": "Rejected",
   "requestsPeerRejected": "Rejected by the other user",
   "requestsAdded": "Added",
+  "requestsBecameFriends": "You are now friends",
   "requestsEmptyPending": "No friend requests",
   "requestsEmptyAdded": "No added contacts",
   "requestsRequestAsFriend": "Requested to add you as a friend",

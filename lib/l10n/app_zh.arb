@@ -345,6 +345,8 @@
   "addContactVerificationSend": "发送申请",
   "addContactRequestSent": "好友请求已发送，等待对方接受。",
   "addContactCannotAddSelf": "不能添加自己",
+  "addContactOpenChatMissing": "打开聊天失败: 缺少会话信息",
+  "addContactChatSyncing": "聊天会话同步中，请稍后重试",
   "addContactRequestFailed": "发送好友请求失败: {error}",
   "@addContactRequestFailed": {
     "placeholders": {
@@ -384,6 +386,18 @@
   "chatInfoTitle": "聊天信息",
   "chatInfoMissingConversation": "会话不存在",
   "chatInfoSearchRecords": "搜索聊天记录",
+  "roomSearchTitle": "查找聊天记录",
+  "roomSearchHint": "搜索当前会话",
+  "roomSearchEmptyPrompt": "输入关键词搜索当前会话",
+  "roomSearchNoResults": "没有找到包含「{query}」的消息",
+  "@roomSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "roomSearchMessageFallback": "消息",
   "chatInfoContactMissingRemark": "缺少联系人信息，无法设置备注",
   "chatInfoSelfBlockDisabled": "当前用户无法拉黑",
   "chatInfoSelfReportDisabled": "当前用户无法举报",
@@ -579,6 +593,7 @@
   "requestsRejected": "已拒绝",
   "requestsPeerRejected": "对方已拒绝",
   "requestsAdded": "已添加",
+  "requestsBecameFriends": "已成为朋友",
   "requestsEmptyPending": "暂无好友请求",
   "requestsEmptyAdded": "暂无已添加联系人",
   "requestsRequestAsFriend": "请求添加你为朋友",

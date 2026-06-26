@@ -6350,11 +6350,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('搜索聊天记录'), findsOneWidget);
-    expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
-    expect(find.text('他的频道'), findsOneWidget);
+    expect(asClient.requestedUserPublicChannelsUserId, isNull);
+    expect(find.text('他的频道'), findsNothing);
     expect(
       find.byKey(const ValueKey('chat_info_channel_ch_chat_info_1')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('owner'), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
@@ -9032,6 +9032,88 @@ void main() {
     expect(find.text('我是 C，请通过好友申请'), findsWidgets);
   });
 
+  testWidgets('new friends opened profile localizes UID copied toast',
+      (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async => null,
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    final client = Client('DirexioRequestsOpenedProfileL10nTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice-request:portal.local',
+          domain: 'portal.local',
+          status: 'pending_inbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/requests',
+      routes: [
+        GoRoute(path: '/requests', builder: (_, __) => const RequestsPage()),
+        GoRoute(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Alice Chen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Symbols.content_copy));
+    await tester.pump();
+
+    expect(find.text('UID copied'), findsOneWidget);
+    expect(find.text('已复制 UID'), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+
+    await client.dispose(closeDatabase: false);
+  });
+
   testWidgets('new friends request actions use dark theme accent contrast',
       (tester) async {
     final client = Client('DirexioRequestsDarkActionContrastTest')
@@ -9929,6 +10011,25 @@ void main() {
     expect(searchMaterial.color, PortalTokens.light.surfaceHover);
   });
 
+  testWidgets('add contact English empty prompt asks for peer domain',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text("Enter the other person's domain to search"),
+        findsOneWidget);
+  });
+
   testWidgets(
       'add contact search does not render demo results while logged out',
       (tester) async {
@@ -10101,6 +10202,60 @@ void main() {
       container.read(homeHiddenConversationIdsProvider),
       isNot(contains(roomId)),
     );
+  });
+
+  testWidgets('add contact detail localizes accepted friend action',
+      (tester) async {
+    const roomId = '!alice-chat:p2p-im.com';
+    final client = Client('DirexioAddContactAcceptedL10nTest');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'portal.local',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@alice:portal.local',
+            displayName: 'Alice Chen',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Message'), findsOneWidget);
+    expect(find.text('发消息'), findsNothing);
+    expect(find.text('Add Friend'), findsNothing);
+
+    await client.dispose(closeDatabase: false);
   });
 
   testWidgets('add contact detail message action opens friend request',
@@ -21729,14 +21884,65 @@ void main() {
 
     expect(find.text('Product Overview'), findsOneWidget);
     expect(
-      find.textContaining(
-          'Before your first use, prepare a functional AI Agent'),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains(
+                'Before your first use, prepare a functional AI Agent'),
+      ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('github.com/YingSuiAI/direxio-deployer'),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text
+                .toPlainText()
+                .contains('github.com/YingSuiAI/direxio-deployer'),
+      ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('login guide dialog matches Figma product overview card',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Getting Started Guide'));
+    await tester.pumpAndSettle();
+
+    final card = tester.getSize(
+      find.byKey(const ValueKey('login_guide_dialog_card')),
+    );
+    expect(card, const Size(315, 517));
+
+    final illustration = tester.widget<Image>(
+      find.byKey(const ValueKey('login_guide_illustration')),
+    );
+    expect(
+      illustration.image,
+      const AssetImage('assets/images/login_guide_illustration.png'),
+    );
+    expect(
+      find.byKey(const ValueKey('login_guide_copy_deployer_url')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('login_guide_copy_official_site')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Symbols.content_copy), findsNWidgets(2));
   });
 
   testWidgets('init page shows weak prompt for required avatar',

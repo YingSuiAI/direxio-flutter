@@ -68,10 +68,11 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
   }
 
   void _openAcceptedChat(AsConversation conversation) {
+    final l10n = AppLocalizations.of(context);
     final roomId = conversation.roomId.trim();
     final route = productConversationRoute(conversation);
     if (roomId.isEmpty || route == null) {
-      _toast(context, '打开聊天失败: 缺少会话信息');
+      _toast(context, l10n.addContactOpenChatMissing);
       return;
     }
     showHomeConversation(ref, roomId);
@@ -151,10 +152,16 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               ),
               const SizedBox(height: 14),
               _AddFriendRow(
-                label: isAcceptedContact ? '发消息' : '添加好友',
+                label: isAcceptedContact
+                    ? l10n?.contactSendMessage ?? 'Message'
+                    : l10n?.contactAddFriend ?? 'Add Friend',
                 onTap: isAcceptedContact
                     ? acceptedConversation == null
-                        ? () => _toast(context, '聊天会话同步中，请稍后重试')
+                        ? () => _toast(
+                              context,
+                              l10n?.addContactChatSyncing ??
+                                  'Chat is syncing. Try again later.',
+                            )
                         : () => _openAcceptedChat(acceptedConversation)
                     : _openVerification,
               ),
@@ -311,7 +318,7 @@ class _ProfileHeader extends StatelessWidget {
 Future<void> _copyAddContactUid(BuildContext context, String uid) async {
   await Clipboard.setData(ClipboardData(text: uid));
   if (!context.mounted) return;
-  _toast(context, '已复制 UID');
+  _toast(context, AppLocalizations.of(context).profileInfoUidCopied);
 }
 
 String _avatarFallbackSeed(String displayName, String fallback) {

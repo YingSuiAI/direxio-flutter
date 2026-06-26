@@ -42,11 +42,6 @@ class ChatInfoPage extends ConsumerStatefulWidget {
   ConsumerState<ChatInfoPage> createState() => _ChatInfoPageState();
 }
 
-final _chatInfoPublicChannelsProvider =
-    FutureProvider.autoDispose.family<List<AsChannel>, String>((ref, userId) {
-  return ref.read(asClientProvider).getUserPublicChannels(userId);
-});
-
 class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
   bool _blocking = false;
   bool _deleting = false;
@@ -88,10 +83,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
         );
     final canUseContactActions = peerId != null;
     final isSelf = peerId != null && peerId == client.userID;
-    final publicChannels = peerId == null || isSelf
-        ? const <AsChannel>[]
-        : ref.watch(_chatInfoPublicChannelsProvider(peerId)).valueOrNull ??
-            const <AsChannel>[];
     final peerDomain = peerId == null
         ? widget.roomId
         : reportDomainForUserId(peerId, acceptedContact?.domain);
@@ -131,16 +122,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                       '/room-search/${Uri.encodeComponent(widget.roomId)}',
                     ),
                   ),
-                  if (peerId != null && !isSelf) ...[
-                    const SizedBox(height: 12),
-                    _ChatInfoRow(
-                      label: l10n?.contactHisChannels ?? '他的频道',
-                      onTap: () => context.push(
-                        '/contact-channels/${Uri.encodeComponent(peerId)}',
-                      ),
-                      previewChannels: publicChannels,
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   _ChatInfoRow(
                     label: l10n?.contactSetRemark ?? '设置备注',
@@ -695,11 +676,9 @@ class _ChatInfoRow extends StatelessWidget {
   const _ChatInfoRow({
     required this.label,
     required this.onTap,
-    this.previewChannels = const [],
   });
   final String label;
   final VoidCallback onTap;
-  final List<AsChannel> previewChannels;
 
   @override
   Widget build(BuildContext context) {
@@ -728,10 +707,6 @@ class _ChatInfoRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (previewChannels.isNotEmpty) ...[
-                  const SizedBox(width: 12),
-                  _ChatInfoChannelPreviews(channels: previewChannels),
-                ],
                 Icon(
                   Symbols.chevron_right,
                   size: 24,
@@ -742,36 +717,6 @@ class _ChatInfoRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ChatInfoChannelPreviews extends StatelessWidget {
-  const _ChatInfoChannelPreviews({required this.channels});
-
-  final List<AsChannel> channels;
-
-  @override
-  Widget build(BuildContext context) {
-    final client =
-        ProviderScope.containerOf(context).read(matrixClientProvider);
-    final previews = channels.take(3).toList(growable: false);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < previews.length; i++) ...[
-          PortalAvatar(
-            key: ValueKey('chat_info_channel_${previews[i].channelId}'),
-            seed: previews[i].name.trim().isEmpty
-                ? previews[i].channelId
-                : previews[i].name.trim(),
-            size: 32,
-            imageUrl: avatarHttpUrl(client, previews[i].avatarUrl),
-            shape: AvatarShape.squircle,
-          ),
-          if (i != previews.length - 1) const SizedBox(width: 6),
-        ],
-      ],
     );
   }
 }

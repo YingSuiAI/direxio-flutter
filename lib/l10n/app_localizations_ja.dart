@@ -770,6 +770,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addContactCannotAddSelf => '自分を追加することはできません';
 
   @override
+  String get addContactOpenChatMissing => 'チャットを開けませんでした: 会話情報がありません';
+
+  @override
+  String get addContactChatSyncing => 'チャットを同期中です。しばらくしてから再試行してください。';
+
+  @override
   String addContactRequestFailed(String error) {
     return '友だち申請の送信に失敗しました: $error';
   }
@@ -866,6 +872,23 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get chatInfoSearchRecords => 'チャット履歴を検索';
+
+  @override
+  String get roomSearchTitle => 'チャット履歴を検索';
+
+  @override
+  String get roomSearchHint => 'このチャットを検索';
+
+  @override
+  String get roomSearchEmptyPrompt => 'キーワードを入力してこのチャットを検索';
+
+  @override
+  String roomSearchNoResults(String query) {
+    return '「$query」を含むメッセージは見つかりません';
+  }
+
+  @override
+  String get roomSearchMessageFallback => 'メッセージ';
 
   @override
   String get chatInfoContactMissingRemark => '連絡先情報がないため、備考を設定できません';
@@ -1169,6 +1192,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get requestsAdded => '追加済み';
+
+  @override
+  String get requestsBecameFriends => '友だちになりました';
 
   @override
   String get requestsEmptyPending => '友だち申請はありません';

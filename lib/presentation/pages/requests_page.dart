@@ -631,7 +631,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   void _openContactProfile(String mxid) {
     final id = mxid.trim();
     if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}');
+    context.push('/contact/${Uri.encodeComponent(id)}?source=chat_avatar');
   }
 }
 
@@ -1785,7 +1785,7 @@ class _AcceptedRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: '已成为朋友',
+      message: l10n?.requestsBecameFriends ?? '已成为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid),
       trailing: _RequestStatusText(text: l10n?.requestsAdded ?? '已添加'),
     );

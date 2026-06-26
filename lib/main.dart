@@ -13,6 +13,7 @@ import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/design_tokens.dart';
 import 'l10n/app_localizations.dart';
 import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/providers/app_theme_provider.dart';
@@ -24,9 +25,16 @@ import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
 bool _sessionExpiredDialogShowing = false;
+bool _startupSplashFirstFrameDeferred = false;
+bool _startupSplashFirstFrameAllowed = false;
+
+const _startupSplashAssetPath = 'assets/images/splash_launch.png';
+const _startupSplashHoldDuration = Duration(milliseconds: 1300);
+const _startupSplashFadeDuration = Duration(milliseconds: 220);
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  _deferStartupSplashFirstFrame(binding);
   _configureAndroidPhotoPicker();
   await _initializeFirebaseMessaging();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
@@ -47,6 +55,20 @@ void main() async {
       child: const PortalApp(),
     ),
   );
+}
+
+void _deferStartupSplashFirstFrame(WidgetsBinding binding) {
+  binding.deferFirstFrame();
+  _startupSplashFirstFrameDeferred = true;
+  _startupSplashFirstFrameAllowed = false;
+}
+
+void _allowStartupSplashFirstFrame() {
+  if (!_startupSplashFirstFrameDeferred || _startupSplashFirstFrameAllowed) {
+    return;
+  }
+  WidgetsBinding.instance.allowFirstFrame();
+  _startupSplashFirstFrameAllowed = true;
 }
 
 void _configureAndroidPhotoPicker() {
@@ -169,12 +191,40 @@ class StartupSplashOverlay extends StatefulWidget {
 
 class _StartupSplashOverlayState extends State<StartupSplashOverlay> {
   bool _visible = true;
+  bool _precacheStarted = false;
   Timer? _hideTimer;
 
   @override
-  void initState() {
-    super.initState();
-    _hideTimer = Timer(const Duration(milliseconds: 1300), () {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_precacheStarted) return;
+    _precacheStarted = true;
+    _prepareSplashImage();
+  }
+
+  Future<void> _prepareSplashImage() async {
+    try {
+      await precacheImage(
+        const AssetImage(_startupSplashAssetPath),
+        context,
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'p2p-client startup',
+          context: ErrorDescription('precaching startup splash image'),
+        ),
+      );
+    } finally {
+      _allowStartupSplashFirstFrame();
+      if (mounted) _startHideTimer();
+    }
+  }
+
+  void _startHideTimer() {
+    _hideTimer ??= Timer(_startupSplashHoldDuration, () {
       if (mounted) setState(() => _visible = false);
     });
   }
@@ -182,11 +232,14 @@ class _StartupSplashOverlayState extends State<StartupSplashOverlay> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _allowStartupSplashFirstFrame();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final splashBackground = Theme.of(context).extension<PortalTokens>()?.bg ??
+        PortalTokens.light.bg;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -195,11 +248,14 @@ class _StartupSplashOverlayState extends State<StartupSplashOverlay> {
           ignoring: !_visible,
           child: AnimatedOpacity(
             opacity: _visible ? 1 : 0,
-            duration: const Duration(milliseconds: 220),
+            duration: _startupSplashFadeDuration,
             curve: Curves.easeOut,
-            child: Image.asset(
-              'assets/images/splash_launch.png',
-              fit: BoxFit.cover,
+            child: ColoredBox(
+              color: splashBackground,
+              child: Image.asset(
+                _startupSplashAssetPath,
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ),

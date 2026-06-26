@@ -45,6 +45,7 @@ import '../chat/chat_glass_background.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
 import '../chat/chat_timeline_controller.dart';
+import '../chat/chat_timeline_event_source.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_detail_page.dart';
@@ -1274,7 +1275,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _scheduleAsCallHistoryReloadForTimeline() {
     if (_isChannelConversation) return;
-    final rawTimelineEvents = _timeline?.events ?? const <Event>[];
+    final room = _room;
+    if (room == null) return;
+    final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
+      room,
+      _timeline,
+    );
     if (rawTimelineEvents.isEmpty) return;
     final callRecordContextEvents =
         callRecordContextEventsForTimeline(rawTimelineEvents);
@@ -2682,7 +2688,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final headerMemberCount = isChannelConversation && channelMemberCount > 0
         ? channelMemberCount
         : memberCount;
-    final rawTimelineEvents = _timeline?.events ?? const <Event>[];
+    final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
+      room,
+      _timeline,
+    );
     final callRecordContextEvents = isChannelConversation
         ? const <Event>[]
         : callRecordContextEventsForTimeline(rawTimelineEvents);

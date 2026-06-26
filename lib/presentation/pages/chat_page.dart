@@ -37,6 +37,7 @@ import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
 import '../chat/chat_timeline_controller.dart';
+import '../chat/chat_timeline_event_source.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_detail_page.dart';
@@ -916,7 +917,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _scheduleAsCallHistoryReloadForTimeline() {
-    final rawTimelineEvents = _timeline?.events ?? const <Event>[];
+    final room = _room;
+    if (room == null) return;
+    final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
+      room,
+      _timeline,
+    );
     if (rawTimelineEvents.isEmpty) return;
     final callRecordContextEvents =
         callRecordContextEventsForTimeline(rawTimelineEvents);
@@ -2657,7 +2663,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .toList()
         .reversed
         .toList();
-    final rawTimelineEvents = _timeline?.events ?? const <Event>[];
+    final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
+      room,
+      _timeline,
+    );
     final callRecordContextEvents =
         callRecordContextEventsForTimeline(rawTimelineEvents);
     final timelineEvents = chatDisplayEventsForTimeline(rawTimelineEvents);

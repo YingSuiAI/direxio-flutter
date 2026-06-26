@@ -15148,6 +15148,103 @@ void main() {
     );
   });
 
+  testWidgets('private chat opens at the latest existing message',
+      (tester) async {
+    const roomId = '!direct-existing-history:p2p-im.com';
+    const peerMxid = '@alice:p2p-liyanan.com';
+    final client = Client(
+      'DirexioDirectLatestOnOpenTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'existing-direct-history',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                prevBatch: 'existing-history-start',
+                events: [
+                  for (var i = 0; i < 32; i++)
+                    MatrixEvent(
+                      type: EventTypes.Message,
+                      eventId: '\$existing-direct-$i',
+                      roomId: roomId,
+                      senderId: peerMxid,
+                      originServerTs: DateTime.utc(2026, 6, 26, 10, i),
+                      content: {
+                        'msgtype': MessageTypes.Text,
+                        'body': 'existing message $i',
+                      },
+                    ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('existing message 31'), findsOneWidget);
+    expect(find.text('existing message 0'), findsNothing);
+  });
+
   testWidgets('empty group chat can pull to load server history',
       (tester) async {
     const roomId = '!empty-group:p2p-im.com';

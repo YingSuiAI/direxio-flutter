@@ -7,7 +7,7 @@ void main() {
   );
 
   test('Direxio Android pusher constants match Firebase gateway config', () {
-    expect(direxioAndroidFcmPusherProfile.appId, 'io.direxio.app.android');
+    expect(direxioAndroidFcmPusherProfile.appId, 'com.direxio.ai');
     expect(direxioAndroidPackageName, 'com.direxio.ai');
     expect(
       direxioPushGatewayUrl,
@@ -25,7 +25,7 @@ void main() {
       timezoneName: 'CST',
     );
 
-    expect(pusher.appId, 'io.direxio.app.android');
+    expect(pusher.appId, 'com.direxio.ai');
     expect(pusher.pushkey, 'fcm-token');
     expect(pusher.kind, 'http');
     expect(pusher.lang, 'zh-CN');
@@ -52,7 +52,7 @@ void main() {
       timezoneName: 'PST',
     );
 
-    expect(pusher.appId, 'io.direxio.app.ios');
+    expect(pusher.appId, 'com.direxio.app');
     expect(pusher.pushkey, 'apns-token');
     expect(pusher.kind, 'http');
     expect(pusher.lang, 'en-US');
@@ -72,7 +72,7 @@ void main() {
       () {
     expect(
       isAllowedMatrixPushGatewayUrl(
-        'https://push.direxio.com/_matrix/push/v1/notify',
+        'https://push.direxio.ai/_matrix/push/v1/notify',
       ),
       isTrue,
     );
@@ -100,9 +100,7 @@ void main() {
       ),
       isFalse,
     );
-    expect(
-      isAllowedMatrixPushGatewayUrl('https://push.direxio.com/notify'),
-      isFalse,
-    );
+    expect(isAllowedMatrixPushGatewayUrl('https://push.direxio.ai/notify'),
+        isFalse);
   });
 }

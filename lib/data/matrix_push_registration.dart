@@ -6,10 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const direxioAndroidPackageName = 'com.direxio.ai';
-const direxioPushGatewayUrl = String.fromEnvironment(
-  'DIREXIO_PUSH_GATEWAY_URL',
-  defaultValue: '',
-);
+const direxioPushGatewayUrl = 'https://push.direxio.ai/_matrix/push/v1/notify';
 
 const _storedPushAppIdKey = 'matrix_push.app_id';
 const _storedPushTokenKey = 'matrix_push.token';
@@ -32,7 +29,7 @@ class MatrixPusherProfile {
 }
 
 const direxioAndroidFcmPusherProfile = MatrixPusherProfile(
-  appId: 'io.direxio.app.android',
+  appId: direxioAndroidPackageName,
   provider: 'fcm',
   platform: 'android',
   deviceDisplayPrefix: 'Android',
@@ -40,7 +37,7 @@ const direxioAndroidFcmPusherProfile = MatrixPusherProfile(
 );
 
 const direxioIosApnsPusherProfile = MatrixPusherProfile(
-  appId: 'io.direxio.app.ios',
+  appId: 'com.direxio.app',
   provider: 'apns',
   platform: 'ios',
   deviceDisplayPrefix: 'iOS',

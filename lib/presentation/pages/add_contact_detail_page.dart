@@ -315,7 +315,7 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 Future<void> _copyAddContactUid(BuildContext context, String uid) async {
-  await Clipboard.setData(ClipboardData(text: uid));
+  await Clipboard.setData(ClipboardData(text: displayUidFromMxid(uid)));
   if (!context.mounted) return;
   _toast(context, AppLocalizations.of(context).profileInfoUidCopied);
 }

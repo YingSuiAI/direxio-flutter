@@ -499,7 +499,7 @@ void _toast(BuildContext context, String message) {
 }
 
 Future<void> _copyUid(BuildContext context, String uid) async {
-  await Clipboard.setData(ClipboardData(text: uid));
+  await Clipboard.setData(ClipboardData(text: displayUidFromMxid(uid)));
   if (!context.mounted) return;
   final l10n = _chatInfoL10n(context);
   _toast(context, l10n?.chatInfoUidCopied ?? '已复制 UID');

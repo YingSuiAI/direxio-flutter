@@ -748,7 +748,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   }
 
   Future<void> _copyUid(BuildContext context, String uid) async {
-    await Clipboard.setData(ClipboardData(text: uid));
+    await Clipboard.setData(ClipboardData(text: displayUidFromMxid(uid)));
     if (!context.mounted) return;
     _toast(context, _contactDetailL10n(context)?.meUidCopied ?? '已复制 UID');
   }

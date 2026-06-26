@@ -6512,7 +6512,7 @@ void main() {
     expect(find.text('已复制 UID'), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copied?.text, peerMxid);
+    expect(copied?.text, 'p2p-liyanan.com');
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
@@ -18167,6 +18167,52 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copied?.text, '@alice:portal.local');
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('contact detail copies owner node uid without owner prefix',
+      (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: '@owner:p2p-liyanan.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('p2p-liyanan.com'), findsOneWidget);
+    expect(find.text('@owner:p2p-liyanan.com'), findsNothing);
+
+    await tester.tap(find.text('p2p-liyanan.com'));
+    await tester.pump();
+
+    expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, 'p2p-liyanan.com');
     await tester.pump(const Duration(seconds: 2));
   });
 

@@ -37,6 +37,8 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
   final authoritativeById = _authoritativeGroupMembersById(
     authoritativeMembers,
   );
+  // groups.members is already backend-sorted; keep this order because older
+  // projected members may legitimately have joinedAtMs == 0.
   final authoritativeOrder = authoritativeById.keys.toList(growable: false);
   if (liveMemberIds.isEmpty && authoritativeOrder.isEmpty) {
     final cached = cachedGroupAvatarMembers(

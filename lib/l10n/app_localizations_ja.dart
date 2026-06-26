@@ -1945,6 +1945,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get callPeerBusy => '相手は通話中です';
 
   @override
+  String get callMinimize => '最小化';
+
+  @override
+  String get callMiniRestore => '通話に戻る';
+
+  @override
   String get callCameraOn => 'カメラをオン';
 
   @override

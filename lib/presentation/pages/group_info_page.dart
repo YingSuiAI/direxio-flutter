@@ -636,34 +636,40 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       _toast(context, l10n.groupInfoNicknameEmpty);
       return;
     }
+    String? userId;
+    Map<String, Object?>? previousContent;
     try {
-      final userId = room.client.userID;
+      userId = room.client.userID;
       if (userId == null || userId.isEmpty) {
         throw StateError(l10n.groupInfoCurrentUserMissing);
       }
-      final content =
-          room.getState(EventTypes.RoomMember, userId)?.content.copy() ?? {};
+      final currentContent =
+          room.getState(EventTypes.RoomMember, userId)?.content.copy();
+      previousContent = currentContent == null
+          ? null
+          : Map<String, Object?>.from(currentContent);
+      final content = Map<String, Object?>.from(
+        currentContent ?? const <String, Object?>{},
+      );
       content['membership'] = Membership.join.name;
       content['displayname'] = nickname;
+      _setLocalRoomMemberState(room, userId, content);
+      if (mounted) setState(() {});
       await room.client.setRoomStateWithKey(
         room.id,
         EventTypes.RoomMember,
         userId,
         content,
       );
-      room.setState(
-        StrippedStateEvent(
-          type: EventTypes.RoomMember,
-          senderId: userId,
-          stateKey: userId,
-          content: Map<String, Object?>.from(content),
-        ),
-      );
       if (!mounted) return;
       setState(() {});
       _toast(this.context, l10n.groupInfoNicknameUpdated);
     } on Object catch (e) {
+      if (userId != null && userId.isNotEmpty && previousContent != null) {
+        _setLocalRoomMemberState(room, userId, previousContent);
+      }
       if (!context.mounted) return;
+      if (mounted) setState(() {});
       _toast(context, l10n.groupInfoNicknameUpdateFailed('$e'));
     }
   }
@@ -904,17 +910,32 @@ String _currentUserNickname(
   final profileName = _usableDisplayName(
     currentUserProfile?.displayName?.toString() ?? '',
   );
-  if (profileName.isNotEmpty) return profileName;
   final member = room.getState(EventTypes.RoomMember, trimmedUserId);
   final stateName = _usableDisplayName(
     member?.content.tryGet<String>('displayname') ?? '',
   );
   if (stateName.isNotEmpty) return stateName;
+  if (profileName.isNotEmpty) return profileName;
   final matrixName = _usableDisplayName(
     room.unsafeGetUserFromMemoryOrFallback(trimmedUserId).calcDisplayname(),
   );
   if (matrixName.isNotEmpty) return matrixName;
   return _fallbackDisplayNameFromMxid(trimmedUserId);
+}
+
+void _setLocalRoomMemberState(
+  Room room,
+  String userId,
+  Map<String, Object?> content,
+) {
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: userId,
+      stateKey: userId,
+      content: Map<String, Object?>.from(content),
+    ),
+  );
 }
 
 _GroupMemberPresentation _groupMemberPresentation({
@@ -938,9 +959,9 @@ _GroupMemberPresentation _groupMemberPresentation({
   );
   final userName = _usableDisplayName(member.calcDisplayname());
   final name = _firstUsableDisplayName([
-    profileName,
-    authoritativeName,
     stateName,
+    authoritativeName,
+    profileName,
     userName,
     _fallbackDisplayNameFromMxid(userId),
   ]);

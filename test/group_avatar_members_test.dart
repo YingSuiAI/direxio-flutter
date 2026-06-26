@@ -121,6 +121,134 @@ void main() {
     expect(result.shouldPersistOrder, isTrue);
   });
 
+  test('uses backend group member order for avatars', () {
+    final client = Client('GroupAvatarMembersJoinedAtOrderTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@bob:p2p-im.com',
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@carol:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: mxid,
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [],
+      authoritativeMembers: const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+          joinedAtMs: 400,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@alice:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+          joinedAtMs: 200,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@bob:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+          joinedAtMs: 300,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@carol:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+      ],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
+      '@carol:p2p-im.com',
+    ]);
+  });
+
+  test('preserves backend group member order when old members lack joinedAt',
+      () {
+    final client = Client('GroupAvatarMembersBackendOrderTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@owner:p2p-im.com',
+      '@second:p2p-im.com',
+      '@third:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: mxid,
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [],
+      authoritativeMembers: const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+          joinedAtMs: 300,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@second:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@third:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+          joinedAtMs: 400,
+        ),
+      ],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+      '@second:p2p-im.com',
+      '@third:p2p-im.com',
+    ]);
+  });
+
   test('ignores invited Matrix members until they join the group', () {
     final client = Client('GroupAvatarMembersJoinedOnlyTest')
       ..setUserId('@owner:p2p-im.com');

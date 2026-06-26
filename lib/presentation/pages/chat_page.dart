@@ -299,6 +299,69 @@ class _DirectTimelineItem {
   }
 }
 
+class _DirectChatDisplayItem {
+  const _DirectChatDisplayItem.timeline(this.timeline)
+      : agentOfflineReplyIndex = null;
+
+  const _DirectChatDisplayItem.agentOfflineReply(this.agentOfflineReplyIndex)
+      : timeline = null;
+
+  final _DirectTimelineItem? timeline;
+  final int? agentOfflineReplyIndex;
+}
+
+bool _isCurrentUserTextTimelineItem(
+  _DirectTimelineItem item,
+  String? currentUserId,
+) {
+  final self = currentUserId?.trim() ?? '';
+  return item.when(
+    event: (event) =>
+        self.isNotEmpty &&
+        event.senderId.trim() == self &&
+        event.messageType == MessageTypes.Text &&
+        !event.redacted,
+    outbox: (outbox) => outbox.messageKind == LocalOutboxMessageKind.text,
+    asCall: (_) => false,
+  );
+}
+
+List<_DirectChatDisplayItem> _buildDirectChatDisplayItems(
+  List<_DirectTimelineItem> timelineItems, {
+  required int agentOfflineReplyCount,
+  required String? currentUserId,
+}) {
+  if (agentOfflineReplyCount <= 0) {
+    return [
+      for (final item in timelineItems) _DirectChatDisplayItem.timeline(item),
+    ];
+  }
+
+  final anchorCount = timelineItems
+      .where((item) => _isCurrentUserTextTimelineItem(item, currentUserId))
+      .length;
+  final anchoredReplyCount = math.min(agentOfflineReplyCount, anchorCount);
+  final skippedAnchorCount = anchorCount - anchoredReplyCount;
+  final displayItems = <_DirectChatDisplayItem>[];
+  var seenAnchors = 0;
+  var insertedReplies = 0;
+  for (final item in timelineItems) {
+    displayItems.add(_DirectChatDisplayItem.timeline(item));
+    if (!_isCurrentUserTextTimelineItem(item, currentUserId)) continue;
+    seenAnchors += 1;
+    if (seenAnchors <= skippedAnchorCount) continue;
+    displayItems.add(
+      _DirectChatDisplayItem.agentOfflineReply(insertedReplies++),
+    );
+  }
+  while (insertedReplies < agentOfflineReplyCount) {
+    displayItems.add(
+      _DirectChatDisplayItem.agentOfflineReply(insertedReplies++),
+    );
+  }
+  return displayItems;
+}
+
 List<_DirectTimelineItem> _mergeDirectTimelineItems({
   required List<Event> events,
   required DateTime Function(Event event) eventTimestamp,
@@ -404,6 +467,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Timer? _callHistoryFastReloadTimer;
   Timer? _callHistorySlowReloadTimer;
   DateTime? _agentThinkingSince;
+  int _agentOfflineReplyCount = 0;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
   AppLocalizations? get _l10n =>
@@ -1174,6 +1238,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ref.read(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
     final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
+    final agentIsOnline = isAgent &&
+        (ref.read(agentStatusProvider).valueOrNull?.connected ?? false);
     final capabilityPolicy = _privateRoomCapabilityPolicy(
       productConversations,
       room,
@@ -1201,8 +1267,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     try {
       if (isAgent) {
-        if (mounted) {
+        if (agentIsOnline && mounted) {
           setState(() => _agentThinkingSince = DateTime.now());
+          _scheduleViewportScrollToBottom();
+        } else if (mounted) {
+          setState(() => _agentOfflineReplyCount += 1);
           _scheduleViewportScrollToBottom();
         }
         await room.sendTextEvent(text, inReplyTo: replyTo);
@@ -1222,7 +1291,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     } on Object catch (e) {
       if (isAgent && mounted) {
-        setState(() => _agentThinkingSince = null);
+        setState(() {
+          _agentThinkingSince = null;
+          if (!agentIsOnline && _agentOfflineReplyCount > 0) {
+            _agentOfflineReplyCount -= 1;
+          }
+        });
       }
       if (pendingId != null) {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
@@ -2284,8 +2358,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _openContactDetail(userId);
   }
 
-  VoidCallback? _senderAvatarTap(Event event, bool isMe) {
+  VoidCallback? _senderAvatarTap(
+    Event event,
+    bool isMe, {
+    required bool isAgentRoom,
+  }) {
     if (isMe) return _openMyProfileFromChat;
+    if (isAgentRoom) return null;
     final room = _room;
     if (room == null || isPortalAgentDirectRoom(room)) return null;
 
@@ -2849,9 +2928,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       for (final item in timelineItems) _timelineItemKey(item),
     ];
     final displayTimelineItems = timelineItems.reversed.toList(growable: false);
-    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
-      growable: false,
-    );
     _syncMessageListIndexes(displayTimelineItems, leadingItems: 1);
     _pruneMessageAnchors();
     _seedInitialTimelineEntrances(timelineItemKeys);
@@ -2896,11 +2972,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final agentStatus =
         isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
     final agentIsOnline = agentStatus?.connected ?? false;
+    if (isAgent && agentIsOnline && _agentOfflineReplyCount > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _agentOfflineReplyCount = 0);
+      });
+    }
     final showAgentThinking = isAgent &&
         agentIsOnline &&
         agentThinkingSince != null &&
         !hasAgentReply;
     final showAgentOfflineReply = isAgent && !agentIsOnline;
+    final agentOfflineReplyCount =
+        showAgentOfflineReply ? _agentOfflineReplyCount : 0;
+    final chatDisplayItems = _buildDirectChatDisplayItems(
+      displayTimelineItems,
+      agentOfflineReplyCount: agentOfflineReplyCount,
+      currentUserId: currentUserId,
+    );
+    final showDefaultAgentOfflineReply =
+        showAgentOfflineReply && agentOfflineReplyCount == 0;
     final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversation = productDirectConversationForPeer(
       productConversations,
@@ -3083,10 +3173,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     },
                   )
                 : ChatTimelineListMotion(
-                    itemCount: timelineItems.length +
+                    itemCount: chatDisplayItems.length +
                         (topSystemNoticeText == null ? 0 : 1) +
                         (showAgentThinking ? 1 : 0) +
-                        (showAgentOfflineReply ? 1 : 0),
+                        (showDefaultAgentOfflineReply ? 1 : 0),
                     newestItemKey: newestTimelineItemKey,
                     child: RefreshIndicator(
                       color: t.accent,
@@ -3095,10 +3185,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         controller: _messageScrollCtrl,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: messagePadding,
-                        itemCount: timelineItems.length +
+                        itemCount: chatDisplayItems.length +
                             1 +
                             (showAgentThinking ? 1 : 0) +
-                            (showAgentOfflineReply ? 1 : 0),
+                            (showDefaultAgentOfflineReply ? 1 : 0),
                         itemBuilder: (context, i) {
                           if (i == 0) {
                             if (topSystemNoticeText != null) {
@@ -3109,26 +3199,27 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             return const _E2eFooter();
                           }
                           final itemIndex = i - 1;
-                          if (showAgentOfflineReply &&
-                              itemIndex >= displayTimelineItems.length) {
-                            return chatMessageEntrance(
-                              key: const ValueKey(
-                                'private_message_enter_agent_offline_reply',
-                              ),
-                              isMe: false,
-                              index: itemIndex,
-                              enabled: true,
-                              child: _SAgentOfflineReplyBubble(
-                                text: l10n?.agentChatOfflineReply ??
-                                    '目前Agent离线，请耐心等待',
-                                avatarSeed: name,
-                                avatarUrl: peerAvatarUrl,
-                                avatarAsset: agentAvatarAsset,
-                              ),
-                            );
-                          }
-                          if (showAgentThinking &&
-                              itemIndex >= displayTimelineItems.length) {
+                          if (itemIndex >= chatDisplayItems.length) {
+                            if (showDefaultAgentOfflineReply) {
+                              return chatMessageEntrance(
+                                key: const ValueKey(
+                                  'private_message_enter_agent_offline_reply_default',
+                                ),
+                                isMe: false,
+                                index: itemIndex,
+                                enabled: true,
+                                child: _SAgentOfflineReplyBubble(
+                                  text: l10n?.agentChatOfflineReply ??
+                                      '目前Agent离线，请耐心等待',
+                                  avatarSeed: name,
+                                  avatarUrl: peerAvatarUrl,
+                                  avatarAsset: agentAvatarAsset,
+                                ),
+                              );
+                            }
+                            if (!showAgentThinking) {
+                              return const SizedBox.shrink();
+                            }
                             return chatMessageEntrance(
                               key: const ValueKey(
                                 'private_message_enter_agent_thinking',
@@ -3143,10 +3234,38 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               ),
                             );
                           }
-                          final itemKey = displayTimelineItemKeys[itemIndex];
+                          final chatDisplayItem = chatDisplayItems[itemIndex];
+                          final agentOfflineReplyIndex =
+                              chatDisplayItem.agentOfflineReplyIndex;
+                          if (agentOfflineReplyIndex != null) {
+                            return chatMessageEntrance(
+                              key: ValueKey(
+                                'private_message_enter_agent_offline_reply_$agentOfflineReplyIndex',
+                              ),
+                              isMe: false,
+                              index: itemIndex,
+                              enabled: true,
+                              child: _SAgentOfflineReplyBubble(
+                                text: l10n?.agentChatOfflineReply ??
+                                    '目前Agent离线，请耐心等待',
+                                avatarSeed: name,
+                                avatarUrl: peerAvatarUrl,
+                                avatarAsset: agentAvatarAsset,
+                              ),
+                            );
+                          }
+                          final timelineItem = chatDisplayItem.timeline;
+                          if (timelineItem == null) {
+                            return const SizedBox.shrink();
+                          }
+                          final timelineItemIndex =
+                              displayTimelineItems.indexOf(timelineItem);
+                          final itemKey = _timelineItemKey(timelineItem);
                           final contextMenuPlacement =
                               _messageContextMenuPlacement(
-                            itemIndex,
+                            timelineItemIndex < 0
+                                ? itemIndex
+                                : timelineItemIndex,
                             displayTimelineItems.length,
                           );
                           Widget enter(
@@ -3177,7 +3296,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             );
                           }
 
-                          return displayTimelineItems[itemIndex].when(
+                          return timelineItem.when(
                             outbox: (pending) {
                               if (pending.messageKind ==
                                   LocalOutboxMessageKind.text) {
@@ -3393,7 +3512,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   avatarSeed: callerName,
                                   avatarUrl: callerAvatarUrl,
                                   avatarAsset: callerAvatarAsset,
-                                  onAvatarTap: isMe
+                                  onAvatarTap: isMe || isAgent
                                       ? null
                                       : () => _openContactInfo(mxid),
                                   selected: false,
@@ -3447,7 +3566,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isAgent && !isMe ? agentAvatarAsset : null;
                                 final avatarTap = isMe
                                     ? null
-                                    : _senderAvatarTap(callerEvent ?? e, isMe);
+                                    : _senderAvatarTap(
+                                        callerEvent ?? e,
+                                        isMe,
+                                        isAgentRoom: isAgent,
+                                      );
                                 return enter(
                                   _SChatCallRecordBubble(
                                     isMe: isMe,
@@ -3507,7 +3630,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               final time = _formatMsgTime(
                                 localOrder?.createdAt ?? e.originServerTs,
                               );
-                              final avatarTap = _senderAvatarTap(e, isMe);
+                              final avatarTap = _senderAvatarTap(
+                                e,
+                                isMe,
+                                isAgentRoom: isAgent,
+                              );
                               void toggle() => setState(() {
                                     if (selected) {
                                       _selected.remove(e.eventId);

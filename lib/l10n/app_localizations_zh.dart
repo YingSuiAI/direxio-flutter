@@ -1939,6 +1939,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get callPeerBusy => '对方正在通话中';
 
   @override
+  String get callMinimize => '小窗';
+
+  @override
+  String get callMiniRestore => '返回通话';
+
+  @override
   String get callCameraOn => '开摄像头';
 
   @override

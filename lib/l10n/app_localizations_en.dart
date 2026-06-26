@@ -2006,6 +2006,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get callPeerBusy => 'The other person is in a call';
 
   @override
+  String get callMinimize => 'Minimize';
+
+  @override
+  String get callMiniRestore => 'Return to call';
+
+  @override
   String get callCameraOn => 'Turn camera on';
 
   @override

@@ -3671,6 +3671,18 @@ abstract class AppLocalizations {
   /// **'对方正在通话中'**
   String get callPeerBusy;
 
+  /// No description provided for @callMinimize.
+  ///
+  /// In zh, this message translates to:
+  /// **'小窗'**
+  String get callMinimize;
+
+  /// No description provided for @callMiniRestore.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回通话'**
+  String get callMiniRestore;
+
   /// No description provided for @callCameraOn.
   ///
   /// In zh, this message translates to:

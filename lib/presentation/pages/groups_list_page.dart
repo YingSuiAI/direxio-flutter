@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -82,9 +81,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       if (!_isVisibleGroupForList(group, conversation)) continue;
       final room = client.getRoomById(roomId);
       final lastEvent = room?.lastEvent;
-      final lastActivityAt = lastEvent?.originServerTs ??
-          group?.lastActivityAt ??
-          conversation.lastActivityAt;
       final productTitle = conversation.title.trim();
       final groupName = group?.name.trim() ?? '';
       final authoritativeGroupMembers = ref
@@ -138,9 +134,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                 cachedMemberAvatarUrls:
                     groupAvatarMemberAvatars[roomId] ?? const {},
               ),
-          time: lastActivityAt == null
-              ? ''
-              : _formatTime(lastActivityAt.millisecondsSinceEpoch, l10n),
           unread: (group?.unreadCount ?? 0) > 0
               ? group!.unreadCount
               : room?.notificationCount ?? 0,
@@ -419,7 +412,6 @@ class _GroupItem {
     required this.preview,
     this.avatarUrl = '',
     this.avatarMembers = const [],
-    required this.time,
     required this.unread,
     this.isOwner = false,
     this.productConversation,
@@ -429,7 +421,6 @@ class _GroupItem {
   final String preview;
   final String avatarUrl;
   final List<GroupCompositeAvatarMember> avatarMembers;
-  final String time;
   final int unread;
   final bool isOwner;
   final AsConversation? productConversation;
@@ -444,7 +435,6 @@ class _GroupRow extends StatelessWidget {
     final t = context.tk;
     final name = item.name;
     final preview = item.preview;
-    final time = item.time;
     final unread = item.unread;
 
     return Material(
@@ -526,45 +516,30 @@ class _GroupRow extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (time.isNotEmpty)
-                            Text(
-                              time,
-                              style: AppTheme.sans(
-                                size: 12,
-                                color: unread > 0 ? t.accent : t.textMute,
-                              ),
-                            ),
-                          if (unread > 0) ...[
-                            const SizedBox(height: 4),
-                            Container(
-                              height: 20,
-                              constraints: const BoxConstraints(minWidth: 20),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: unread > 99 ? 5 : 0,
-                              ),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: t.accent,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                unread > 99 ? '99+' : '$unread',
-                                textAlign: TextAlign.center,
-                                style: AppTheme.sans(
-                                  size: unread > 99 ? 9 : 11,
-                                  weight: FontWeight.w700,
-                                  color: t.onAccent,
-                                ).copyWith(height: 1),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                      if (unread > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          height: 20,
+                          constraints: const BoxConstraints(minWidth: 20),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: unread > 99 ? 5 : 0,
+                          ),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: t.accent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            unread > 99 ? '99+' : '$unread',
+                            textAlign: TextAlign.center,
+                            style: AppTheme.sans(
+                              size: unread > 99 ? 9 : 11,
+                              weight: FontWeight.w700,
+                              color: t.onAccent,
+                            ).copyWith(height: 1),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -605,19 +580,4 @@ String _previewText(String raw) {
       .replaceAll(RegExp(r'[*_`#~]'), '')
       .replaceAll(RegExp(r'\s*\n+\s*'), ' ')
       .trim();
-}
-
-String _formatTime(
-  int ts,
-  AppLocalizations l10n,
-) {
-  final dt = DateTime.fromMillisecondsSinceEpoch(ts);
-  final now = DateTime.now();
-  final diffDays = now.difference(dt).inDays;
-  if (diffDays == 0) return DateFormat('HH:mm').format(dt);
-  if (diffDays == 1) return l10n.groupsListYesterday;
-  if (diffDays < 7) {
-    return DateFormat.E(l10n.localeName).format(dt);
-  }
-  return DateFormat.Md(l10n.localeName).format(dt);
 }

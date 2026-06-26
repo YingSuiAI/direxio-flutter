@@ -70,7 +70,15 @@ const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 const _homeBottomBarHorizontalInset = 12.0;
 const _homeBottomBarGap = 12.0;
+const _homeBottomBarMinBottomInset = 12.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
+
+@visibleForTesting
+double homeBottomBarEffectiveBottomInset(double bottomInset) {
+  return bottomInset < _homeBottomBarMinBottomInset
+      ? _homeBottomBarMinBottomInset
+      : bottomInset;
+}
 
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
   (ref) => null,
@@ -947,9 +955,10 @@ class _HomeBottomBarState extends State<_HomeBottomBar> {
 
   Widget _buildBar(BuildContext context, {required double bottomInset}) {
     final bg = _homeBgColor(context);
+    final effectiveBottomInset = homeBottomBarEffectiveBottomInset(bottomInset);
     return RepaintBoundary(
       child: SizedBox(
-        height: 80 + bottomInset,
+        height: 80 + effectiveBottomInset,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final contentWidth =
@@ -980,7 +989,7 @@ class _HomeBottomBarState extends State<_HomeBottomBar> {
                 ),
                 Positioned(
                   left: _homeBottomBarHorizontalInset,
-                  bottom: bottomInset + 5,
+                  bottom: effectiveBottomInset + 5,
                   width: tabWidth,
                   height: _bottomSearchTapSize,
                   child: _LiquidTabPill(
@@ -991,7 +1000,7 @@ class _HomeBottomBarState extends State<_HomeBottomBar> {
                 ),
                 Positioned(
                   right: _homeBottomBarHorizontalInset,
-                  bottom: bottomInset + 4,
+                  bottom: effectiveBottomInset + 4,
                   child: _BottomSearchButton(onTap: widget.onSearchTap),
                 ),
               ],

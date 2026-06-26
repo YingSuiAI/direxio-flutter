@@ -1106,6 +1106,8 @@
   "callMediaPermissionVideo": "Could not access camera or microphone. Check permissions",
   "callMediaPermissionVoice": "Could not access microphone. Check permissions",
   "callPeerBusy": "The other person is in a call",
+  "callMinimize": "Minimize",
+  "callMiniRestore": "Return to call",
   "callCameraOn": "Turn camera on",
   "callCameraOff": "Turn camera off",
   "callCameraOffState": "Camera off",

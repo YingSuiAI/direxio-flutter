@@ -11702,6 +11702,68 @@ void main() {
     expect(find.text('Vivid Dusk'), findsNothing);
   });
 
+  testWidgets('groups list does not show right side time label',
+      (tester) async {
+    const roomId = '!group-no-time:p2p-im.com';
+    final client = Client('DirexioGroupsHideTimeLabelTest')
+      ..setUserId('@owner:p2p-im.com');
+    final now = DateTime.now();
+    final activityAt = DateTime(now.year, now.month, now.day, 9, 37);
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '不显示时间群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          productConversationsProvider.overrideWith(
+            (ref) async => [
+              AsConversation(
+                conversationId: 'conv_group_no_time',
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '不显示时间群',
+                avatarUrl: '',
+                lastActivityAt: activityAt,
+                membership: asChannelMemberStatusJoined,
+                capabilities: const AsConversationCapabilities(open: true),
+              ),
+            ],
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('不显示时间群'), findsOneWidget);
+    expect(find.text('09:37'), findsNothing);
+  });
+
   testWidgets('groups list hides non-joined group projections', (tester) async {
     final client = Client('DirexioGroupsHideNonJoinedStatusTest')
       ..setUserId('@owner:p2p-im.com');
@@ -13455,6 +13517,101 @@ void main() {
 
     expect(find.text('真实昵称'), findsWidgets);
     expect(find.text('owner'), findsNothing);
+  });
+
+  testWidgets('group info shows saved group nickname over profile name',
+      (tester) async {
+    final nicknameRequests = <http.Request>[];
+    final client = Client(
+      'DirexioGroupInfoNicknameProfileOverrideTest',
+      httpClient: MockClient((request) async {
+        nicknameRequests.add(request);
+        if (request.url.path.contains('/members')) {
+          return http.Response(
+            '{"chunk":[]}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"event_id":"\$nickname"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@owner:p2p-im.com': 'owner',
+        '@alice:p2p-im.com': 'Alice',
+      },
+    );
+
+    Widget buildPage() {
+      return ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: '个人昵称',
+              avatarUrl: null,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildPage());
+    await tester.pump();
+
+    expect(find.text('个人昵称'), findsWidgets);
+
+    await tester.ensureVisible(find.text('我在本群昵称'));
+    await tester.pump();
+    await tester.tap(find.text('我在本群昵称'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '群内 Owner');
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+    await tester.pump();
+
+    expect(nicknameRequests, isNotEmpty);
+    expect(nicknameRequests.last.url.path, contains('/state/'));
+    expect(
+      nicknameRequests.last.url.path,
+      contains(Uri.encodeComponent('@owner:p2p-im.com')),
+    );
+    expect(nicknameRequests.last.body, contains('群内 Owner'));
+    expect(find.textContaining('设置群昵称失败'), findsNothing);
+    expect(
+      client
+          .getRoomById('!group:p2p-im.com')
+          ?.getState(EventTypes.RoomMember, '@owner:p2p-im.com')
+          ?.content
+          .tryGet<String>('displayname'),
+      '群内 Owner',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(buildPage());
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('我在本群昵称'));
+    await tester.pump();
+    expect(find.text('群内 Owner'), findsWidgets);
   });
 
   testWidgets('group info member avatar opens chat avatar profile',
@@ -21027,6 +21184,124 @@ void main() {
       find.text('Agent is currently offline. Please wait patiently.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('agent chat avatar does not open contact detail', (tester) async {
+    const roomId = '!product-agent-room:p2p-im.com';
+    const agentMxid = '@assistant:p2p-im.com';
+    final client = Client('DirexioProductAgentAvatarTapTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addTestRoom(
+      client,
+      roomId: roomId,
+      roomMembership: Membership.join,
+      directPeerMxid: agentMxid,
+      directPeerName: 'Product Agent',
+    );
+    room.summary.mHeroes = [agentMxid];
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@agent:p2p-im.com',
+        stateKey: '@agent:p2p-im.com',
+        content: {
+          'membership': 'join',
+          'displayname': 'Product Agent',
+        },
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: '/chat/${Uri.encodeComponent(roomId)}',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => Scaffold(
+            body: Text('contact:${state.pathParameters['userId']}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          productConversationsProvider.overrideWith(
+            (ref) async => const [
+              AsConversation(
+                conversationId: 'conv_product_agent',
+                roomId: roomId,
+                kind: asConversationKindAgent,
+                lifecycle: 'active',
+                title: 'Product Agent',
+                avatarUrl: '',
+                membership: asChannelMemberStatusJoined,
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ],
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-agent-message',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$product-agent-avatar-message',
+                    roomId: roomId,
+                    senderId: agentMxid,
+                    originServerTs: DateTime.utc(2026, 6, 26, 9),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': 'Agent message',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent message'), findsOneWidget);
+
+    WidgetController.hitTestWarningShouldBeFatal = true;
+    addTearDown(() {
+      WidgetController.hitTestWarningShouldBeFatal = false;
+    });
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget is PortalAvatar && widget.size == 40,
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent message'), findsOneWidget);
+    expect(find.text('contact:$agentMxid'), findsNothing);
   });
 
   testWidgets('private chat hides first-message empty state for cached preview',

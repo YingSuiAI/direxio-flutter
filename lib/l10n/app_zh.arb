@@ -1109,6 +1109,8 @@
   "callMediaPermissionVideo": "无法使用摄像头或麦克风，请检查权限",
   "callMediaPermissionVoice": "无法使用麦克风，请检查权限",
   "callPeerBusy": "对方正在通话中",
+  "callMinimize": "小窗",
+  "callMiniRestore": "返回通话",
   "callCameraOn": "开摄像头",
   "callCameraOff": "关摄像头",
   "callCameraOffState": "摄像头已关",

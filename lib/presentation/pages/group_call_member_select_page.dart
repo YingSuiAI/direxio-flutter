@@ -12,6 +12,7 @@ import '../../l10n/app_localizations.dart';
 import '../call/voice_call_controller.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../widgets/app_glass_background.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
@@ -171,7 +172,9 @@ class _GroupCallMemberSelectPageState
     final room = client.getRoomById(widget.roomId);
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     final roomName = widget.roomName ??
-        room?.getLocalizedDisplayname() ??
+        (safeRoomDisplayName(room).isNotEmpty
+            ? safeRoomDisplayName(room)
+            : null) ??
         l10n?.contactsGroups ??
         '群聊';
     return FutureBuilder<List<GroupCallInviteMember>>(

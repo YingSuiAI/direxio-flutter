@@ -23,6 +23,7 @@ import '../providers/local_created_channels_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/message_preview.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
@@ -2417,7 +2418,7 @@ String _clientServerName(Client client) {
 String _matrixRoomName(Client client, String roomId) {
   final room = client.getRoomById(roomId.trim());
   if (room == null) return '';
-  final name = room.getLocalizedDisplayname().trim();
+  final name = safeRoomDisplayName(room).trim();
   return _looksLikeMatrixRoomId(name) ? '' : name;
 }
 

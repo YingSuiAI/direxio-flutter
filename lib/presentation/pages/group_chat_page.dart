@@ -66,6 +66,7 @@ import '../call/voice_call_controller.dart';
 import '../groups/group_invite_join_flow.dart';
 import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
@@ -1426,8 +1427,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final trimmed = mxid.trim();
     if (trimmed.isEmpty) return null;
     final contact = syncCache.contactForUserId(trimmed);
-    final member = room.unsafeGetUserFromMemoryOrFallback(trimmed);
-    final memberAvatarUrl = matrixContentHttpUrl(room.client, member.avatarUrl);
+    final memberAvatarUrl = localRoomMemberAvatarHttpUrl(room, trimmed);
     final contactAvatarUrl = avatarHttpUrl(room.client, contact?.avatarUrl);
     final currentUserId = room.client.userID?.trim() ?? '';
     final isCurrentUser = currentUserId.isNotEmpty && trimmed == currentUserId;
@@ -1455,10 +1455,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final currentUserId = room.client.userID?.trim() ?? '';
     final memberAvatarUrl = currentUserId.isEmpty
         ? null
-        : matrixContentHttpUrl(
-            room.client,
-            room.unsafeGetUserFromMemoryOrFallback(currentUserId).avatarUrl,
-          );
+        : localRoomMemberAvatarHttpUrl(room, currentUserId);
     return _avatarSnapshotCache.resolve(
       senderId: currentUserId.isEmpty ? 'me' : currentUserId,
       candidates: [
@@ -2725,7 +2722,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         ? remarkName
         : productName.isNotEmpty
             ? productName
-            : room.getLocalizedDisplayname();
+            : safeRoomDisplayName(room);
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final explicitChannelId = widget.channelId?.trim() ?? '';
     final resolvedChannelId = explicitChannelId.isNotEmpty

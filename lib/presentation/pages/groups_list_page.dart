@@ -15,6 +15,7 @@ import '../providers/product_conversations_provider.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/group_composite_avatar.dart';
@@ -124,7 +125,9 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                   ? productTitle
                   : groupName.isNotEmpty
                       ? groupName
-                      : room?.getLocalizedDisplayname() ?? l10n.contactsGroups,
+                      : safeRoomDisplayName(room).isNotEmpty
+                          ? safeRoomDisplayName(room)
+                          : l10n.contactsGroups,
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false, l10n: l10n),

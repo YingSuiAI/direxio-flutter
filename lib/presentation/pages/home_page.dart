@@ -299,7 +299,7 @@ class _HomePageState extends ConsumerState<HomePage>
       contactDisplayName: contact?.displayName ?? '',
       contactDomain: contact?.domain ?? '',
       statePeerName: state.peerName,
-      roomDisplayName: room?.getLocalizedDisplayname(),
+      roomDisplayName: safeRoomDisplayName(room),
     );
     final peerQuery = state.peerUserId == null
         ? ''
@@ -332,9 +332,12 @@ class _HomePageState extends ConsumerState<HomePage>
     final roomId = state.roomId!;
     _incomingGroupCallRouteRoomId = roomId;
     final room = ref.read(matrixClientProvider).getRoomById(roomId);
+    final safeRoomName = safeRoomDisplayName(room);
     final roomName = state.roomName?.trim().isNotEmpty == true
         ? state.roomName!.trim()
-        : room?.getLocalizedDisplayname() ?? '群聊';
+        : safeRoomName.isNotEmpty
+            ? safeRoomName
+            : '群聊';
     final callQuery = state.callId == null
         ? ''
         : '&call_id=${Uri.encodeQueryComponent(state.callId!)}';
@@ -2344,7 +2347,7 @@ void _debugAgentContactChatState(
       .join('|');
   final roomSummary = client.rooms
       .map((room) =>
-          '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${room.getLocalizedDisplayname()}')
+          '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${safeRoomDisplayName(room)}')
       .join('|');
   debugPrint(
     '[agent-chat-open] phase=$phase targetRoomId=$targetRoomId '

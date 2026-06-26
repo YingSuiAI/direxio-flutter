@@ -20,6 +20,7 @@ import '../providers/channel_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../widgets/portal_avatar.dart';
 
 class ChannelPostDetailPage extends ConsumerStatefulWidget {
@@ -1136,7 +1137,7 @@ String _clientServerName(Client client) {
 String _matrixRoomName(Client client, String roomId) {
   final room = client.getRoomById(roomId.trim());
   if (room == null) return '';
-  final name = room.getLocalizedDisplayname().trim();
+  final name = safeRoomDisplayName(room).trim();
   return _looksLikeMatrixRoomId(name) ? '' : name;
 }
 

@@ -5,6 +5,7 @@ import '../../data/as_client.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/contact_display_name.dart';
 import 'channel_inbox_data.dart';
 import 'channel_share.dart';
 
@@ -278,7 +279,7 @@ String _displayChannelName(
 String _matrixRoomName(Client client, String roomId) {
   final room = client.getRoomById(roomId.trim());
   if (room == null) return '';
-  final name = room.getLocalizedDisplayname().trim();
+  final name = safeRoomDisplayName(room).trim();
   return _isUsableChannelDisplayName(name) ? name : '';
 }
 

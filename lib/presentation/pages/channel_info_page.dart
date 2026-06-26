@@ -247,10 +247,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         if (id.isEmpty) continue;
         final room = client.getRoomById(id);
         if (room == null) continue;
-        roomAvatar = matrixContentHttpUrl(
-          client,
-          room.unsafeGetUserFromMemoryOrFallback(mxid).avatarUrl,
-        );
+        roomAvatar = localRoomMemberAvatarHttpUrl(room, mxid);
         if (roomAvatar != null) break;
       }
       final directoryAvatar = directory.avatarUrlFor(

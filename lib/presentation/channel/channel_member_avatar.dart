@@ -20,10 +20,7 @@ String? channelMemberAvatarUrl(
       if (id.isEmpty) continue;
       final room = client.getRoomById(id);
       if (room == null) continue;
-      final roomMemberAvatar = matrixContentHttpUrl(
-        client,
-        room.unsafeGetUserFromMemoryOrFallback(mxid).avatarUrl,
-      );
+      final roomMemberAvatar = localRoomMemberAvatarHttpUrl(room, mxid);
       if (roomMemberAvatar != null) return roomMemberAvatar;
     }
   }

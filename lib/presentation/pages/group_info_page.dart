@@ -24,6 +24,7 @@ import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/group_avatar_members.dart';
 import '../widgets/center_toast.dart';
 import '../widgets/group_composite_avatar.dart';
@@ -838,7 +839,7 @@ String _groupDisplayName({
   return _firstUsableDisplayName([
     remark,
     _productGroupNameForRoom(syncCache, roomId),
-    _usableGroupRoomDisplayName(room?.getLocalizedDisplayname() ?? ''),
+    _usableGroupRoomDisplayName(safeRoomDisplayName(room)),
     roomId,
   ]);
 }
@@ -916,10 +917,6 @@ String _currentUserNickname(
   );
   if (stateName.isNotEmpty) return stateName;
   if (profileName.isNotEmpty) return profileName;
-  final matrixName = _usableDisplayName(
-    room.unsafeGetUserFromMemoryOrFallback(trimmedUserId).calcDisplayname(),
-  );
-  if (matrixName.isNotEmpty) return matrixName;
   return _fallbackDisplayNameFromMxid(trimmedUserId);
 }
 

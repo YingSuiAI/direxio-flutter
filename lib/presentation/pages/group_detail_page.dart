@@ -15,6 +15,7 @@ import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/group_avatar_members.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
@@ -133,7 +134,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                           context,
                           currentName: groupRemark.isNotEmpty
                               ? groupRemark
-                              : room.getLocalizedDisplayname(),
+                              : safeRoomDisplayName(room),
                         ),
                       ),
                     ],
@@ -551,10 +552,6 @@ String _currentUserNickname(
   );
   if (stateName.isNotEmpty) return stateName;
   if (profileName.isNotEmpty) return profileName;
-  final matrixName = _usableDisplayName(
-    room.unsafeGetUserFromMemoryOrFallback(trimmedUserId).calcDisplayname(),
-  );
-  if (matrixName.isNotEmpty) return matrixName;
   return _fallbackDisplayNameFromMxid(trimmedUserId);
 }
 

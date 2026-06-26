@@ -14,6 +14,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/agent_offline_reply_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
 import '../providers/conversation_summary_provider.dart';
 import '../widgets/portal_avatar.dart';
@@ -467,7 +468,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Timer? _callHistoryFastReloadTimer;
   Timer? _callHistorySlowReloadTimer;
   DateTime? _agentThinkingSince;
-  int _agentOfflineReplyCount = 0;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
   AppLocalizations? get _l10n =>
@@ -489,7 +489,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .join('|');
     final matrixRooms = client.rooms
         .map((room) =>
-            '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${room.getLocalizedDisplayname()}')
+            '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${safeRoomDisplayName(room)}')
         .join('|');
     debugPrint(
       '[chat-missing-room] phase=$phase targetRoomId=$targetRoomId '
@@ -1270,8 +1270,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (agentIsOnline && mounted) {
           setState(() => _agentThinkingSince = DateTime.now());
           _scheduleViewportScrollToBottom();
-        } else if (mounted) {
-          setState(() => _agentOfflineReplyCount += 1);
+        } else {
+          ref
+              .read(agentOfflineReplyCacheProvider.notifier)
+              .increment(widget.roomId);
           _scheduleViewportScrollToBottom();
         }
         await room.sendTextEvent(text, inReplyTo: replyTo);
@@ -1293,10 +1295,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (isAgent && mounted) {
         setState(() {
           _agentThinkingSince = null;
-          if (!agentIsOnline && _agentOfflineReplyCount > 0) {
-            _agentOfflineReplyCount -= 1;
-          }
         });
+        if (!agentIsOnline) {
+          ref
+              .read(agentOfflineReplyCacheProvider.notifier)
+              .decrement(widget.roomId);
+        }
       }
       if (pendingId != null) {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
@@ -2411,10 +2415,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final currentUserId = room.client.userID?.trim() ?? '';
     final memberAvatarUrl = currentUserId.isEmpty
         ? null
-        : matrixContentHttpUrl(
-            room.client,
-            room.unsafeGetUserFromMemoryOrFallback(currentUserId).avatarUrl,
-          );
+        : localRoomMemberAvatarHttpUrl(room, currentUserId);
     return _avatarSnapshotCache.resolve(
       senderId: currentUserId.isEmpty ? 'me' : currentUserId,
       candidates: [
@@ -2972,9 +2973,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final agentStatus =
         isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
     final agentIsOnline = agentStatus?.connected ?? false;
-    if (isAgent && agentIsOnline && _agentOfflineReplyCount > 0) {
+    final cachedAgentOfflineReplyCount = isAgent
+        ? ref.watch(agentOfflineReplyCacheProvider)[widget.roomId.trim()] ?? 0
+        : 0;
+    if (isAgent && agentIsOnline && cachedAgentOfflineReplyCount > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _agentOfflineReplyCount = 0);
+        if (mounted) {
+          ref
+              .read(agentOfflineReplyCacheProvider.notifier)
+              .clear(widget.roomId);
+        }
       });
     }
     final showAgentThinking = isAgent &&
@@ -2983,7 +2991,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         !hasAgentReply;
     final showAgentOfflineReply = isAgent && !agentIsOnline;
     final agentOfflineReplyCount =
-        showAgentOfflineReply ? _agentOfflineReplyCount : 0;
+        showAgentOfflineReply ? cachedAgentOfflineReplyCount : 0;
     final chatDisplayItems = _buildDirectChatDisplayItems(
       displayTimelineItems,
       agentOfflineReplyCount: agentOfflineReplyCount,
@@ -3009,12 +3017,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final name = isAgent
         ? agentDisplayNameForRoom(room)
         : directContactDisplayName(contact, room, peerMxid: mxid);
-    final peerMember = mxid.trim().isEmpty
-        ? null
-        : room.unsafeGetUserFromMemoryOrFallback(mxid);
     final peerAvatarUrl =
         avatarHttpUrl(room.client, productConversation?.avatarUrl) ??
-            matrixContentHttpUrl(room.client, peerMember?.avatarUrl) ??
+            localRoomMemberAvatarHttpUrl(room, mxid) ??
             avatarHttpUrl(room.client, contact?.avatarUrl);
     final peerReadEventIds = _peerReadEventIds(
       room: room,

@@ -18,6 +18,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/room_read_state.dart';
@@ -475,13 +476,10 @@ class _CallPageState extends ConsumerState<CallPage> {
             ? syncCache.contactForRoom(widget.roomId)
             : syncCache.contactForUserId(peerMxid) ??
                 syncCache.contactForRoom(widget.roomId);
-        final peerMember = peerMxid == null
-            ? null
-            : room?.unsafeGetUserFromMemoryOrFallback(peerMxid);
         final peerAvatarUrl = _firstNonEmpty([
           widget.peerAvatarUrl,
           avatarHttpUrl(client, contact?.avatarUrl),
-          matrixContentHttpUrl(client, peerMember?.avatarUrl),
+          localRoomMemberAvatarHttpUrl(room, peerMxid),
         ]);
         final displayName = voiceCallPeerDisplayName(
           peerMxid: peerMxid,
@@ -489,7 +487,7 @@ class _CallPageState extends ConsumerState<CallPage> {
           contactDomain: contact?.domain ?? '',
           routeDisplayName: widget.peerDisplayName,
           statePeerName: state.peerName,
-          roomDisplayName: room?.getLocalizedDisplayname(),
+          roomDisplayName: safeRoomDisplayName(room),
         );
         final isError =
             state.status == VoiceCallStatus.failed || _localError != null;

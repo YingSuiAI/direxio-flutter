@@ -16,6 +16,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -190,7 +191,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     if (override.isNotEmpty) return override;
     final room =
         ref.watch(matrixClientProvider).getRoomById(widget.roomId.trim());
-    final roomName = room?.getLocalizedDisplayname().trim() ?? '';
+    final roomName = safeRoomDisplayName(room).trim();
     if (roomName.isNotEmpty && !_looksLikeRoomId(roomName)) return roomName;
     final groups = ref.watch(asSyncCacheProvider).bootstrap?.groups ??
         const <AsSyncRoomSummary>[];

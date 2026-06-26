@@ -19,7 +19,7 @@ String agentDisplayNameForRoom(
   final memberName = directPeerMemberDisplayName(room, agentMxid);
   if (_isMeaningfulAgentName(memberName, agentMxid)) return memberName;
 
-  final roomName = room?.getLocalizedDisplayname().trim() ?? '';
+  final roomName = safeRoomDisplayName(room);
   if (_isMeaningfulAgentName(roomName, agentMxid) && roomName != room?.id) {
     return roomName;
   }

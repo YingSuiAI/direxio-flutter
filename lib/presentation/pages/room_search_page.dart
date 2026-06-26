@@ -14,6 +14,7 @@ import '../../data/matrix_message_search_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
+import '../utils/contact_display_name.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const double _roomSearchToolbarHeight = 62;
@@ -263,8 +264,7 @@ class _RoomSearchResult {
     final room = client.getRoomById(result.roomId);
     var senderName = result.senderId.trim();
     if (room != null && senderName.isNotEmpty) {
-      final member = room.unsafeGetUserFromMemoryOrFallback(senderName);
-      final displayName = member.calcDisplayname().trim();
+      final displayName = directPeerMemberDisplayName(room, senderName);
       if (displayName.isNotEmpty) senderName = displayName;
     }
     return _RoomSearchResult(

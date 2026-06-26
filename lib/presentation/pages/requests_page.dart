@@ -12,6 +12,7 @@ import '../providers/friend_request_read_provider.dart';
 import '../home/conversation_summary_writer.dart';
 import '../widgets/portal_avatar.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_summary_writer.dart';
@@ -96,7 +97,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             avatarUrl: _avatarUrlForRoomPeer(room, peerMXID) ?? '',
             displayName: contactDisplayNameFromIdentity(
               mxid: peerMXID,
-              displayName: room.getLocalizedDisplayname(),
+              displayName: productDirectPeerDisplayName(room) ??
+                  safeRoomDisplayName(room),
               domain: _domainFromMxid(peerMXID),
             ),
           );
@@ -144,7 +146,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             domain: _domainFromMxid(peerMXID),
             displayName: contactDisplayNameFromIdentity(
               mxid: peerMXID,
-              displayName: room.getLocalizedDisplayname(),
+              displayName: productDirectPeerDisplayName(room) ??
+                  safeRoomDisplayName(room),
               domain: _domainFromMxid(peerMXID),
             ),
           );
@@ -939,9 +942,9 @@ List<_FriendSearchResult> _searchResultsForQuery({
       mxid: mxid,
       displayName: contactDisplayNameFromIdentity(
         mxid: mxid,
-        displayName: profileName ?? room.getLocalizedDisplayname(),
+        displayName: profileName ?? safeRoomDisplayName(room),
         domain: productDirectPeerDomain(room) ?? domainFromMxid(mxid),
-        fallback: room.getLocalizedDisplayname(),
+        fallback: safeRoomDisplayName(room),
       ),
       seed: mxid,
       avatarUrl: _avatarUrlForRoomPeer(room, mxid),
@@ -977,8 +980,7 @@ String? _avatarUrlForRoomPeer(Room? room, String mxid) {
       : null;
   final resolvedNativeAvatar = avatarHttpUrl(room.client, nativeAvatarUrl);
   if (resolvedNativeAvatar != null) return resolvedNativeAvatar;
-  final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
-  return matrixContentHttpUrl(room.client, member.avatarUrl);
+  return localRoomMemberAvatarHttpUrl(room, peerId);
 }
 
 class _SearchBox extends StatelessWidget {
@@ -1232,9 +1234,9 @@ class _PendingSection extends StatelessWidget {
       final profileName = productDirectPeerDisplayName(room);
       final name = contactDisplayNameFromIdentity(
         mxid: inviterId,
-        displayName: profileName ?? room.getLocalizedDisplayname(),
+        displayName: profileName ?? safeRoomDisplayName(room),
         domain: productDirectPeerDomain(room) ?? domainFromMxid(inviterId),
-        fallback: room.getLocalizedDisplayname(),
+        fallback: safeRoomDisplayName(room),
       );
       final remark = productDirectPeerRequestRemark(room);
       rows.add(

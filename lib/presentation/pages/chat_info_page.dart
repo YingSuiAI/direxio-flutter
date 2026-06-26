@@ -73,10 +73,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       roomId: widget.roomId,
       l10n: l10n,
     );
-    final peerMember =
-        peerId == null ? null : room.unsafeGetUserFromMemoryOrFallback(peerId);
     final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
-        matrixContentHttpUrl(client, peerMember?.avatarUrl);
+        localRoomMemberAvatarHttpUrl(room, peerId);
     final preferenceKey = room.id;
     final muted = ref.watch(mutedConversationIdsProvider).contains(
           preferenceKey,
@@ -520,7 +518,8 @@ String _chatInfoDisplayName({
   if (room != null && !room.isDirectChat) {
     return l10n?.chatInfoContactSyncing ?? '正在同步联系人信息';
   }
-  return room?.getLocalizedDisplayname() ?? peerId ?? roomId;
+  final roomName = safeRoomDisplayName(room);
+  return roomName.isNotEmpty ? roomName : peerId ?? roomId;
 }
 
 class _ChatInfoHeader extends StatelessWidget {

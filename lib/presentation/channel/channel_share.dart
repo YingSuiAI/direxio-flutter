@@ -680,11 +680,8 @@ String? _targetAvatarUrl(
   if (target.roomType == 'direct') {
     final contact = syncCache.acceptedContactForRoom(roomId);
     final peerMxid = contact?.userId.trim() ?? '';
-    final member = peerMxid.isEmpty
-        ? null
-        : room?.unsafeGetUserFromMemoryOrFallback(peerMxid);
     return avatarHttpUrl(client, contact?.avatarUrl) ??
-        matrixContentHttpUrl(client, member?.avatarUrl) ??
+        localRoomMemberAvatarHttpUrl(room, peerMxid) ??
         (room == null ? null : roomAvatarHttpUrl(room));
   }
   if (target.roomType == 'group') {

@@ -240,11 +240,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               domain: acceptedContact?.domain ?? '',
               fallback: productConversation.title.trim().isNotEmpty
                   ? productConversation.title
-                  : room.getLocalizedDisplayname(),
+                  : safeRoomDisplayName(room),
             )
           : productConversation.title.trim().isNotEmpty
               ? productConversation.title.trim()
-              : room.getLocalizedDisplayname();
+              : safeRoomDisplayName(room);
       if (!containsAny([name, peerMxid, room.id])) continue;
       final groupAvatarMembers = productConversation.isGroup
           ? stableGroupAvatarMembersForRoom(
@@ -407,7 +407,7 @@ String _fallbackDomain(Client client) {
 String _matrixRoomName(Client client, String roomId) {
   final room = client.getRoomById(roomId.trim());
   if (room == null) return '';
-  final name = room.getLocalizedDisplayname().trim();
+  final name = safeRoomDisplayName(room).trim();
   return _looksLikeMatrixRoomId(name) ? '' : name;
 }
 
@@ -451,8 +451,7 @@ class _GlobalSearchResult {
     final room = client.getRoomById(result.roomId);
     var senderName = result.senderId.trim();
     if (room != null && senderName.isNotEmpty) {
-      final member = room.unsafeGetUserFromMemoryOrFallback(senderName);
-      final displayName = member.calcDisplayname().trim();
+      final displayName = directPeerMemberDisplayName(room, senderName);
       if (displayName.isNotEmpty) senderName = displayName;
     }
     final productConversation = productConversationForRoom(

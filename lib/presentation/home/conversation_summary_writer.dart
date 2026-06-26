@@ -68,7 +68,7 @@ class VisibleHomeConversation {
       room: room,
       product: _fallbackGroupConversation(
         roomId: room.id,
-        title: room.getLocalizedDisplayname(),
+        title: safeRoomDisplayName(room),
         lastActivityAt: room.lastEvent?.originServerTs,
       ),
       isGroup: true,
@@ -782,9 +782,7 @@ String? directPeerMemberAvatarUrl(
   if (explicitPeerId.isNotEmpty) {
     return _participantAvatarUrl(client, room, peerId);
   }
-  final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
-  return matrixContentHttpUrl(client, member.avatarUrl) ??
-      _participantAvatarUrl(client, room, peerId) ??
+  return _participantAvatarUrl(client, room, peerId) ??
       (explicitPeerId.isEmpty
           ? _firstOtherMemberAvatarUrl(client, room)
           : null);
@@ -882,7 +880,7 @@ String conversationDisplayName(
     );
     if (peerName.isNotEmpty) return peerName;
   }
-  return conversation.room?.getLocalizedDisplayname() ?? '';
+  return safeRoomDisplayName(conversation.room);
 }
 
 String _directProductPeerDisplayName(AsConversation? product, Room? room) {

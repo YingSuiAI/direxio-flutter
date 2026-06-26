@@ -92,6 +92,8 @@ void main() {
       pending: const AsSyncPending.empty(),
       agentRoomId: roomId,
     );
+    var showChatPage = true;
+    late StateSetter setShellState;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -120,7 +122,16 @@ void main() {
           locale: const Locale('en'),
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const ChatPage(roomId: roomId),
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              setShellState = setState;
+              return showChatPage
+                  ? const ChatPage(roomId: roomId)
+                  : const SizedBox(
+                      key: ValueKey('agent_offline_reply_other_page'),
+                    );
+            },
+          ),
         ),
       ),
     );
@@ -134,6 +145,27 @@ void main() {
     await tester.enterText(find.byType(TextField), 'second');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('chat_input_send_button')));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.byKey(const ValueKey('private_message_enter_agent_offline_reply_0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('private_message_enter_agent_offline_reply_1')),
+      findsOneWidget,
+    );
+
+    setShellState(() => showChatPage = false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.byKey(const ValueKey('agent_offline_reply_other_page')),
+      findsOneWidget,
+    );
+
+    setShellState(() => showChatPage = true);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(

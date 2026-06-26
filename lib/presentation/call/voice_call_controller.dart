@@ -10,6 +10,7 @@ import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/room_read_state.dart';
 
 enum VoiceCallStatus {
@@ -1684,7 +1685,7 @@ class MatrixVoiceCallController implements VoiceCallController {
         peerUserId: peerUserId,
         peerName: peerDisplayName?.trim().isNotEmpty ?? false
             ? peerDisplayName!.trim()
-            : callRoom.getLocalizedDisplayname(),
+            : safeRoomDisplayName(callRoom),
       ),
     );
     _startOutgoingNoResponseTimer(outgoingAttemptId);
@@ -2260,7 +2261,7 @@ class MatrixVoiceCallController implements VoiceCallController {
       callType: previous.roomId == groupCall.room.id
           ? previous.callType
           : ProductCallType.voice,
-      roomName: groupCall.room.getLocalizedDisplayname(),
+      roomName: safeRoomDisplayName(groupCall.room),
     );
   }
 
@@ -2672,7 +2673,7 @@ class MatrixVoiceCallController implements VoiceCallController {
       peerUserId: session.remoteUserId ?? previousState.peerUserId,
       peerName: session.remoteUser?.calcDisplayname() ??
           previousState.peerName ??
-          session.room.getLocalizedDisplayname(),
+          safeRoomDisplayName(session.room),
       isIncoming: isIncoming,
       isMuted: session.isMicrophoneMuted,
       isCameraMuted: callType == ProductCallType.video
@@ -2829,12 +2830,11 @@ class MatrixVoiceCallController implements VoiceCallController {
   }) {
     final normalized = userId?.trim() ?? '';
     if (normalized.isEmpty) return null;
-    final user = room.unsafeGetUserFromMemoryOrFallback(normalized);
-    final displayName = user.calcDisplayname().trim();
+    final displayName = directPeerMemberDisplayName(room, normalized);
     return GroupCallParticipantInfo(
       userId: normalized,
       displayName: displayName.isEmpty ? normalized : displayName,
-      avatarUrl: matrixContentHttpUrl(room.client, user.avatarUrl),
+      avatarUrl: localRoomMemberAvatarHttpUrl(room, normalized),
       isLocal: isLocal,
     );
   }
@@ -2907,7 +2907,7 @@ class MatrixVoiceCallController implements VoiceCallController {
       roomId: groupCall.room.id,
       roomName: roomName ??
           previousState.roomName ??
-          groupCall.room.getLocalizedDisplayname(),
+          safeRoomDisplayName(groupCall.room),
       callId: _activeGroupAsCall?.callId ??
           previousState.callId ??
           groupCall.groupCallId,
@@ -3703,7 +3703,7 @@ class MatrixVoiceCallController implements VoiceCallController {
         status: GroupCallStatus.ringing,
         callType: callType,
         roomId: roomId,
-        roomName: room.getLocalizedDisplayname(),
+        roomName: safeRoomDisplayName(room),
         callId: callId,
         createdByMxid: createdByMxid,
         initiator: initiator,
@@ -3941,7 +3941,7 @@ class MatrixVoiceCallController implements VoiceCallController {
       _bindGroupSession(
         nextGroupCall,
         callType: snapshot.callType,
-        roomName: snapshot.roomName ?? room.getLocalizedDisplayname(),
+        roomName: snapshot.roomName ?? safeRoomDisplayName(room),
       );
       if (nextGroupCall.state == GroupCallState.localCallFeedUninitialized ||
           nextGroupCall.state == GroupCallState.localCallFeedInitialized) {

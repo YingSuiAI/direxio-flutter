@@ -25,5 +25,24 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SaveImagePlugin") {
       SaveImagePlugin.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DirexioApnsTokenPlugin") {
+      DirexioApnsTokenPlugin.register(with: registrar)
+    }
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    DirexioApnsTokenPlugin.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    DirexioApnsTokenPlugin.shared.didFailToRegisterForRemoteNotifications(error: error)
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
 }

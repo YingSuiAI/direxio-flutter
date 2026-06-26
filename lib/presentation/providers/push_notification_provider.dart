@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/router/app_router.dart';
+import '../../data/ios_apns_token.dart';
 import '../../data/matrix_push_registration.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/push_notification_navigation.dart';
@@ -28,13 +29,14 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
     debugPrint('[push-registration] bootstrap skip: invalid gateway URL');
     return;
   }
-  if (Firebase.apps.isEmpty) {
+  final usesFirebaseMessaging = profile == direxioAndroidFcmPusherProfile;
+  if (usesFirebaseMessaging && Firebase.apps.isEmpty) {
     debugPrint('[push-registration] bootstrap skip: Firebase not initialized');
     return;
   }
   final client = ref.watch(matrixClientProvider);
   final router = ref.watch(appRouterProvider);
-  final messaging = FirebaseMessaging.instance;
+  final messaging = Firebase.apps.isEmpty ? null : FirebaseMessaging.instance;
   var registrationInFlight = false;
 
   bool isLoggedInNow() {
@@ -101,6 +103,9 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
       'initial',
     ),
   );
+  if (messaging == null) {
+    return;
+  }
   unawaited(
     _syncAfterInitialNotificationOpen(
       messaging: messaging,
@@ -154,24 +159,28 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
 });
 
 Future<void> _registerCurrentToken({
-  required FirebaseMessaging messaging,
+  required FirebaseMessaging? messaging,
   required MatrixPusherProfile profile,
   required Future<void> Function(String token) registerToken,
 }) async {
   try {
-    final settings = await messaging.requestPermission();
-    debugPrint(
-      '[push-registration] notification permission '
-      'status=${settings.authorizationStatus.name}',
-    );
+    if (messaging != null) {
+      final settings = await messaging.requestPermission();
+      debugPrint(
+        '[push-registration] notification permission '
+        'status=${settings.authorizationStatus.name}',
+      );
+    }
     for (var attempt = 0; attempt <= _pushTokenRetryDelays.length; attempt++) {
       try {
-        final token = await _fetchCurrentToken(messaging, profile).timeout(
-          _pushTokenAttemptTimeout,
-        );
+        final token = await resolveMatrixPushTokenForProfile(
+          profile: profile,
+          androidFcmToken: () => messaging?.getToken() ?? Future.value(),
+          iosApnsToken: fetchDirexioIosApnsToken,
+        ).timeout(_pushTokenAttemptTimeout);
         if (token == null || token.trim().isEmpty) {
           debugPrint(
-            '[push-registration] Firebase returned an empty '
+            '[push-registration] push provider returned an empty '
             '${profile.provider} token '
             'attempt=${attempt + 1}',
           );
@@ -195,14 +204,15 @@ Future<void> _registerCurrentToken({
   }
 }
 
-Future<String?> _fetchCurrentToken(
-  FirebaseMessaging messaging,
-  MatrixPusherProfile profile,
-) {
+Future<String?> resolveMatrixPushTokenForProfile({
+  required MatrixPusherProfile profile,
+  required Future<String?> Function() androidFcmToken,
+  required Future<String?> Function() iosApnsToken,
+}) {
   if (profile == direxioIosApnsPusherProfile) {
-    return messaging.getAPNSToken();
+    return iosApnsToken();
   }
-  return messaging.getToken();
+  return androidFcmToken();
 }
 
 Future<void> _syncAfterInitialNotificationOpen({

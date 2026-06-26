@@ -18364,6 +18364,102 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
   });
 
+  testWidgets('contact list message action restores hidden home conversation',
+      (tester) async {
+    const roomId = '!alice:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('DirexioContactListRestoreHiddenConversationTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final preferencesStore = _MemoryConversationPreferencesStore(
+      const ConversationPreferencesData(hiddenConversationIds: {roomId}),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
+        asClientProvider.overrideWithValue(
+          _ConversationListWithPublicChannelsAsClient(const []),
+        ),
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: bootstrap),
+        ),
+        conversationPreferencesStoreProvider.overrideWith(
+          (ref) async => preferencesStore,
+        ),
+      ],
+    );
+    container.read(conversationPreferencesProvider);
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation:
+          '/contact/${Uri.encodeComponent(peerMxid)}?source=chat_avatar',
+      routes: [
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
+          ),
+        ),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Scaffold(
+            body: Text('opened:${state.pathParameters['roomId']}'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(container.read(homeHiddenConversationIdsProvider), contains(roomId));
+
+    await tester.tap(find.text('发消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened:$roomId'), findsOneWidget);
+    expect(
+      container.read(homeHiddenConversationIdsProvider),
+      isNot(contains(roomId)),
+    );
+  });
+
   testWidgets(
       'chat avatar contact detail keeps friend profile while ProductCore loads',
       (tester) async {

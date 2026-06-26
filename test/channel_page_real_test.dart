@@ -3441,7 +3441,7 @@ void main() {
     expect(find.byIcon(Symbols.lock), findsNothing);
   });
 
-  testWidgets('channel conversation long press opens message actions',
+  testWidgets('channel conversation long press hides delete action',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -3489,7 +3489,7 @@ void main() {
     await tester.longPress(find.text('我正在考虑接受它！！').first);
     await tester.pumpAndSettle();
     expect(find.text('复制'), findsOneWidget);
-    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('删除'), findsNothing);
 
     await tester.tap(find.text('复制'));
     await tester.pumpAndSettle();
@@ -3497,10 +3497,8 @@ void main() {
 
     await tester.longPress(find.text('我正在考虑接受它！！').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('删除'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('我正在考虑接受它！！'), findsOneWidget);
+    expect(find.text('删除'), findsNothing);
+    expect(find.text('我正在考虑接受它！！'), findsNWidgets(2));
   });
 
   testWidgets('post list more button opens channel info page', (tester) async {

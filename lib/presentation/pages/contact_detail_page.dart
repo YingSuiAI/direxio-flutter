@@ -196,7 +196,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         isFriend: canShowFriendProfile,
         contactStatus: existingContact?.status,
         onMessage: canOpenChat && roomId != null
-            ? () => context.go('/chat/${Uri.encodeComponent(roomId)}')
+            ? () {
+                showHomeConversation(ref, roomId);
+                context.go('/chat/${Uri.encodeComponent(roomId)}');
+              }
             : null,
         onVoice: room != null
             ? () => context.push(

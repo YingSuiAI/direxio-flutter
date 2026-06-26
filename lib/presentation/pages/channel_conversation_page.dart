@@ -137,15 +137,6 @@ class _ChannelConversationPageState
         await Clipboard.setData(ClipboardData(text: message.body));
         if (!mounted) return;
         _showSnack(l10n?.groupChatCopied ?? '已复制');
-      case _ChannelMessageAction.delete:
-        setState(() {
-          _messages = [
-            for (final item
-                in _messages ?? const <_ChannelConversationMessage>[])
-              if (item.id != message.id) item,
-          ];
-        });
-        _showSnack(l10n?.groupChatDeleted ?? '已删除');
       case _ChannelMessageAction.quote:
         _showSnack(l10n?.channelConversationQuoted ?? '已引用');
       case _ChannelMessageAction.favorite:
@@ -362,7 +353,7 @@ class _ChannelMessageRow extends StatelessWidget {
   }
 }
 
-enum _ChannelMessageAction { copy, forward, favorite, delete, multi, quote }
+enum _ChannelMessageAction { copy, forward, favorite, multi, quote }
 
 class _ChannelMessageMenuAnchor {
   const _ChannelMessageMenuAnchor({
@@ -533,12 +524,6 @@ class _ChannelMessageActionMenuCard extends StatelessWidget {
                             icon: Symbols.bookmark,
                             label: '收藏',
                             action: _ChannelMessageAction.favorite,
-                          ),
-                          _ChannelMessageActionMenuItem(
-                            width: itemWidth,
-                            icon: Symbols.delete,
-                            label: '删除',
-                            action: _ChannelMessageAction.delete,
                           ),
                           _ChannelMessageActionMenuItem(
                             width: itemWidth,

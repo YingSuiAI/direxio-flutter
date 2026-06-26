@@ -3,13 +3,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../chat/agent_message_content.dart';
 
 class AgentMessageBody extends StatelessWidget {
-  const AgentMessageBody(this.text, {super.key, this.selectable = true});
+  const AgentMessageBody(
+    this.text, {
+    super.key,
+    this.selectable = true,
+    this.cards = const [],
+    this.isGenerating = false,
+  });
+
   final String text;
   final bool selectable;
+  final List<AgentMessageCard> cards;
+  final bool isGenerating;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +54,137 @@ class AgentMessageBody extends StatelessWidget {
     );
     final themed = GptMarkdownTheme(gptThemeData: mdTheme, child: md);
 
-    return selectable ? SelectionArea(child: themed) : themed;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (text.trim().isNotEmpty)
+          selectable ? SelectionArea(child: themed) : themed,
+        for (final card in cards) ...[
+          if (text.trim().isNotEmpty || cards.indexOf(card) > 0)
+            const SizedBox(height: 8),
+          _AgentStructuredCard(card: card),
+        ],
+        if (isGenerating) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.6,
+                  color: t.accent,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('生成中', style: AppTheme.sans(size: 11, color: t.textMute)),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    return content;
+  }
+}
+
+class _AgentStructuredCard extends StatelessWidget {
+  const _AgentStructuredCard({required this.card});
+
+  final AgentMessageCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: t.border.withValues(alpha: 0.55)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (card.title.trim().isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Symbols.smart_toy, size: 15, color: t.accentCool),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    card.title.trim(),
+                    style: AppTheme.sans(
+                      size: 13,
+                      color: t.text,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (card.blocks.isNotEmpty || card.actions.isNotEmpty)
+              const SizedBox(height: 8),
+          ],
+          for (final block in card.blocks) ...[
+            if (block.kind == 'divider')
+              Divider(height: 14, color: t.border.withValues(alpha: 0.55))
+            else
+              AgentMessageBody(block.text, selectable: false),
+            if (card.blocks.last != block) const SizedBox(height: 6),
+          ],
+          if (card.actions.isNotEmpty) ...[
+            if (card.blocks.isNotEmpty) const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final action in card.actions)
+                  _AgentCardActionChip(action: action),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentCardActionChip extends StatelessWidget {
+  const _AgentCardActionChip({required this.action});
+
+  final AgentMessageCardAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final danger = action.kind.trim().toLowerCase() == 'danger';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: danger
+            ? t.danger.withValues(alpha: 0.08)
+            : t.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: danger
+              ? t.danger.withValues(alpha: 0.35)
+              : t.accent.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Text(
+        action.label,
+        style: AppTheme.sans(
+          size: 12,
+          color: danger ? t.danger : t.accentCool,
+          weight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 }
 

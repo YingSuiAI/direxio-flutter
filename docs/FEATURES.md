@@ -1,6 +1,6 @@
 # Direxio Client Feature Status
 
-Last verified from current code: 2026-06-25
+Last verified from current code: 2026-06-26
 
 This document is a current implementation inventory. It is not a roadmap and does not preserve historical plans.
 
@@ -9,6 +9,8 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Authentication/session restore uses Matrix SDK session state plus the persisted `access_token`; initialization is complete once the generated initial password has been changed. Runtime current-token rejection signs the user out, clears saved login secrets, shows the session-expired dialog, and requires manual password entry before logging in again.
 - Home conversations use ProductCore direct/group conversations, Matrix rooms, and local summary snapshots only as startup cache. Channel conversations stay under the channel surfaces.
 - Direct/group/channel chat uses Matrix timelines for text, media, history, read state, local delete, and search.
+- Agent chat opens the real private Matrix `agent_room_id`, sends ordinary text and `/` commands as Matrix text, renders Agent Markdown/cards, projects Matrix edits or stream fragments into one in-progress reply, and offers localized `/` command shortcuts in the composer.
+- Agent conversation headers show bridge presence from `agent.status.connected`, where `connected` means an active agent-token `/_p2p/events` stream. Reply generation/typing is shown separately from online/offline presence.
 - Channel message rooms are muted by default for local sound/vibration notifications, and channel list items show unread presence as a red dot rather than an unread count.
 - Removed or exited group conversations stay visible in home conversations and Contacts -> Groups as read-only history; opening them shows the exited-group send block.
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.

@@ -39,6 +39,7 @@ import '../channel/public_channel_target.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
+import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
 import '../chat/chat_room_recovery_controller.dart';
@@ -339,6 +340,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _suppressMentionTrigger = false;
   final Set<String> _selected = {};
   final Set<String> _locallyHiddenEventIds = {};
+  final ChatAvatarSnapshotCache _avatarSnapshotCache =
+      ChatAvatarSnapshotCache();
   final Map<String, String> _atUserMap = {};
   Event? _replyTo;
   final Map<String, _GroupQuotedMessagePreview> _localReplyPreviews = {};
@@ -1094,6 +1097,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   @override
   void didUpdateWidget(covariant GroupChatPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomId != widget.roomId ||
+        oldWidget.channelId != widget.channelId) {
+      _avatarSnapshotCache.clear();
+    }
     if (oldWidget.targetEventId == widget.targetEventId) return;
     final eventId = widget.targetEventId?.trim() ?? '';
     if (eventId.isEmpty) return;
@@ -1365,12 +1372,48 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final memberAvatarUrl = matrixContentHttpUrl(room.client, member.avatarUrl);
     final contactAvatarUrl = avatarHttpUrl(room.client, contact?.avatarUrl);
     final currentUserId = room.client.userID?.trim() ?? '';
-    if (currentUserId.isNotEmpty && trimmed == currentUserId) {
-      return profileAvatarHttpUrl(currentUserProfile, room.client) ??
-          memberAvatarUrl ??
-          contactAvatarUrl;
-    }
-    return memberAvatarUrl ?? contactAvatarUrl;
+    final isCurrentUser = currentUserId.isNotEmpty && trimmed == currentUserId;
+    return _avatarSnapshotCache.resolve(
+      senderId: trimmed,
+      candidates: [
+        if (isCurrentUser)
+          ChatAvatarCandidate(
+            url: profileAvatarHttpUrl(currentUserProfile, room.client),
+            priority: ChatAvatarCandidatePriority.currentUserProfile,
+          ),
+        ChatAvatarCandidate(
+          url: memberAvatarUrl,
+          priority: ChatAvatarCandidatePriority.matrixMember,
+        ),
+        ChatAvatarCandidate(
+          url: contactAvatarUrl,
+          priority: ChatAvatarCandidatePriority.productContact,
+        ),
+      ],
+    );
+  }
+
+  String? _currentUserAvatarUrl(Profile? currentUserProfile, Room room) {
+    final currentUserId = room.client.userID?.trim() ?? '';
+    final memberAvatarUrl = currentUserId.isEmpty
+        ? null
+        : matrixContentHttpUrl(
+            room.client,
+            room.unsafeGetUserFromMemoryOrFallback(currentUserId).avatarUrl,
+          );
+    return _avatarSnapshotCache.resolve(
+      senderId: currentUserId.isEmpty ? 'me' : currentUserId,
+      candidates: [
+        ChatAvatarCandidate(
+          url: profileAvatarHttpUrl(currentUserProfile, room.client),
+          priority: ChatAvatarCandidatePriority.currentUserProfile,
+        ),
+        ChatAvatarCandidate(
+          url: memberAvatarUrl,
+          priority: ChatAvatarCandidatePriority.matrixMember,
+        ),
+      ],
+    );
   }
 
   void _scheduleTimelineThumbnailWarmup() {
@@ -2601,6 +2644,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final t = context.tk;
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final currentUserId = room.client.userID?.trim();
+    final currentUserAvatarSeed =
+        currentUserId == null || currentUserId.isEmpty ? 'me' : currentUserId;
+    final currentUserAvatarUrl = _currentUserAvatarUrl(
+      currentUserProfile,
+      room,
+    );
     final activeRoomId = room.id;
     final remarkName =
         ref.watch(groupRemarkNamesProvider)[activeRoomId]?.trim() ?? '';
@@ -2928,6 +2978,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       pending.createdAt.toLocal(),
                                     ),
                                     status: pending.status,
+                                    avatarSeed: currentUserAvatarSeed,
+                                    avatarUrl: currentUserAvatarUrl,
                                     onRetry: () => unawaited(
                                       _retryFailedTextMessage(pending),
                                     ),
@@ -2962,6 +3014,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         isPlaying: isPlaying,
                                         currentPlaySeconds:
                                             playback.position.inSeconds,
+                                        senderAvatarUrl: currentUserAvatarUrl,
                                         onLongPressAt: (position) =>
                                             _onLongPressOutboxItem(
                                           pending,
@@ -2971,6 +3024,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       )
                                     : _GroupPendingMediaBubble(
                                         item: pending,
+                                        avatarSeed: currentUserAvatarSeed,
+                                        avatarUrl: currentUserAvatarUrl,
                                         onRetry: () => unawaited(
                                           _retryFailedMediaUpload(pending),
                                         ),
@@ -4803,6 +4858,8 @@ class _GroupPendingTextBubble extends StatelessWidget {
     required this.text,
     required this.time,
     required this.status,
+    required this.avatarSeed,
+    this.avatarUrl,
     required this.onRetry,
     required this.onLongPressAt,
   });
@@ -4810,6 +4867,8 @@ class _GroupPendingTextBubble extends StatelessWidget {
   final String text;
   final String time;
   final LocalOutboxItemStatus status;
+  final String avatarSeed;
+  final String? avatarUrl;
   final VoidCallback onRetry;
   final _MessageContextAnchorCallback onLongPressAt;
 
@@ -4911,8 +4970,9 @@ class _GroupPendingTextBubble extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _MemberAvatar(
-            seed: 'me',
-            name: _groupChatL10n(context).groupChatMe,
+            seed: avatarSeed,
+            name: '',
+            imageUrl: avatarUrl,
           ),
         ],
       ),
@@ -5313,11 +5373,15 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
 class _GroupPendingMediaBubble extends StatelessWidget {
   const _GroupPendingMediaBubble({
     required this.item,
+    required this.avatarSeed,
+    this.avatarUrl,
     required this.onRetry,
     required this.onLongPressAt,
   });
 
   final LocalOutboxItem item;
+  final String avatarSeed;
+  final String? avatarUrl;
   final VoidCallback onRetry;
   final _MessageContextAnchorCallback onLongPressAt;
 
@@ -5398,8 +5462,9 @@ class _GroupPendingMediaBubble extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _MemberAvatar(
-            seed: 'me',
-            name: _groupChatL10n(context).groupChatMe,
+            seed: avatarSeed,
+            name: '',
+            imageUrl: avatarUrl,
           ),
         ],
       ),

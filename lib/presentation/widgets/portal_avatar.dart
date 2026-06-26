@@ -11,7 +11,7 @@ enum AvatarShape { circle, squircle }
 
 /// 头像 —— M3 风格。
 /// 默认圆形（IM 会话/联系人头像）；登录 app icon 等用 squircle（22.5% 圆角）。
-class PortalAvatar extends StatelessWidget {
+class PortalAvatar extends StatefulWidget {
   const PortalAvatar({
     super.key,
     required this.seed,
@@ -30,9 +30,14 @@ class PortalAvatar extends StatelessWidget {
   final AvatarShape shape;
 
   @override
+  State<PortalAvatar> createState() => _PortalAvatarState();
+}
+
+class _PortalAvatarState extends State<PortalAvatar> {
+  @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final hash = seed.codeUnits.fold<int>(0, (a, b) => a + b);
+    final hash = widget.seed.codeUnits.fold<int>(0, (a, b) => a + b);
     // M3 容器色系——克制、和谐
     final palette = <(Color bg, Color fg)>[
       (t.primaryContainer, t.onPrimaryContainer),
@@ -42,71 +47,101 @@ class PortalAvatar extends StatelessWidget {
     ];
     final (bg, fg) = palette[hash % palette.length];
     // Matrix ID @localpart:domain → use localpart's first letter, not '@'
-    final effective = (seed.startsWith('@') && seed.contains(':'))
-        ? seed.substring(1, seed.indexOf(':'))
-        : seed;
+    final effective = (widget.seed.startsWith('@') && widget.seed.contains(':'))
+        ? widget.seed.substring(1, widget.seed.indexOf(':'))
+        : widget.seed;
     final letter =
         effective.isNotEmpty ? effective.characters.first.toUpperCase() : '?';
 
-    final radius = shape == AvatarShape.circle
-        ? BorderRadius.circular(size / 2)
-        : BorderRadius.circular(size * 0.225);
+    final radius = widget.shape == AvatarShape.circle
+        ? BorderRadius.circular(widget.size / 2)
+        : BorderRadius.circular(widget.size * 0.225);
     final imageHeaders = avatarImageHeadersForUrl(
       _matrixClientOf(context),
-      imageUrl,
+      widget.imageUrl,
     );
+    final networkImageUrl = widget.imageUrl;
+    final networkCacheKey = networkImageUrl == null
+        ? null
+        : _portalAvatarMemoryCacheKey(networkImageUrl, imageHeaders);
+    final cachedNetworkBytes = networkCacheKey == null
+        ? null
+        : _portalAvatarMemoryBytes[networkCacheKey];
+    if (networkImageUrl != null && cachedNetworkBytes == null) {
+      _warmPortalAvatarMemoryCache(
+        cacheKey: networkCacheKey!,
+        imageUrl: networkImageUrl,
+        headers: imageHeaders,
+        onLoaded: () {
+          if (mounted) setState(() {});
+        },
+      );
+    }
 
     return Container(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       decoration: BoxDecoration(color: bg, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
-      child: imageBytes != null
+      child: widget.imageBytes != null
           ? Image.memory(
-              imageBytes!,
-              width: size,
-              height: size,
+              widget.imageBytes!,
+              width: widget.size,
+              height: widget.size,
               fit: BoxFit.cover,
               gaplessPlayback: true,
               errorBuilder: (_, error, ___) => _imageError(letter, fg, error),
             )
-          : imageUrl != null
-              ? Image(
-                  key: ValueKey(
-                    Object.hash(imageUrl, imageHeaders?['authorization']),
-                  ),
-                  image: CachedNetworkImageProvider(
-                    imageUrl!,
-                    cacheKey: imageUrl!,
-                    headers: imageHeaders,
-                  ),
-                  width: size,
-                  height: size,
+          : cachedNetworkBytes != null
+              ? Image.memory(
+                  cachedNetworkBytes,
+                  width: widget.size,
+                  height: widget.size,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
                   errorBuilder: (_, error, ___) =>
                       _imageError(letter, fg, error),
                 )
-              : imageAsset != null
-                  ? Image.asset(
-                      imageAsset!,
-                      width: size,
-                      height: size,
+              : networkImageUrl != null
+                  ? Image(
+                      key: ValueKey(
+                        Object.hash(
+                          networkImageUrl,
+                          imageHeaders?['authorization'],
+                        ),
+                      ),
+                      image: CachedNetworkImageProvider(
+                        networkImageUrl,
+                        cacheKey: networkImageUrl,
+                        headers: imageHeaders,
+                      ),
+                      width: widget.size,
+                      height: widget.size,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                       errorBuilder: (_, error, ___) =>
                           _imageError(letter, fg, error),
                     )
-                  : _letter(letter, fg),
+                  : widget.imageAsset != null
+                      ? Image.asset(
+                          widget.imageAsset!,
+                          width: widget.size,
+                          height: widget.size,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, error, ___) =>
+                              _imageError(letter, fg, error),
+                        )
+                      : _letter(letter, fg),
     );
   }
 
   Widget _imageError(String letter, Color fg, Object error) {
     if (kDebugMode) {
       debugPrint(
-        '[avatar.image] failed seed=$seed '
-        'url=${imageUrl?.trim().isEmpty == false ? imageUrl : '<memory>'} '
+        '[avatar.image] failed seed=${widget.seed} '
+        'url=${widget.imageUrl?.trim().isEmpty == false ? widget.imageUrl : '<memory>'} '
         'error=$error',
       );
     }
@@ -116,8 +151,67 @@ class PortalAvatar extends StatelessWidget {
   Widget _letter(String letter, Color fg) => Text(
         letter,
         style: AppTheme.sans(
-            size: size * 0.42, color: fg, weight: FontWeight.w600),
+            size: widget.size * 0.42, color: fg, weight: FontWeight.w600),
       );
+}
+
+const int _portalAvatarMemoryCacheLimit = 256;
+final _portalAvatarMemoryBytes = <String, Uint8List>{};
+final _portalAvatarMemoryLoads = <String, Future<void>>{};
+
+String _portalAvatarMemoryCacheKey(
+  String imageUrl,
+  Map<String, String>? headers,
+) {
+  return '$imageUrl\n${headers?['authorization'] ?? ''}';
+}
+
+void _putPortalAvatarMemoryBytes(String key, Uint8List bytes) {
+  _portalAvatarMemoryBytes.remove(key);
+  _portalAvatarMemoryBytes[key] = bytes;
+  while (_portalAvatarMemoryBytes.length > _portalAvatarMemoryCacheLimit) {
+    _portalAvatarMemoryBytes.remove(_portalAvatarMemoryBytes.keys.first);
+  }
+}
+
+void _warmPortalAvatarMemoryCache({
+  required String cacheKey,
+  required String imageUrl,
+  required Map<String, String>? headers,
+  required VoidCallback onLoaded,
+}) {
+  if (_portalAvatarMemoryLoads.containsKey(cacheKey)) return;
+  final load = CachedNetworkImageProvider.defaultCacheManager
+      .getSingleFile(imageUrl, key: imageUrl, headers: headers ?? const {})
+      .then((file) => file.readAsBytes())
+      .then((bytes) {
+    if (bytes.isEmpty) return;
+    _putPortalAvatarMemoryBytes(cacheKey, bytes);
+    onLoaded();
+  }).catchError((_) {
+    _portalAvatarMemoryBytes.remove(cacheKey);
+  }).whenComplete(() {
+    _portalAvatarMemoryLoads.remove(cacheKey);
+  });
+  _portalAvatarMemoryLoads[cacheKey] = load;
+}
+
+@visibleForTesting
+void cachePortalAvatarBytesForTesting({
+  required String imageUrl,
+  required Map<String, String>? headers,
+  required Uint8List bytes,
+}) {
+  _putPortalAvatarMemoryBytes(
+    _portalAvatarMemoryCacheKey(imageUrl, headers),
+    bytes,
+  );
+}
+
+@visibleForTesting
+void clearPortalAvatarMemoryCacheForTesting() {
+  _portalAvatarMemoryBytes.clear();
+  _portalAvatarMemoryLoads.clear();
 }
 
 @visibleForTesting

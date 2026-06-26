@@ -33,6 +33,7 @@ import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
+import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
 import '../chat/chat_timeline_controller.dart';
@@ -363,6 +364,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _joiningChannelShareIds = {};
   final Set<String> _requestedChannelShareIds = {};
   final Set<String> _locallyHiddenEventIds = {};
+  final ChatAvatarSnapshotCache _avatarSnapshotCache =
+      ChatAvatarSnapshotCache();
   final Map<String, AsCallSession> _asCallSessionCache = {};
   final Map<String, AsCallSession> _roomAsCallHistory = {};
   final Set<String> _loadingAsCallIds = {};
@@ -683,6 +686,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void didUpdateWidget(covariant ChatPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomId != widget.roomId) {
+      _avatarSnapshotCache.clear();
+    }
     if (oldWidget.targetEventId == widget.targetEventId) return;
     final eventId = widget.targetEventId?.trim() ?? '';
     if (eventId.isEmpty) return;
@@ -2187,14 +2193,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       client,
       event.senderFromMemoryOrFallback.avatarUrl,
     );
-    if (_isEventFromCurrentUser(event, fallbackUserId)) {
-      return profileAvatarHttpUrl(currentUserProfile, client) ??
-          memberAvatarUrl;
-    }
+    final isCurrentUser = _isEventFromCurrentUser(event, fallbackUserId);
     final syncCache = ref.read(asSyncCacheProvider);
     final contact = syncCache.contactForUserId(event.senderId) ??
         syncCache.contactForRoom(widget.roomId);
-    return memberAvatarUrl ?? avatarHttpUrl(client, contact?.avatarUrl);
+    return _avatarSnapshotCache.resolve(
+      senderId: event.senderId,
+      candidates: [
+        if (isCurrentUser)
+          ChatAvatarCandidate(
+            url: profileAvatarHttpUrl(currentUserProfile, client),
+            priority: ChatAvatarCandidatePriority.currentUserProfile,
+          ),
+        ChatAvatarCandidate(
+          url: memberAvatarUrl,
+          priority: ChatAvatarCandidatePriority.matrixMember,
+        ),
+        ChatAvatarCandidate(
+          url: avatarHttpUrl(client, contact?.avatarUrl),
+          priority: ChatAvatarCandidatePriority.productContact,
+        ),
+      ],
+    );
+  }
+
+  String? _currentUserAvatarUrl(Profile? currentUserProfile, Room room) {
+    final currentUserId = room.client.userID?.trim() ?? '';
+    final memberAvatarUrl = currentUserId.isEmpty
+        ? null
+        : matrixContentHttpUrl(
+            room.client,
+            room.unsafeGetUserFromMemoryOrFallback(currentUserId).avatarUrl,
+          );
+    return _avatarSnapshotCache.resolve(
+      senderId: currentUserId.isEmpty ? 'me' : currentUserId,
+      candidates: [
+        ChatAvatarCandidate(
+          url: profileAvatarHttpUrl(currentUserProfile, room.client),
+          priority: ChatAvatarCandidatePriority.currentUserProfile,
+        ),
+        ChatAvatarCandidate(
+          url: memberAvatarUrl,
+          priority: ChatAvatarCandidatePriority.matrixMember,
+        ),
+      ],
+    );
   }
 
   Future<String> _addPendingImageUpload(ChatMediaAttachment attachment) async {
@@ -2597,6 +2640,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       return _missingRoomScaffold('会话不存在');
     }
+    final currentUserId = room.client.userID?.trim();
+    final currentUserAvatarSeed =
+        currentUserId == null || currentUserId.isEmpty ? 'me' : currentUserId;
+    final currentUserAvatarUrl = _currentUserAvatarUrl(
+      currentUserProfile,
+      room,
+    );
 
     final pendingOutboxItems = ref
         .watch(localOutboxProvider)
@@ -2994,7 +3044,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     text: pending.text,
                                     time: _formatMsgTime(pending.createdAt),
                                     showRead: false,
-                                    avatarSeed: 'me',
+                                    avatarSeed: currentUserAvatarSeed,
+                                    avatarUrl: currentUserAvatarUrl,
                                     outboxStatus: _InlineOutboxStatusIcon(
                                       status: pending.status,
                                       label: '消息',
@@ -3025,7 +3076,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: true,
                                     time: _formatMsgTime(pending.createdAt),
                                     showRead: false,
-                                    avatarSeed: 'me',
+                                    avatarSeed: currentUserAvatarSeed,
+                                    avatarUrl: currentUserAvatarUrl,
                                     durationSeconds:
                                         _voiceDurationSecondsFromMs(
                                       pending.durationMs,
@@ -3056,7 +3108,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: true,
                                     time: _formatMsgTime(pending.createdAt),
                                     showRead: false,
-                                    avatarSeed: 'me',
+                                    avatarSeed: currentUserAvatarSeed,
+                                    avatarUrl: currentUserAvatarUrl,
                                     leadingIcon: Symbols.description,
                                     fileName: pending.filename,
                                     sizeLabel: outboxFileSizeLabel(pending),
@@ -3092,7 +3145,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   isMe: true,
                                   time: _formatMsgTime(pending.createdAt),
                                   showRead: false,
-                                  avatarSeed: 'me',
+                                  avatarSeed: currentUserAvatarSeed,
+                                  avatarUrl: currentUserAvatarUrl,
                                   mediaSize: isPendingVideo
                                       ? chatMessageDefaultMediaSize
                                       : chatMediaBubbleSizeFor(

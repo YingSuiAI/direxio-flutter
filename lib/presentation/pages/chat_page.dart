@@ -4199,6 +4199,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             ),
                           );
                         },
+                  visibleActions: isAgent
+                      ? const {
+                          ChatAttachmentAction.album,
+                          ChatAttachmentAction.camera,
+                          ChatAttachmentAction.video,
+                          ChatAttachmentAction.file,
+                        }
+                      : null,
                 ),
               if (showEmojiPanelContent)
                 ChatEmojiPanel(

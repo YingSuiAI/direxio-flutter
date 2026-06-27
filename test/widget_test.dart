@@ -21232,6 +21232,61 @@ void main() {
     );
   });
 
+  testWidgets('agent chat attachment tools hide call actions', (tester) async {
+    final client = Client('DirexioAgentAttachmentToolsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addTestRoom(
+      client,
+      roomId: '!agent-tools:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
+    );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+      agentRoomId: room.id,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!agent-tools:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
+    await tester.pumpAndSettle();
+
+    for (final label in ['相册', '拍摄', '视频', '文件']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final label in ['语音通话', '视频通话']) {
+      expect(find.text(label), findsNothing);
+    }
+  });
+
   testWidgets('agent chat avatar does not open contact detail', (tester) async {
     const roomId = '!product-agent-room:p2p-im.com';
     const agentMxid = '@assistant:p2p-im.com';

@@ -36,7 +36,7 @@ DSYM_OUTPUT="${DWARF_DSYM_FOLDER_PATH}/WebRTC.framework.dSYM"
 mkdir -p "${DWARF_DSYM_FOLDER_PATH}"
 rm -rf "${DSYM_OUTPUT}"
 
-DSYM_TMP="${DWARF_DSYM_FOLDER_PATH}/WebRTC.framework.dSYM.tmp"
+DSYM_TMP="${DWARF_DSYM_FOLDER_PATH}/WebRTC.framework.tmp.dSYM"
 DSYMUTIL_LOG="$(mktemp "${TMPDIR:-/tmp}/webrtc-dsymutil.XXXXXX")"
 rm -rf "${DSYM_TMP}"
 
@@ -47,12 +47,6 @@ if ! xcrun dsymutil "${WEBRTC_BINARY}" -o "${DSYM_TMP}" 2>"${DSYMUTIL_LOG}"; the
   exit 1
 fi
 
-if grep -q "no debug symbols in executable" "${DSYMUTIL_LOG}"; then
-  echo "warning: WebRTC.framework has no debug symbols; skipping empty dSYM generation"
-  rm -f "${DSYMUTIL_LOG}"
-  rm -rf "${DSYM_TMP}"
-  exit 0
-fi
 rm -f "${DSYMUTIL_LOG}"
 
 binary_uuid="$(xcrun dwarfdump --uuid "${WEBRTC_BINARY}" | awk '/arm64/ { print $2; exit }')"

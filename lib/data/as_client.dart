@@ -90,29 +90,6 @@ class AgentConfig {
       );
 }
 
-/// §5.3 Agent 在线状态
-class AgentStatus {
-  const AgentStatus({
-    required this.connected,
-    required this.lastSeen,
-    required this.roomsJoined,
-    required this.messagesToday,
-  });
-  final bool connected;
-  final DateTime? lastSeen;
-  final int roomsJoined;
-  final int messagesToday;
-
-  factory AgentStatus.fromJson(Map<String, dynamic> j) => AgentStatus(
-        connected: j['connected'] as bool? ?? false,
-        lastSeen: j['last_seen'] != null
-            ? DateTime.parse(j['last_seen'] as String)
-            : null,
-        roomsJoined: j['rooms_joined'] as int? ?? 0,
-        messagesToday: j['messages_today'] as int? ?? 0,
-      );
-}
-
 /// §5.4 关注列表单项
 class FollowEntry {
   const FollowEntry({
@@ -662,12 +639,13 @@ class AsSyncBootstrap {
   final AsSyncPending pending;
 
   factory AsSyncBootstrap.fromJson(Map<String, dynamic> json) {
+    final agentRoomId = (json['agent_room_id'] as String? ?? '').trim();
     return AsSyncBootstrap(
       syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
       user: AsSyncUser.fromJson(
         (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
-      agentRoomId: json['agent_room_id'] as String? ?? '',
+      agentRoomId: agentRoomId,
       rooms: _parseList(json['rooms'], AsSyncRoomSummary.fromJson),
       contacts: _parseList(json['contacts'], AsSyncContact.fromJson),
       groups: _parseList(json['groups'], AsSyncRoomSummary.fromJson),
@@ -689,6 +667,28 @@ class AsSyncBootstrap {
       'channels': channels.map((channel) => channel.toJson()).toList(),
       'pending': pending.toJson(),
     };
+  }
+
+  AsSyncBootstrap copyWith({
+    DateTime? syncedAt,
+    AsSyncUser? user,
+    String? agentRoomId,
+    List<AsSyncRoomSummary>? rooms,
+    List<AsSyncContact>? contacts,
+    List<AsSyncRoomSummary>? groups,
+    List<AsSyncRoomSummary>? channels,
+    AsSyncPending? pending,
+  }) {
+    return AsSyncBootstrap(
+      syncedAt: syncedAt ?? this.syncedAt,
+      user: user ?? this.user,
+      agentRoomId: agentRoomId ?? this.agentRoomId,
+      rooms: rooms ?? this.rooms,
+      contacts: contacts ?? this.contacts,
+      groups: groups ?? this.groups,
+      channels: channels ?? this.channels,
+      pending: pending ?? this.pending,
+    );
   }
 }
 
@@ -1017,8 +1017,9 @@ class AsSyncRoomSummary {
       name: _parseChannelDisplayName(json),
       avatarUrl: json['avatar_url'] as String? ?? '',
       unreadCount: _parseInt(json['unread_count']),
-      lastActivityAt:
-          _parseDateTime(json['last_activity_at'] ?? json['created_at']),
+      lastActivityAt: _parseDateTime(
+        json['last_activity_at'] ?? json['created_at'],
+      ),
       description:
           json['description'] as String? ?? json['intro'] as String? ?? '',
       topic: json['topic'] as String? ?? '',
@@ -1031,14 +1032,17 @@ class AsSyncRoomSummary {
       invitePolicy: _normalizeGroupInvitePolicy(
         json['invite_policy'] as String? ?? '',
       ),
-      visibility:
-          _normalizeChannelVisibility(json['visibility'] as String? ?? ''),
-      joinPolicy:
-          _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
+      visibility: _normalizeChannelVisibility(
+        json['visibility'] as String? ?? '',
+      ),
+      joinPolicy: _normalizeChannelJoinPolicy(
+        json['join_policy'] as String? ?? '',
+      ),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
       muted: _parseNullableBool(json['muted']) ?? false,
-      channelType:
-          normalizeAsChannelType(json['channel_type'] as String? ?? ''),
+      channelType: normalizeAsChannelType(
+        json['channel_type'] as String? ?? '',
+      ),
       role: role,
       memberStatus: _normalizeChannelMemberStatus(
         _firstString(json, const ['member_status', 'membership', 'status']),
@@ -1299,14 +1303,17 @@ class AsChannel {
           json['topic'] as String? ??
           '',
       avatarUrl: json['avatar_url'] as String? ?? '',
-      visibility:
-          _normalizeChannelVisibility(json['visibility'] as String? ?? ''),
-      joinPolicy:
-          _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
+      visibility: _normalizeChannelVisibility(
+        json['visibility'] as String? ?? '',
+      ),
+      joinPolicy: _normalizeChannelJoinPolicy(
+        json['join_policy'] as String? ?? '',
+      ),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
       muted: _parseNullableBool(json['muted']) ?? false,
-      channelType:
-          normalizeAsChannelType(json['channel_type'] as String? ?? ''),
+      channelType: normalizeAsChannelType(
+        json['channel_type'] as String? ?? '',
+      ),
       role: json['role'] as String? ?? '',
       memberStatus: _normalizeChannelMemberStatus(
         _firstString(json, const ['member_status', 'membership', 'status']),
@@ -1315,8 +1322,9 @@ class AsChannel {
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
       tags: _parseStringList(json['tags']),
-      latestActivityAt:
-          _parseDateTime(json['last_activity_at'] ?? json['created_at']),
+      latestActivityAt: _parseDateTime(
+        json['last_activity_at'] ?? json['created_at'],
+      ),
       productConversation: _parseConversation(json['conversation']),
     );
   }
@@ -1721,16 +1729,19 @@ class AsChannelMember {
     return AsChannelMember(
       channelId: json['channel_id'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
-      userMxid: _firstString(
-        json,
-        const ['user_mxid', 'user_id', 'matrix_user_id', 'mxid'],
-      ),
+      userMxid: _firstString(json, const [
+        'user_mxid',
+        'user_id',
+        'matrix_user_id',
+        'mxid',
+      ]),
       domain: json['domain'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
-      avatarUrl: _firstString(
-        json,
-        const ['avatar_url', 'profile_avatar_url', 'user_avatar_url'],
-      ),
+      avatarUrl: _firstString(json, const [
+        'avatar_url',
+        'profile_avatar_url',
+        'user_avatar_url',
+      ]),
       role: json['role'] as String? ?? asChannelRoleMember,
       status: _normalizeChannelMemberStatus(
         _firstString(json, const ['status', 'member_status', 'membership']),
@@ -1764,16 +1775,19 @@ class AsGroupMember {
   factory AsGroupMember.fromJson(Map<String, dynamic> json) {
     return AsGroupMember(
       roomId: json['room_id'] as String? ?? '',
-      userMxid: _firstString(
-        json,
-        const ['user_mxid', 'user_id', 'matrix_user_id', 'mxid'],
-      ),
+      userMxid: _firstString(json, const [
+        'user_mxid',
+        'user_id',
+        'matrix_user_id',
+        'mxid',
+      ]),
       domain: json['domain'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
-      avatarUrl: _firstString(
-        json,
-        const ['avatar_url', 'profile_avatar_url', 'user_avatar_url'],
-      ),
+      avatarUrl: _firstString(json, const [
+        'avatar_url',
+        'profile_avatar_url',
+        'user_avatar_url',
+      ]),
       role: json['role'] as String? ?? asChannelRoleMember,
       status: _normalizeChannelMemberStatus(
         _firstString(json, const ['status', 'member_status', 'membership']),
@@ -1937,18 +1951,19 @@ class AsChannelCommentHistory {
     final postJson = (json['post'] as Map?)?.cast<String, dynamic>() ??
         {
           ...json,
-          'body': _firstString(
-            json,
-            const ['post_body', 'post_text', 'post_message'],
-          ),
-          'author_name': _firstString(
-            json,
-            const ['post_author_name', 'post_author_display_name'],
-          ),
-          'author_mxid': _firstString(
-            json,
-            const ['post_author_mxid', 'post_author_id'],
-          ),
+          'body': _firstString(json, const [
+            'post_body',
+            'post_text',
+            'post_message',
+          ]),
+          'author_name': _firstString(json, const [
+            'post_author_name',
+            'post_author_display_name',
+          ]),
+          'author_mxid': _firstString(json, const [
+            'post_author_mxid',
+            'post_author_id',
+          ]),
         };
     return AsChannelCommentHistory(
       comment: AsChannelComment.fromJson(commentJson),
@@ -1988,27 +2003,26 @@ class AsChannelReactionHistory {
     final nestedCommentJson = rawCommentJson.isEmpty ? null : rawCommentJson;
     final channelJson = nestedChannelJson ??
         (_hasFlatChannelSnapshot(json)
-            ? {
-                ...json,
-                'name': _parseChannelDisplayName(json),
-              }
+            ? {...json, 'name': _parseChannelDisplayName(json)}
             : null);
     final postJson = nestedPostJson ??
         (_hasFlatPostSnapshot(json)
             ? {
                 ...json,
-                'body': _firstString(
-                  json,
-                  const ['post_body', 'post_text', 'post_message', 'body'],
-                ),
-                'author_name': _firstString(
-                  json,
-                  const ['post_author_name', 'post_author_display_name'],
-                ),
-                'author_mxid': _firstString(
-                  json,
-                  const ['post_author_mxid', 'post_author_id'],
-                ),
+                'body': _firstString(json, const [
+                  'post_body',
+                  'post_text',
+                  'post_message',
+                  'body',
+                ]),
+                'author_name': _firstString(json, const [
+                  'post_author_name',
+                  'post_author_display_name',
+                ]),
+                'author_mxid': _firstString(json, const [
+                  'post_author_mxid',
+                  'post_author_id',
+                ]),
               }
             : null);
     return AsChannelReactionHistory(
@@ -2214,12 +2228,18 @@ class AsSyncPending {
 
   factory AsSyncPending.fromJson(Map<String, dynamic> json) {
     return AsSyncPending(
-      friendRequests:
-          _parseList(json['friend_requests'], AsSyncPendingItem.fromJson),
-      groupInvites:
-          _parseList(json['group_invites'], AsSyncPendingItem.fromJson),
-      channelNotices:
-          _parseList(json['channel_notices'], AsSyncPendingItem.fromJson),
+      friendRequests: _parseList(
+        json['friend_requests'],
+        AsSyncPendingItem.fromJson,
+      ),
+      groupInvites: _parseList(
+        json['group_invites'],
+        AsSyncPendingItem.fromJson,
+      ),
+      channelNotices: _parseList(
+        json['channel_notices'],
+        AsSyncPendingItem.fromJson,
+      ),
     );
   }
 
@@ -2305,7 +2325,8 @@ abstract class AsClient {
   /// P2P product API action.
   Future<List<AsConversation>> listConversations() {
     throw AsClientException(
-        'listConversations is not supported by this client');
+      'listConversations is not supported by this client',
+    );
   }
 
   /// P2P product API action.
@@ -2317,10 +2338,7 @@ abstract class AsClient {
   }
 
   /// GET /_p2p/events?since= SSE refresh stream.
-  Stream<AsEventStreamEvent> streamEvents({
-    int? since,
-    String? lastEventId,
-  }) {
+  Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
     throw AsClientException('streamEvents is not supported by this client');
   }
 
@@ -2329,9 +2347,6 @@ abstract class AsClient {
 
   /// P2P product API action.
   Future<AgentConfig> updateAgentConfig(AgentConfig config);
-
-  /// P2P product API action.
-  Future<AgentStatus> getAgentStatus();
 
   /// P2P product API action.
   Future<List<FollowEntry>> getFollows();
@@ -2384,7 +2399,8 @@ abstract class AsClient {
     Uri? remoteNodeBaseUri,
   }) {
     throw AsClientException(
-        'reactivateContact is not supported by this client');
+      'reactivateContact is not supported by this client',
+    );
   }
 
   /// P2P product API action.
@@ -2632,9 +2648,7 @@ abstract class AsClient {
   });
 
   /// P2P product API action.
-  Future<List<AsChannelCommentHistory>> getMyChannelComments({
-    int limit = 50,
-  });
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({int limit = 50});
 
   /// P2P product API action.
   Future<List<AsChannelReactionHistory>> getMyChannelReactions({
@@ -2921,9 +2935,7 @@ String normalizeAsChannelType(String value) {
 
 Map<String, Object?> _objectMap(Object? value) {
   if (value is! Map) return const {};
-  return {
-    for (final entry in value.entries) entry.key.toString(): entry.value,
-  };
+  return {for (final entry in value.entries) entry.key.toString(): entry.value};
 }
 
 Map<String, Object?> _chatRecordMap(Object? value, {Object? fallback}) {
@@ -2961,10 +2973,7 @@ List<Map<String, Object?>> _objectMapListOrJson(Object? value) {
       .toList(growable: false);
 }
 
-List<T> _parseList<T>(
-  Object? value,
-  T Function(Map<String, dynamic>) parse,
-) {
+List<T> _parseList<T>(Object? value, T Function(Map<String, dynamic>) parse) {
   final raw = value as List? ?? const [];
   return raw
       .whereType<Map>()

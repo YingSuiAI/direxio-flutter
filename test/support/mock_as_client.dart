@@ -115,17 +115,6 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AgentStatus> getAgentStatus() async {
-    await Future.delayed(_latency);
-    return AgentStatus(
-      connected: true,
-      lastSeen: DateTime.now().subtract(const Duration(minutes: 2)),
-      roomsJoined: 0,
-      messagesToday: 42,
-    );
-  }
-
-  @override
   Future<List<FollowEntry>> getFollows() async {
     await Future.delayed(_latency);
     return List.unmodifiable(_follows);

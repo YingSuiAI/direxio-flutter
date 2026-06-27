@@ -66,13 +66,22 @@ ProductCore/Matrix conversation entries are available, use that merged live
 projection for display instead of waiting for the local summary snapshot to be
 reloaded.
 
+Agent chat headers must show Matrix room-state presence, not typing or
+streaming generation state. Source it from the real agent room
+`io.direxio.agent.status` state event located by `sync.bootstrap`
+`agent_room_id`; do not consume `agent.presence` SSE for this state. `online`
+is the only owner-facing status bit. Agent Markdown, cards, Matrix edits including
+SDK-aggregated display events, stream fragments, typewritten appended reply
+updates, and `/` quick-command suggestions belong in the chat UI while actual
+sends remain ordinary Matrix text sends to the real `agent_room_id`.
+
 The logged-in home conversation list is for direct, group, and Agent
 conversations. Channel conversations belong under the channel tab/detail
 surfaces and must not be written to or displayed from the home conversation
 summary cache.
 
 User operation buttons and tap targets are covered by the root
-`UserActionDebounce` 500ms pointer debounce. Keep new app entry builders wrapped
+`UserActionDebounce` 200ms pointer debounce. Keep new app entry builders wrapped
 by it instead of adding one-off duplicate request guards to individual buttons.
 
 ## Verification

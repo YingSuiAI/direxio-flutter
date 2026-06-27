@@ -33,6 +33,7 @@ void main() {
     expect(loaded.contacts.single.deletedEventIds, [r'$deleted']);
     expect(loaded.rooms.single.name, 'Yanan');
     expect(loaded.pending.friendRequests.single.title, 'Alice');
+    expect(loaded.agentRoomId, '!agent:p2p-im.com');
   });
 
   test('write replaces the snapshot instead of appending stale contacts',
@@ -83,6 +84,23 @@ void main() {
     expect(bootstrap.contacts.single.status, 'pending_inbound');
     expect(bootstrap.contacts.single.remark, '我是 Bob');
   });
+
+  test('parses bootstrap agent room id without status mirror', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-26T00:00:00Z',
+      'user': {'user_id': '@owner:example.com'},
+      'agent_room_id': '!real:server',
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+
+    expect(bootstrap.agentRoomId, '!real:server');
+    expect(bootstrap.toJson().containsKey('agent_online'), isFalse);
+    expect(bootstrap.toJson().containsKey('agent_presence'), isFalse);
+  });
 }
 
 AsSyncBootstrap _bootstrap({
@@ -93,6 +111,7 @@ AsSyncBootstrap _bootstrap({
   return AsSyncBootstrap(
     syncedAt: DateTime.parse('2026-05-28T08:00:00Z'),
     user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    agentRoomId: '!agent:p2p-im.com',
     rooms: const [
       AsSyncRoomSummary(
         roomId: '!agent:p2p-im.com',

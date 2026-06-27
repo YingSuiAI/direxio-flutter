@@ -303,12 +303,6 @@ class HttpAsClient implements AsClient {
     return getAgentConfig();
   }
 
-  @override
-  Future<AgentStatus> getAgentStatus() async {
-    final body = await _getJson('agent/status');
-    return AgentStatus.fromJson(body);
-  }
-
   Future<Map<String, dynamic>> getAgentPassword() {
     return _getJson('agents/get-password');
   }
@@ -2136,7 +2130,6 @@ String _actionFor(String method, String path) {
   if (method == 'PUT' && clean == 'apis/status') return 'apis.status';
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
-  if (method == 'GET' && clean == 'agent/status') return 'agent.status';
   if (method == 'GET' && clean == 'follows') return 'follows.list';
   if (method == 'POST' && clean == 'follows') return 'follows.add';
   if (method == 'DELETE' && segments.first == 'follows') {

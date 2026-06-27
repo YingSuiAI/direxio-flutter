@@ -68,6 +68,7 @@ import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/agent_bridge_presence_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
@@ -767,14 +768,6 @@ class _EmptyAsClient implements AsClient {
   @override
   Future<AgentConfig> getAgentConfig() async =>
       const AgentConfig(displayName: '小A', contextWindow: 20);
-
-  @override
-  Future<AgentStatus> getAgentStatus() async => const AgentStatus(
-        connected: false,
-        lastSeen: null,
-        roomsJoined: 0,
-        messagesToday: 0,
-      );
 
   @override
   Future<List<FollowEntry>> getFollows() async => const [];
@@ -21877,14 +21870,10 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(_TrackingAsClient()),
-          agentStatusProvider.overrideWith(
-            (ref) => Stream.value(
-              const AgentStatus(
-                connected: true,
-                lastSeen: null,
-                roomsJoined: 1,
-                messagesToday: 0,
-              ),
+          agentBridgePresenceProvider.overrideWithValue(
+            const AgentBridgePresence(
+              state: AgentBridgePresenceState.online,
+              online: true,
             ),
           ),
           asSyncCacheProvider.overrideWith(
@@ -22214,14 +22203,10 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
-          agentStatusProvider.overrideWith(
-            (ref) => Stream.value(
-              const AgentStatus(
-                connected: true,
-                lastSeen: null,
-                roomsJoined: 1,
-                messagesToday: 0,
-              ),
+          agentBridgePresenceProvider.overrideWithValue(
+            const AgentBridgePresence(
+              state: AgentBridgePresenceState.online,
+              online: true,
             ),
           ),
           localOutboxStoreProvider.overrideWith(

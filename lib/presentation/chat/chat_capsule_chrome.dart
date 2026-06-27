@@ -30,6 +30,18 @@ class ChatCapsuleAction {
   final Color? color;
 }
 
+class ChatInputSuggestion {
+  const ChatInputSuggestion({
+    required this.label,
+    String? value,
+    this.description = '',
+  }) : value = value ?? label;
+
+  final String label;
+  final String value;
+  final String description;
+}
+
 enum ChatEntranceDirection { top, bottom, left, right }
 
 class ChatInitialEntranceRegistry {
@@ -713,7 +725,10 @@ class ChatCapsuleInputBar extends StatefulWidget {
     this.plusActive = false,
     this.emojiActive = false,
     this.suggestions = const [],
+    this.suggestionItems = const [],
+    this.suggestionsLabel,
     this.onPickSuggestion,
+    this.onTextChanged,
     this.onVoiceRecordStart,
     this.onVoiceRecordStop,
     this.onVoiceRecordCancel,
@@ -731,7 +746,10 @@ class ChatCapsuleInputBar extends StatefulWidget {
   final bool plusActive;
   final bool emojiActive;
   final List<String> suggestions;
+  final List<ChatInputSuggestion> suggestionItems;
+  final String? suggestionsLabel;
   final ValueChanged<String>? onPickSuggestion;
+  final ValueChanged<String>? onTextChanged;
   final VoidCallback? onVoiceRecordStart;
   final VoidCallback? onVoiceRecordStop;
   final VoidCallback? onVoiceRecordCancel;
@@ -913,6 +931,17 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
         : _cancelVoicePressOnRelease
             ? t.danger.withValues(alpha: 0.10)
             : t.accent.withValues(alpha: 0.10);
+    final suggestions = widget.suggestionItems.isNotEmpty
+        ? widget.suggestionItems
+        : widget.suggestions
+            .map((suggestion) => ChatInputSuggestion(label: suggestion))
+            .toList(growable: false);
+    final suggestionsLabel = widget.suggestionsLabel?.trim().isNotEmpty == true
+        ? widget.suggestionsLabel!.trim()
+        : 'AI 建议';
+    final hasSuggestionDetails = suggestions.any(
+      (suggestion) => suggestion.description.trim().isNotEmpty,
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: t.bg,
@@ -932,9 +961,9 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.suggestions.isNotEmpty)
+              if (suggestions.isNotEmpty)
                 SizedBox(
-                  height: 38,
+                  height: hasSuggestionDetails ? 50 : 38,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.only(bottom: 6),
@@ -947,7 +976,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                 size: 14, color: t.accent),
                             const SizedBox(width: 4),
                             Text(
-                              l10n?.chatAiSuggestions ?? 'AI suggestions',
+                              suggestionsLabel,
                               style: AppTheme.sans(
                                 size: 12,
                                 color: t.textMute,
@@ -957,21 +986,60 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                           ],
                         ),
                       ),
-                      ...widget.suggestions.map(
+                      ...suggestions.map(
                         (suggestion) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: _CapsuleSurface(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            height: 30,
-                            onTap: () => widget.onPickSuggestion?.call(
-                              suggestion,
+                            key: ValueKey(
+                              'chat_input_suggestion_${suggestion.value}',
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            height: hasSuggestionDetails ? 42 : 30,
+                            onTap: () {
+                              widget.onPickSuggestion?.call(suggestion.value);
+                              _textFocusNode.requestFocus();
+                            },
                             child: Center(
-                              child: Text(
-                                suggestion,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(size: 13, color: t.text),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 220,
+                                ),
+                                child: suggestion.description.trim().isEmpty
+                                    ? Text(
+                                        suggestion.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.sans(
+                                          size: 13,
+                                          color: t.text,
+                                        ),
+                                      )
+                                    : Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            suggestion.label,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: AppTheme.sans(
+                                              size: 13,
+                                              color: t.text,
+                                              weight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            suggestion.description,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: AppTheme.sans(
+                                              size: 11,
+                                              color: t.textMute,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                               ),
                             ),
                           ),
@@ -1057,6 +1125,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                           focusNode: _textFocusNode,
                                           enabled: widget.textEnabled,
                                           onTap: _focusTextInput,
+                                          onChanged: widget.onTextChanged,
                                           textInputAction:
                                               TextInputAction.newline,
                                           maxLines: 5,
@@ -1570,6 +1639,7 @@ class _FigmaGlassCircleButton extends StatelessWidget {
 
 class _CapsuleSurface extends StatelessWidget {
   const _CapsuleSurface({
+    super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 12),
     this.height,

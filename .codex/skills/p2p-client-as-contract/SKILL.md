@@ -29,6 +29,10 @@ Do not add or restore P2P ordinary message/search/backup action clients. These a
 
 Ordinary message send, media send, history, unread, message search, and recall must use Matrix Client-Server APIs. Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both.
 
+Agent room text and `/` commands are ordinary Matrix message sends into the
+real private `agent_room_id`. Do not add P2P command facades for chat text, and
+do not depend on legacy pseudo agent room ids.
+
 Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_p2p/query` action `sync.bootstrap`, prefer extending that contract and the client model.
 
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
@@ -78,6 +82,19 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 `users.public_channels` returns only the target user's owned/admin public channels. Cross-node profile/add-contact entry points must pass `remote_node_base_url` through `getUserPublicChannels(remoteNodeBaseUri:)` so the local AS can forward to the target owner node.
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
+
+Agent header presence comes from native Matrix room state in the real
+`agent_room_id`: event type `io.direxio.agent.status`, state key
+`@agent:<server>`, and content field `online`. `sync.bootstrap` only supplies
+the real `agent_room_id`; it must not mirror the online bit, and
+`GET /_p2p/events` must not emit `agent.presence`. `agent.status` and
+`agents.status` are not current Flutter APIs.
+
+Use `sync.bootstrap` only as a baseline for cold start, login recovery, corrupt
+local cache, unknown event fallback, or confirmed event gaps. Normal changes
+should persist the last handled SSE `seq` and apply typed local reducers from
+`GET /_p2p/events?since=<last_seq>` instead of refreshing the full bootstrap
+snapshot.
 
 Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation

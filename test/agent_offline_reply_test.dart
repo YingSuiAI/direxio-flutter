@@ -12,6 +12,7 @@ import 'package:portal_app/presentation/pages/chat_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/agent_bridge_presence_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 
 void main() {
@@ -103,14 +104,10 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
-          agentStatusProvider.overrideWith(
-            (ref) => Stream.value(
-              const AgentStatus(
-                connected: false,
-                lastSeen: null,
-                roomsJoined: 1,
-                messagesToday: 0,
-              ),
+          agentBridgePresenceProvider.overrideWithValue(
+            const AgentBridgePresence(
+              state: AgentBridgePresenceState.offline,
+              online: false,
             ),
           ),
           localOutboxStoreProvider.overrideWith(

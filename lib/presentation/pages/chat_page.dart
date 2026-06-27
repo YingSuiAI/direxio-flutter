@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/agent_bridge_presence_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -30,6 +31,9 @@ import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
 import '../channel/public_channel_target.dart';
 import '../chat/agent_thinking_bubble.dart';
+import '../chat/agent_message_content.dart';
+import '../chat/agent_room_send_policy.dart';
+import '../chat/agent_slash_commands.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
@@ -72,6 +76,7 @@ import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
+import '../widgets/agent_message_body.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/conversation_summary_store.dart';
@@ -115,10 +120,7 @@ bool _isProductDirectRoomForChat(Room room, AsSyncCacheState syncCache) {
       joinedPersonPeerMxid(room) != null;
 }
 
-void _openChatRecordDetail(
-  BuildContext context,
-  ChatRecordPayload payload,
-) {
+void _openChatRecordDetail(BuildContext context, ChatRecordPayload payload) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => ChatRecordDetailPage(payload: payload),
@@ -127,7 +129,9 @@ void _openChatRecordDetail(
 }
 
 bool _canSendRoomMessage(Room room, AsSyncCacheState syncCache) {
-  if (isPortalAgentDirectRoom(room)) return true;
+  if (isPortalAgentDirectRoom(room) || isBootstrapAgentRoom(room, syncCache)) {
+    return true;
+  }
   final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
   if (!isProductDirect) return room.membership == Membership.join;
   if (syncCache.acceptedDirectRoomIds.contains(room.id)) {
@@ -484,12 +488,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             const <AsConversation>[];
     final targetProducts = productConversations
         .where((conversation) => conversation.roomId.trim() == targetRoomId)
-        .map((conversation) =>
-            '${conversation.conversationId}:${conversation.kind}:${conversation.roomId}:life=${conversation.lifecycle}:proj=${conversation.projectionState}:hydr=${conversation.hydrationState}:${conversation.title}')
+        .map(
+          (conversation) =>
+              '${conversation.conversationId}:${conversation.kind}:${conversation.roomId}:life=${conversation.lifecycle}:proj=${conversation.projectionState}:hydr=${conversation.hydrationState}:${conversation.title}',
+        )
         .join('|');
     final matrixRooms = client.rooms
-        .map((room) =>
-            '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${safeRoomDisplayName(room)}')
+        .map(
+          (room) =>
+              '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${safeRoomDisplayName(room)}',
+        )
         .join('|');
     debugPrint(
       '[chat-missing-room] phase=$phase targetRoomId=$targetRoomId '
@@ -606,11 +614,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _pendingTargetEventId = null;
       _targetEventScrollTimer?.cancel();
       unawaited(
-        _scrollToQuotedEventIndex(
-          eventId,
-          index,
-          showUnavailable: false,
-        ),
+        _scrollToQuotedEventIndex(eventId, index, showUnavailable: false),
       );
       return;
     }
@@ -1039,8 +1043,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _timeline,
     );
     if (rawTimelineEvents.isEmpty) return;
-    final callRecordContextEvents =
-        callRecordContextEventsForTimeline(rawTimelineEvents);
+    final callRecordContextEvents = callRecordContextEventsForTimeline(
+      rawTimelineEvents,
+    );
     final visibleEvents = chatDisplayEventsForTimeline(rawTimelineEvents);
     if (!shouldReloadAsCallSessionsForGroupTimeline(
       visibleEvents: visibleEvents,
@@ -1050,12 +1055,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
     _asCallHistoryReloadTimer?.cancel();
-    _asCallHistoryReloadTimer = Timer(
-      const Duration(milliseconds: 150),
-      () {
-        if (mounted) unawaited(_loadLocalAsCallHistory());
-      },
-    );
+    _asCallHistoryReloadTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) unawaited(_loadLocalAsCallHistory());
+    });
   }
 
   Future<void> _refreshAsCallHistoryFromAs() async {
@@ -1097,18 +1099,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     unawaited(_loadLocalAsCallHistory());
     _callHistoryFastReloadTimer?.cancel();
     _callHistorySlowReloadTimer?.cancel();
-    _callHistoryFastReloadTimer = Timer(
-      const Duration(milliseconds: 150),
-      () {
-        if (mounted) unawaited(_loadLocalAsCallHistory());
-      },
-    );
-    _callHistorySlowReloadTimer = Timer(
-      const Duration(milliseconds: 900),
-      () {
-        if (mounted) unawaited(_loadLocalAsCallHistory());
-      },
-    );
+    _callHistoryFastReloadTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) unawaited(_loadLocalAsCallHistory());
+    });
+    _callHistorySlowReloadTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) unawaited(_loadLocalAsCallHistory());
+    });
   }
 
   void _replaceRoomAsCallHistory(Iterable<AsCallSession> sessions) {
@@ -1238,8 +1234,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ref.read(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
     final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
-    final agentIsOnline = isAgent &&
-        (ref.read(agentStatusProvider).valueOrNull?.connected ?? false);
+    final agentIsOnline =
+        isAgent && ref.read(agentBridgePresenceProvider).bridgeConnected;
     final capabilityPolicy = _privateRoomCapabilityPolicy(
       productConversations,
       room,
@@ -1276,7 +1272,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               .increment(widget.roomId);
           _scheduleViewportScrollToBottom();
         }
-        await room.sendTextEvent(text, inReplyTo: replyTo);
+        await sendAgentRoomText(room, text, inReplyTo: replyTo);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
         final eventId = await _sendProductDirectText(room, text, replyTo);
         _rememberLocalReplyPreview(eventId, replyTo);
@@ -1311,6 +1307,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     }
+  }
+
+  void _pickAgentSlashCommand(String command) {
+    final value = command.trim();
+    if (value.isEmpty) return;
+    _msgCtrl.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+    setState(() {});
+  }
+
+  void _handleComposerTextChanged(String value) {
+    setState(() {});
   }
 
   void _togglePlus() {
@@ -1375,7 +1385,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(e.message), duration: const Duration(seconds: 2)),
+          content: Text(e.message),
+          duration: const Duration(seconds: 2),
+        ),
       );
     } on Object catch (e) {
       if (!mounted) return;
@@ -1502,7 +1514,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       canRecall: canRecall,
     );
     _chatGestureLog(
-        'event context menu result eventId=${e.eventId} action=$action');
+      'event context menu result eventId=${e.eventId} action=$action',
+    );
     if (!mounted || action == null) return;
     switch (action) {
       case 'copy':
@@ -1922,8 +1935,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<String> _copyEventThumbnailToOwnerNode(Event event) async {
     try {
-      final matrixFile =
-          await event.downloadAndDecryptAttachment(getThumbnail: true);
+      final matrixFile = await event.downloadAndDecryptAttachment(
+        getThumbnail: true,
+      );
       final uploaded = await ref.read(matrixClientProvider).uploadContent(
             matrixFile.bytes,
             filename: 'favorite-thumb-${event.eventId}.jpg',
@@ -1942,16 +1956,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty) return;
     try {
-      await ref.read(matrixMessageVisibilityClientProvider).hideEvents(
-        roomId: widget.roomId,
-        eventIds: [eventId],
-      );
+      await ref
+          .read(matrixMessageVisibilityClientProvider)
+          .hideEvents(roomId: widget.roomId, eventIds: [eventId]);
       await ref.read(chatClearStateStoreProvider.future).then(
-          (store) => store.writeDeletedEventIds(widget.roomId, [eventId]));
-      if (!mounted) return;
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.withDeletedMessage(widget.roomId, eventId),
+            (store) => store.writeDeletedEventIds(widget.roomId, [eventId]),
           );
+      if (!mounted) return;
+      ref
+          .read(asSyncCacheProvider.notifier)
+          .update((state) => state.withDeletedMessage(widget.roomId, eventId));
       unawaited(_refreshBootstrapAfterVisibilityMutation());
       setState(() {
         _locallyHiddenEventIds.add(eventId);
@@ -1973,9 +1987,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _refreshBootstrapAfterVisibilityMutation() async {
     try {
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.copyWith(bootstrap: bootstrap),
-          );
+      ref
+          .read(asSyncCacheProvider.notifier)
+          .update((state) => state.copyWith(bootstrap: bootstrap));
     } on Object catch (e) {
       debugPrint('refresh bootstrap after message delete failed: $e');
     }
@@ -2013,10 +2027,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         refreshBootstrap: _refreshBootstrapAfterVisibilityMutation,
         hasJoinedMatrixRoom: _isJoinedGroupRoom,
       );
-      await recordProductConversationMutation(
-        ref,
-        group.productConversation,
-      );
+      await recordProductConversationMutation(ref, group.productConversation);
       if (!mounted) return;
       final route = productConversationRoute(group.productConversation);
       if (route == null) {
@@ -2347,9 +2358,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _openContactDetail(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push(
-      '/contact/${Uri.encodeComponent(id)}?source=chat_avatar',
-    );
+    context.push('/contact/${Uri.encodeComponent(id)}?source=chat_avatar');
   }
 
   void _openContactInfo(String userId) {
@@ -2484,10 +2493,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     }
     if (item == null) return;
-    await ref.read(localMessageOrderProvider.notifier).recordDeliveredOutbox(
-          outbox: item,
-          eventId: eventId,
-        );
+    await ref
+        .read(localMessageOrderProvider.notifier)
+        .recordDeliveredOutbox(outbox: item, eventId: eventId);
   }
 
   Future<void> _failPendingMediaUpload(String id) {
@@ -2534,9 +2542,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    final retried = await ref.read(localOutboxProvider.notifier).retryItem(
-          item.id,
-        );
+    final retried =
+        await ref.read(localOutboxProvider.notifier).retryItem(item.id);
     if (!retried || !mounted) return;
 
     _retryingOutboxIds.add(item.id);
@@ -2614,16 +2621,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (item.messageKind != LocalOutboxMessageKind.text) return;
     final text = item.text.trim();
     if (text.isEmpty) return;
-    final retried = await ref.read(localOutboxProvider.notifier).retryItem(
-          item.id,
-        );
+    final retried =
+        await ref.read(localOutboxProvider.notifier).retryItem(item.id);
     if (!retried || !mounted) return;
 
     _retryingOutboxIds.add(item.id);
     try {
       final syncCache = ref.read(asSyncCacheProvider);
-      if (isPortalAgentDirectRoom(room)) {
-        await room.sendTextEvent(text);
+      final productConversations =
+          ref.read(productConversationsProvider).valueOrNull ??
+              const <AsConversation>[];
+      if (_isAgentRoomForChat(room, syncCache, productConversations)) {
+        await sendAgentRoomText(room, text);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
         await _sendProductDirectText(room, text, null);
         try {
@@ -2659,9 +2668,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         'reply_to': replyTo!.eventId,
       if (replyTo?.eventId.trim().isNotEmpty ?? false)
         'm.relates_to': {
-          'm.in_reply_to': {
-            'event_id': replyTo!.eventId,
-          },
+          'm.in_reply_to': {'event_id': replyTo!.eventId},
         },
     };
     return room.client.sendMessage(
@@ -2810,10 +2817,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final room = _room;
     final t = context.tk;
-    final l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     final syncCache = ref.watch(asSyncCacheProvider);
     final summaryState = ref.watch(conversationSummaryProvider);
     final currentUserProfile =
@@ -2856,8 +2860,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room,
       _timeline,
     );
-    final callRecordContextEvents =
-        callRecordContextEventsForTimeline(rawTimelineEvents);
+    final callRecordContextEvents = callRecordContextEventsForTimeline(
+      rawTimelineEvents,
+    );
     final timelineEvents = chatDisplayEventsForTimeline(rawTimelineEvents);
     final filteredEvents = syncCache
         .chatVisibilityPolicyForRoom(widget.roomId)
@@ -2888,8 +2893,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       callRecordContextEvents: callRecordContextEvents,
       asCallSessions: asCallRecords,
     );
+    final contact = syncCache.contactForRoom(widget.roomId);
+    final joinedPeerMxid = joinedPersonPeerMxid(room);
+    final mxid =
+        productDirectPeerMxid(room) ?? joinedPeerMxid ?? contact?.userId ?? '';
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
     final topSystemNoticeText = _topSystemNoticeText(visibleEvents);
-    final messageEvents = visibleEvents
+    var messageEvents = visibleEvents
         .where(
           (event) =>
               topSystemNoticeText == null ||
@@ -2897,6 +2910,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               event.body.trim() != topSystemNoticeText,
         )
         .toList(growable: false);
+    final agentMessageProjection = isAgent
+        ? projectAgentMessageEvents<Event>(
+            messageEvents,
+            eventId: (event) => event.eventId,
+            content: (event) => agentDisplayContentForEvent(event, _timeline),
+            fallbackBody: (event) =>
+                agentDisplayFallbackBodyForEvent(event, _timeline),
+            timestampMs: (event) => event.originServerTs.millisecondsSinceEpoch,
+          )
+        : null;
+    if (agentMessageProjection != null) {
+      messageEvents = agentMessageProjection.visibleEvents;
+    }
     _scheduleAsCallSessionWarmup(visibleEvents, callRecordContextEvents);
     final deliveredPendingMediaIds = _deliveredOutboxMediaIds(
       pendingOutboxItems,
@@ -2940,10 +2966,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         timelineItems.isEmpty &&
         (_timeline == null ||
             !summaryState.loaded ||
-            _conversationSummaryHasCachedMessage(
-              summaryState,
-              widget.roomId,
-            ));
+            _conversationSummaryHasCachedMessage(summaryState, widget.roomId));
     if (deliveredPendingMediaIds.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -2954,14 +2977,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       });
     }
 
-    final contact = syncCache.contactForRoom(widget.roomId);
-    final joinedPeerMxid = joinedPersonPeerMxid(room);
-    final mxid =
-        productDirectPeerMxid(room) ?? joinedPeerMxid ?? contact?.userId ?? '';
-    final productConversations =
-        ref.watch(productConversationsProvider).valueOrNull ??
-            const <AsConversation>[];
-    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
     final agentThinkingSince = _agentThinkingSince;
     final hasAgentReply = agentThinkingSince != null &&
         _hasAgentReplyAfter(messageEvents, mxid, agentThinkingSince);
@@ -2970,9 +2985,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (mounted) setState(() => _agentThinkingSince = null);
       });
     }
-    final agentStatus =
-        isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
-    final agentIsOnline = agentStatus?.connected ?? false;
+    final agentPresence =
+        isAgent ? ref.watch(agentBridgePresenceProvider) : null;
+    final agentIsOnline = agentPresence?.bridgeConnected ?? false;
     final cachedAgentOfflineReplyCount = isAgent
         ? ref.watch(agentOfflineReplyCacheProvider)[widget.roomId.trim()] ?? 0
         : 0;
@@ -3013,6 +3028,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final canSendMessages = capabilityPolicy.canSendText;
     final canSendMedia = capabilityPolicy.canSendMedia;
     final canStartCall = capabilityPolicy.canCall;
+    final locale = Localizations.localeOf(context);
+    final agentSlashSuggestions =
+        isAgent && canSendMessages && _msgCtrl.text.trimLeft().startsWith('/')
+            ? agentSlashCommandsForLocale(
+                locale,
+                query: _msgCtrl.text.trimLeft(),
+              )
+                .map(
+                  (command) => ChatInputSuggestion(
+                    label: command.command,
+                    description: '${command.title} · ${command.description}',
+                  ),
+                )
+                .toList(growable: false)
+            : const <ChatInputSuggestion>[];
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
         ? agentDisplayNameForRoom(room)
@@ -3033,12 +3063,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final peerIsOffline = peerPresence == PresenceType.offline;
     final onlineLabel = l10n?.commonOnline ?? '在线';
     final offlineLabel = l10n?.commonOffline ?? '离线';
+    final agentPresenceState = agentPresence?.state;
     final headerSubtitle = isWaitingForAccept
         ? l10n?.requestsWaitingPeerAccept ?? '等待对方接受'
         : isAgent
-            ? agentIsOnline
-                ? onlineLabel
-                : offlineLabel
+            ? agentPresence?.label ??
+                (agentIsOnline ? onlineLabel : offlineLabel)
             : peerIsTyping
                 ? '在想'
                 : peerIsOnline
@@ -3047,9 +3077,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? offlineLabel
                         : null;
     final headerSubtitleStatus = isAgent
-        ? agentIsOnline
-            ? ChatCapsuleSubtitleStatus.online
-            : ChatCapsuleSubtitleStatus.offline
+        ? switch (agentPresenceState) {
+            AgentBridgePresenceState.online => ChatCapsuleSubtitleStatus.online,
+            AgentBridgePresenceState.offline =>
+              ChatCapsuleSubtitleStatus.offline,
+            _ => null,
+          }
         : (peerIsTyping || peerIsOnline
             ? ChatCapsuleSubtitleStatus.online
             : peerIsOffline
@@ -3284,8 +3317,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               key: ValueKey('private_message_enter_$id'),
                               isMe: isMe,
                               index: itemIndex,
-                              enabled:
-                                  _initialTimelineEntrances.contains(itemKey),
+                              enabled: _initialTimelineEntrances.contains(
+                                itemKey,
+                              ),
                               child: anchorKey == null
                                   ? _MessageJumpFlash(
                                       flashing: flashing,
@@ -3433,9 +3467,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                               ? const _VideoPlayOverlay()
                                               : null,
                                           onRetry: () => unawaited(
-                                            _retryFailedMediaUpload(
-                                              pending,
-                                            ),
+                                            _retryFailedMediaUpload(pending),
                                           ),
                                         )
                                       : PendingLocalOutboxImageThumb(
@@ -3612,12 +3644,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   id: e.eventId,
                                 );
                               }
-                              final isMe =
-                                  _isEventFromCurrentUser(e, authUserId);
+                              final isMe = _isEventFromCurrentUser(
+                                e,
+                                authUserId,
+                              );
                               final anchorKey = _messageAnchorKey(e.eventId);
                               final flashing =
                                   _flashingMessageEventId == e.eventId.trim();
                               final selected = _selected.contains(e.eventId);
+                              final agentMessageContent = isAgent && !isMe
+                                  ? agentMessageProjection?.contentForEvent(e)
+                                  : null;
                               final senderName = _eventSenderDisplayName(
                                 e,
                                 isMe: isMe,
@@ -3630,8 +3667,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               );
                               final senderAvatarAsset =
                                   isAgent && !isMe ? agentAvatarAsset : null;
-                              final localOrder =
-                                  messageOrder.entryForEvent(e.eventId);
+                              final localOrder = messageOrder.entryForEvent(
+                                e.eventId,
+                              );
                               final time = _formatMsgTime(
                                 localOrder?.createdAt ?? e.originServerTs,
                               );
@@ -3706,9 +3744,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -3739,25 +3775,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 );
                               }
                               if (channelSharePayload != null) {
-                                final shareKey =
-                                    channelShareJoinKey(channelSharePayload);
+                                final shareKey = channelShareJoinKey(
+                                  channelSharePayload,
+                                );
                                 return enter(
                                   _SChannelShareBubble(
                                     isMe: isMe,
                                     payload: channelSharePayload,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
-                                    joining: _joiningChannelShareIds
-                                        .contains(shareKey),
+                                    joining: _joiningChannelShareIds.contains(
+                                      shareKey,
+                                    ),
                                     alreadyJoined: channelShareIsJoined(
                                           ref.read(asSyncCacheProvider),
                                           channelSharePayload,
@@ -3766,17 +3802,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     alreadyRequested: _requestedChannelShareIds
                                         .contains(shareKey),
                                     onJoin: () => unawaited(
-                                      _joinChannelShare(
-                                        channelSharePayload,
-                                      ),
+                                      _joinChannelShare(channelSharePayload),
                                     ),
                                     onTap: _multiSelect
                                         ? toggle
                                         : () => context.push(
                                               channelShareOpenRoute(
-                                                ref.read(
-                                                  asSyncCacheProvider,
-                                                ),
+                                                ref.read(asSyncCacheProvider),
                                                 channelSharePayload,
                                                 productConversations: ref
                                                         .read(
@@ -3812,9 +3844,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     payload: chatRecordPayload,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -3849,9 +3879,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -3893,9 +3921,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -3953,9 +3979,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -3994,8 +4018,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   e.hasAttachment) {
                                 final size = e.infoMap['size'];
                                 final sizeBytes = size is int ? size : 0;
-                                final kind =
-                                    fileKindLabel(e.attachmentMimetype, e.body);
+                                final kind = fileKindLabel(
+                                  e.attachmentMimetype,
+                                  e.body,
+                                );
                                 final sizeLabel = sizeBytes > 0
                                     ? '$kind · ${formatByteSize(sizeBytes)}'
                                     : kind;
@@ -4004,9 +4030,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     time: time,
                                     showRead: isMe &&
-                                        peerReadEventIds.contains(
-                                          e.eventId,
-                                        ),
+                                        peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
@@ -4020,9 +4044,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           .contains(e.eventId.trim()),
                                       downloaded: _downloadedFileEventIds
                                           .contains(e.eventId.trim()),
-                                      onDownload: () => unawaited(
-                                        _downloadFileEvent(e),
-                                      ),
+                                      onDownload: () =>
+                                          unawaited(_downloadFileEvent(e)),
                                     ),
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -4047,6 +4070,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 _SChatBubble(
                                   isMe: isMe,
                                   text: _messageDisplayText(e),
+                                  agentContent: agentMessageContent,
                                   quote: _replyPreviewForEvent(
                                     e,
                                     messageEvents,
@@ -4141,6 +4165,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVoiceRecordStart: _startVoiceRecording,
                   onVoiceRecordStop: _stopVoiceRecording,
                   onVoiceRecordCancel: _cancelVoiceRecording,
+                  suggestionItems: agentSlashSuggestions,
+                  suggestionsLabel: agentSlashCommandPickerLabel(locale),
+                  onPickSuggestion: _pickAgentSlashCommand,
+                  onTextChanged: _handleComposerTextChanged,
                   enabled: canSendMessages,
                   hintText: isWaitingForAccept
                       ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
@@ -4215,8 +4243,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     final c = _msgCtrl;
                     final base = c.text;
                     c.text = base + e;
-                    c.selection =
-                        TextSelection.collapsed(offset: c.text.length);
+                    c.selection = TextSelection.collapsed(
+                      offset: c.text.length,
+                    );
                   },
                 ),
             ],
@@ -4244,8 +4273,9 @@ Set<String> _peerReadEventIds({
       if (byTime != 0) return byTime;
       return a.eventId.compareTo(b.eventId);
     });
-  final receiptIndex =
-      ordered.indexWhere((event) => event.eventId == receiptEventId);
+  final receiptIndex = ordered.indexWhere(
+    (event) => event.eventId == receiptEventId,
+  );
   if (receiptIndex < 0) return const {};
 
   final myUserId = room.client.userID;
@@ -4277,11 +4307,7 @@ class _QuotedMessagePreview {
   _QuotedMessagePreview withEventId(String? value) {
     final trimmed = value?.trim();
     if (trimmed == null || trimmed.isEmpty || eventId == trimmed) return this;
-    return _QuotedMessagePreview(
-      eventId: trimmed,
-      sender: sender,
-      text: text,
-    );
+    return _QuotedMessagePreview(eventId: trimmed, sender: sender, text: text);
   }
 }
 
@@ -4457,10 +4483,7 @@ String _stripMatrixReplyFallback(String body) {
 }
 
 class _MessageJumpFlash extends StatelessWidget {
-  const _MessageJumpFlash({
-    required this.flashing,
-    required this.child,
-  });
+  const _MessageJumpFlash({required this.flashing, required this.child});
 
   final bool flashing;
   final Widget child;
@@ -4593,6 +4616,7 @@ class _SChatBubble extends StatelessWidget {
     required this.time,
     required this.showRead,
     required this.avatarSeed,
+    this.agentContent,
     this.quote,
     this.avatarUrl,
     this.avatarAsset,
@@ -4610,6 +4634,7 @@ class _SChatBubble extends StatelessWidget {
   final String time;
   final bool showRead;
   final String avatarSeed;
+  final AgentMessageContent? agentContent;
   final _QuotedMessagePreview? quote;
   final String? avatarUrl;
   final String? avatarAsset;
@@ -4690,14 +4715,23 @@ class _SChatBubble extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
               ],
-              Text(
-                text,
-                style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w500,
-                  color: textColor,
-                ).copyWith(height: 1.25),
-              ),
+              if (agentContent != null)
+                AgentMessageBody(
+                  agentContent!.markdown,
+                  selectable: false,
+                  cards: agentContent!.cards,
+                  isGenerating: agentContent!.isGenerating,
+                  animateUpdates: true,
+                )
+              else
+                Text(
+                  text,
+                  style: AppTheme.sans(
+                    size: 17,
+                    weight: FontWeight.w500,
+                    color: textColor,
+                  ).copyWith(height: 1.25),
+                ),
             ],
           ),
         ),
@@ -4706,11 +4740,7 @@ class _SChatBubble extends StatelessWidget {
 
     final status = outboxStatus;
     final timeRow = Padding(
-      padding: EdgeInsets.only(
-        top: 4,
-        left: isMe ? 0 : 4,
-        right: isMe ? 4 : 0,
-      ),
+      padding: EdgeInsets.only(top: 4, left: isMe ? 0 : 4, right: isMe ? 4 : 0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -4743,10 +4773,7 @@ class _SChatBubble extends StatelessWidget {
           if (multiSelect) ...[
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 14),
-              child: _MessageSelectCheckmark(
-                selected: selected,
-                onTap: onTap,
-              ),
+              child: _MessageSelectCheckmark(selected: selected, onTap: onTap),
             ),
           ],
           if (!isMe) ...[
@@ -4966,10 +4993,7 @@ class _SBusinessCardBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          child,
-          _bubbleTimeRow(context, time, showRead),
-        ],
+        children: [child, _bubbleTimeRow(context, time, showRead)],
       ),
     );
   }
@@ -5420,11 +5444,7 @@ class _SChatImageBubble extends StatelessWidget {
             thumb,
             if (centerOverlay != null) Center(child: centerOverlay!),
             if (statusOverlay != null)
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: statusOverlay!,
-              ),
+              Positioned(right: 8, bottom: 8, child: statusOverlay!),
           ],
         ),
       ),
@@ -5770,10 +5790,7 @@ class _SChatFileBubble extends StatelessWidget {
 }
 
 class _MessageSelectCheckmark extends StatelessWidget {
-  const _MessageSelectCheckmark({
-    required this.selected,
-    required this.onTap,
-  });
+  const _MessageSelectCheckmark({required this.selected, required this.onTap});
 
   final bool selected;
   final VoidCallback? onTap;
@@ -5798,9 +5815,7 @@ class _MessageSelectCheckmark extends StatelessWidget {
                 color: selected ? t.accent : Colors.transparent,
                 border: selected
                     ? null
-                    : Border.all(
-                        color: t.textMute.withValues(alpha: 0.36),
-                      ),
+                    : Border.all(color: t.textMute.withValues(alpha: 0.36)),
               ),
               child: selected
                   ? Icon(Symbols.check, size: 12, color: t.onAccent)
@@ -5831,10 +5846,7 @@ class _FileOutboxStatusIcon extends StatelessWidget {
       return SizedBox(
         width: 20,
         height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: t.accent,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
       );
     }
     return Semantics(
@@ -5919,10 +5931,7 @@ class _FileDownloadStatusIcon extends StatelessWidget {
           SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: t.accent,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
           ),
           const SizedBox(width: 4),
           Text(
@@ -6278,23 +6287,16 @@ class _ReplyBar extends StatelessWidget {
 
 /// `msg-ctx-menu`：WeChat-style long-press popup from Figma node 73:3243.
 class _MessageContextAnchor {
-  const _MessageContextAnchor({
-    required this.position,
-    this.bubbleRect,
-  });
+  const _MessageContextAnchor({required this.position, this.bubbleRect});
 
   final Offset position;
   final Rect? bubbleRect;
 }
 
 typedef _MessageContextAnchorCallback = void Function(
-  _MessageContextAnchor anchor,
-);
+    _MessageContextAnchor anchor);
 
-_MessageContextAnchor _messageContextAnchorFor(
-  GlobalKey key,
-  Offset position,
-) {
+_MessageContextAnchor _messageContextAnchorFor(GlobalKey key, Offset position) {
   final renderObject = key.currentContext?.findRenderObject();
   if (renderObject is RenderBox && renderObject.hasSize) {
     return _MessageContextAnchor(
@@ -6584,10 +6586,7 @@ class _MsgCtxMenuItem extends StatelessWidget {
 }
 
 class _MsgCtxPointerPainter extends CustomPainter {
-  const _MsgCtxPointerPainter({
-    required this.color,
-    required this.pointsDown,
-  });
+  const _MsgCtxPointerPainter({required this.color, required this.pointsDown});
 
   final Color color;
   final bool pointsDown;
@@ -6624,10 +6623,7 @@ class _E2eFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(

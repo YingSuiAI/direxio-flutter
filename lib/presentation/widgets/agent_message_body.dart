@@ -1,20 +1,96 @@
+import 'dart:async';
+
 // AI Bot / Agent 消息体：渲染 Markdown
 // 用户自己的消息走纯文本，不进这个组件
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../chat/agent_message_content.dart';
 
-class AgentMessageBody extends StatelessWidget {
-  const AgentMessageBody(this.text, {super.key, this.selectable = true});
+class AgentMessageBody extends StatefulWidget {
+  const AgentMessageBody(
+    this.text, {
+    super.key,
+    this.selectable = true,
+    this.cards = const [],
+    this.isGenerating = false,
+    this.animateUpdates = false,
+  });
+
   final String text;
   final bool selectable;
+  final List<AgentMessageCard> cards;
+  final bool isGenerating;
+  final bool animateUpdates;
+
+  @override
+  State<AgentMessageBody> createState() => _AgentMessageBodyState();
+}
+
+class _AgentMessageBodyState extends State<AgentMessageBody> {
+  static const _typewriterTick = Duration(milliseconds: 16);
+  static const _typewriterCharsPerTick = 6;
+
+  Timer? _typewriterTimer;
+  late String _visibleText;
+  late String _targetText;
+
+  @override
+  void initState() {
+    super.initState();
+    _visibleText = widget.text;
+    _targetText = widget.text;
+  }
+
+  @override
+  void didUpdateWidget(covariant AgentMessageBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text == _targetText) return;
+    if (!widget.animateUpdates ||
+        !widget.text.startsWith(_visibleText) ||
+        widget.text.length <= _visibleText.length) {
+      _typewriterTimer?.cancel();
+      _targetText = widget.text;
+      _visibleText = widget.text;
+      return;
+    }
+    _targetText = widget.text;
+    _startTypewriter();
+  }
+
+  @override
+  void dispose() {
+    _typewriterTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTypewriter() {
+    _typewriterTimer?.cancel();
+    _typewriterTimer = Timer.periodic(_typewriterTick, (_) {
+      if (!mounted) return;
+      if (_visibleText.length >= _targetText.length) {
+        _typewriterTimer?.cancel();
+        return;
+      }
+      setState(() {
+        final nextLength =
+            (_visibleText.length + _typewriterCharsPerTick).clamp(
+          0,
+          _targetText.length,
+        );
+        _visibleText = _targetText.substring(0, nextLength);
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final text = _visibleText;
     final baseStyle = AppTheme.sans(
       size: 14,
       color: t.text,
@@ -44,7 +120,137 @@ class AgentMessageBody extends StatelessWidget {
     );
     final themed = GptMarkdownTheme(gptThemeData: mdTheme, child: md);
 
-    return selectable ? SelectionArea(child: themed) : themed;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (text.trim().isNotEmpty)
+          widget.selectable ? SelectionArea(child: themed) : themed,
+        for (final card in widget.cards) ...[
+          if (text.trim().isNotEmpty || widget.cards.indexOf(card) > 0)
+            const SizedBox(height: 8),
+          _AgentStructuredCard(card: card),
+        ],
+        if (widget.isGenerating) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.6,
+                  color: t.accent,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('生成中', style: AppTheme.sans(size: 11, color: t.textMute)),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    return content;
+  }
+}
+
+class _AgentStructuredCard extends StatelessWidget {
+  const _AgentStructuredCard({required this.card});
+
+  final AgentMessageCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: t.border.withValues(alpha: 0.55)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (card.title.trim().isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Symbols.smart_toy, size: 15, color: t.accentCool),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    card.title.trim(),
+                    style: AppTheme.sans(
+                      size: 13,
+                      color: t.text,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (card.blocks.isNotEmpty || card.actions.isNotEmpty)
+              const SizedBox(height: 8),
+          ],
+          for (final block in card.blocks) ...[
+            if (block.kind == 'divider')
+              Divider(height: 14, color: t.border.withValues(alpha: 0.55))
+            else
+              AgentMessageBody(block.text, selectable: false),
+            if (card.blocks.last != block) const SizedBox(height: 6),
+          ],
+          if (card.actions.isNotEmpty) ...[
+            if (card.blocks.isNotEmpty) const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final action in card.actions)
+                  _AgentCardActionChip(action: action),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentCardActionChip extends StatelessWidget {
+  const _AgentCardActionChip({required this.action});
+
+  final AgentMessageCardAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final danger = action.kind.trim().toLowerCase() == 'danger';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: danger
+            ? t.danger.withValues(alpha: 0.08)
+            : t.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: danger
+              ? t.danger.withValues(alpha: 0.35)
+              : t.accent.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Text(
+        action.label,
+        style: AppTheme.sans(
+          size: 12,
+          color: danger ? t.danger : t.accentCool,
+          weight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 }
 

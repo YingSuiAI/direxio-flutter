@@ -1376,6 +1376,32 @@ void main() {
     expect(events.single.payload['reason'], 'call');
   });
 
+  test('streamEvents decodes agent room message events', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          [
+            'id: 45',
+            'event: agent_room.message',
+            r'data: {"seq":45,"type":"agent_room.message","room_id":"!real:server","payload":{"body":"hi"},"created_at":"2026-06-26T00:00:00Z"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents().toList();
+
+    expect(events.single.seq, 45);
+    expect(events.single.type, 'agent_room.message');
+    expect(events.single.roomId, '!real:server');
+    expect(events.single.payload['body'], 'hi');
+  });
+
   test('streamEvents bypasses Matrix response stream timeout wrapper',
       () async {
     final client = HttpAsClient(

@@ -94,6 +94,50 @@ void main() {
     ]);
   });
 
+  test(
+      'warmup loads bootstrap metadata after reinstall with empty Matrix rooms',
+      () async {
+    AsSyncBootstrap? applied;
+    var cachedReads = 0;
+    var bootstrapReads = 0;
+    var matrixSyncCalls = 0;
+    final client = Client('DirexioWarmupFreshInstallBootstrapTest')
+      ..accessToken = 'token'
+      ..setUserId('@owner:p2p-im.com');
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      loadCachedBootstrap: () async {
+        cachedReads++;
+        return null;
+      },
+      loadBootstrap: () async {
+        bootstrapReads++;
+        return _fullBootstrap();
+      },
+      syncMatrixConversations: () async {
+        matrixSyncCalls++;
+      },
+      onBootstrapLoaded: (bootstrap) {
+        applied = bootstrap;
+      },
+    );
+
+    await service.warmup();
+
+    expect(client.rooms, isEmpty);
+    expect(cachedReads, 1);
+    expect(bootstrapReads, 1);
+    expect(matrixSyncCalls, 1);
+    expect(applied, isNotNull);
+    expect(applied!.agentRoomId, '!agent:p2p-im.com');
+    expect(applied!.contacts.single.roomId, '!contact:p2p-im.com');
+    expect(applied!.groups.single.roomId, '!group:p2p-im.com');
+    expect(applied!.channels.single.channelId, 'ch_product');
+    expect(applied!.pending.friendRequests.single.id, '!pending:p2p-im.com');
+  });
+
   test('warmup preloads home conversation avatars from bootstrap metadata',
       () async {
     final avatarPreloader = _RecordingAvatarPreloader();
@@ -536,6 +580,58 @@ AsSyncBootstrap _bootstrap(String roomId) {
     groups: const [],
     channels: const [],
     pending: const AsSyncPending.empty(),
+  );
+}
+
+AsSyncBootstrap _fullBootstrap() {
+  return AsSyncBootstrap(
+    syncedAt: DateTime.parse('2026-06-26T08:00:00Z'),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    agentRoomId: '!agent:p2p-im.com',
+    rooms: const [],
+    contacts: const [
+      AsSyncContact(
+        userId: '@peer:p2p-im.com',
+        displayName: 'Peer',
+        avatarUrl: '',
+        roomId: '!contact:p2p-im.com',
+        domain: 'p2p-im.com',
+        status: 'accepted',
+      ),
+    ],
+    groups: const [
+      AsSyncRoomSummary(
+        channelId: 'group_product',
+        roomId: '!group:p2p-im.com',
+        name: '产品群',
+        avatarUrl: '',
+        unreadCount: 0,
+        lastActivityAt: null,
+      ),
+    ],
+    channels: const [
+      AsSyncRoomSummary(
+        channelId: 'ch_product',
+        roomId: '!channel:p2p-im.com',
+        name: '产品公告',
+        avatarUrl: '',
+        unreadCount: 0,
+        lastActivityAt: null,
+        memberStatus: asChannelMemberStatusJoined,
+      ),
+    ],
+    pending: AsSyncPending(
+      friendRequests: [
+        AsSyncPendingItem(
+          id: '!pending:p2p-im.com',
+          title: 'Pending Peer',
+          createdAt: DateTime.utc(2026, 6, 26),
+          remark: '请通过好友申请',
+        ),
+      ],
+      groupInvites: const [],
+      channelNotices: const [],
+    ),
   );
 }
 

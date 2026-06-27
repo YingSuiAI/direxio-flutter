@@ -10,7 +10,7 @@ class UserActionDebounce extends StatefulWidget {
     this.duration = defaultDuration,
   });
 
-  static const defaultDuration = Duration(milliseconds: 500);
+  static const defaultDuration = Duration(milliseconds: 200);
 
   final Widget child;
   final Duration duration;

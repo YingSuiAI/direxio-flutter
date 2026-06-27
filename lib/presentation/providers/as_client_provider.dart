@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
@@ -34,31 +32,4 @@ final asClientProvider = Provider<AsClient>((ref) {
     );
   }
   throw AsClientException('P2P portal token is required');
-});
-
-final agentStatusProvider = StreamProvider.autoDispose<AgentStatus>((ref) {
-  final asClient = ref.watch(asClientProvider);
-  final controller = StreamController<AgentStatus>();
-  Timer? timer;
-
-  Future<void> load() async {
-    try {
-      controller.add(await asClient.getAgentStatus());
-    } catch (_) {
-      controller.add(const AgentStatus(
-        connected: false,
-        lastSeen: null,
-        roomsJoined: 0,
-        messagesToday: 0,
-      ));
-    }
-  }
-
-  unawaited(load());
-  timer = Timer.periodic(const Duration(seconds: 10), (_) => unawaited(load()));
-  ref.onDispose(() {
-    timer?.cancel();
-    unawaited(controller.close());
-  });
-  return controller.stream;
 });

@@ -776,16 +776,11 @@ AsSyncBootstrap _bootstrapWithPreservedAgentRoomId(
   final preservedAgentRoomId = incomingAgentRoomId.isNotEmpty
       ? incomingAgentRoomId
       : _validAgentRoomId(previousAgentRoomId ?? '');
-  if (preservedAgentRoomId == next.agentRoomId.trim()) return next;
-  return AsSyncBootstrap(
-    syncedAt: next.syncedAt,
-    user: next.user,
+  if (preservedAgentRoomId == next.agentRoomId.trim()) {
+    return next;
+  }
+  return next.copyWith(
     agentRoomId: preservedAgentRoomId,
-    rooms: next.rooms,
-    contacts: next.contacts,
-    groups: next.groups,
-    channels: next.channels,
-    pending: next.pending,
   );
 }
 

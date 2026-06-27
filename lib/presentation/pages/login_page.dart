@@ -398,55 +398,50 @@ class _GettingStartedGuideDialog extends StatelessWidget {
                         stops: [0, 0.7738],
                       ),
                     ),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Positioned(
-                          top: 15,
-                          left: 65,
-                          child: Image(
-                            key: ValueKey('login_guide_illustration'),
-                            image: AssetImage(
-                              'assets/images/login_guide_illustration.png',
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(15, 15, 15, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Center(
+                              child: Image(
+                                key: ValueKey('login_guide_illustration'),
+                                image: AssetImage(
+                                  'assets/images/login_guide_illustration.png',
+                                ),
+                                width: 199,
+                                height: 169,
+                                fit: BoxFit.contain,
+                              ),
                             ),
-                            width: 199,
-                            height: 169,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                        Positioned(
-                          top: 182,
-                          left: 15,
-                          width: 283,
-                          child: _GuideRichParagraph(
-                            text: l10n?.loginGuideIntroPrimary ??
-                                'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer',
-                            highlightedText:
-                                'https://github.com/YingSuiAI/direxio-deployer',
-                            copyValue:
-                                'https://github.com/YingSuiAI/direxio-deployer',
-                            copyKey: const ValueKey(
-                              'login_guide_copy_deployer_url',
+                            const SizedBox(height: 6),
+                            _GuideRichParagraph(
+                              text: l10n?.loginGuideIntroPrimary ??
+                                  'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer',
+                              highlightedText:
+                                  'https://github.com/YingSuiAI/direxio-deployer',
+                              copyValue:
+                                  'https://github.com/YingSuiAI/direxio-deployer',
+                              copyKey: const ValueKey(
+                                'login_guide_copy_deployer_url',
+                              ),
+                              linkColor: _linkColor,
                             ),
-                            linkColor: _linkColor,
-                          ),
-                        ),
-                        Positioned(
-                          top: 309,
-                          left: 15,
-                          width: 282,
-                          child: _GuideRichParagraph(
-                            text: l10n?.loginGuideIntroSecondary ??
-                                'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai',
-                            highlightedText: 'direxio.ai',
-                            copyValue: 'https://direxio.ai',
-                            copyKey: const ValueKey(
-                              'login_guide_copy_official_site',
+                            const SizedBox(height: 12),
+                            _GuideRichParagraph(
+                              text: l10n?.loginGuideIntroSecondary ??
+                                  'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai',
+                              highlightedText: 'direxio.ai',
+                              copyValue: 'https://direxio.ai',
+                              copyKey: const ValueKey(
+                                'login_guide_copy_official_site',
+                              ),
+                              linkColor: _linkColor,
                             ),
-                            linkColor: _linkColor,
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

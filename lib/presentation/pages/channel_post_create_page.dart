@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_post_media.dart';
+import '../chat/chat_media_send_flow.dart';
 import '../chat/ordered_chat_image_picker.dart';
 import '../chat/product_media_outbox_flow.dart';
 import '../providers/as_client_provider.dart';
@@ -19,16 +20,32 @@ import '../providers/auth_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
+import '../widgets/async_image_preview.dart';
+
+typedef ChannelPostImageUploader = Future<Uri> Function(
+  Uint8List file, {
+  String? filename,
+  String? contentType,
+});
+typedef ChannelPostAttachmentPicker = Future<List<ChatMediaAttachment>>
+    Function({
+  required bool original,
+  required int limit,
+});
 
 class ChannelPostCreatePage extends ConsumerStatefulWidget {
   const ChannelPostCreatePage({
     super.key,
     required this.channelId,
     this.imagePicker,
+    this.imageAttachmentPicker,
+    this.imageUploader,
   });
 
   final String channelId;
   final ChatImageAttachmentPicker? imagePicker;
+  final ChannelPostAttachmentPicker? imageAttachmentPicker;
+  final ChannelPostImageUploader? imageUploader;
 
   @override
   ConsumerState<ChannelPostCreatePage> createState() =>
@@ -97,15 +114,18 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     if (remaining <= 0) return;
     setState(() => _imageUploading = true);
     try {
-      final selected =
-          await (widget.imagePicker ?? ChatImageAttachmentPicker.platform())
-              .pickImages(
+      final pickImages = widget.imageAttachmentPicker ??
+          (widget.imagePicker ?? ChatImageAttachmentPicker.platform())
+              .pickImages;
+      final selected = await pickImages(
         original: false,
         limit: remaining,
       );
       if (selected.isEmpty) return;
 
       var failedCount = 0;
+      final uploadContent =
+          widget.imageUploader ?? ref.read(matrixClientProvider).uploadContent;
       for (final image in selected) {
         try {
           final bytes = image.bytes;
@@ -114,11 +134,11 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
               image.name.trim().isEmpty ? 'channel-post.jpg' : image.name;
           final mimeType =
               image.mimeType.trim().isEmpty ? 'image/jpeg' : image.mimeType;
-          final uploaded = await ref.read(matrixClientProvider).uploadContent(
-                bytes,
-                filename: name,
-                contentType: mimeType,
-              );
+          final uploaded = await uploadContent(
+            bytes,
+            filename: name,
+            contentType: mimeType,
+          );
           if (!mounted) return;
           final uploadedUrl = uploaded.toString();
           unawaited(_writeUploadedImageCache(uploadedUrl, bytes));
@@ -183,6 +203,21 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     if (_posting || _imageUploading) return;
     if (index < 0 || index >= _images.length) return;
     setState(() => _images.removeAt(index));
+  }
+
+  Future<void> _previewImages(int index) {
+    if (index < 0 || index >= _images.length) return Future<void>.value();
+    return showAsyncImageGalleryPreview(
+      context,
+      items: [
+        for (final image in _images)
+          AsyncImageGalleryItem(
+            loadProvider: () async => MemoryImage(image.bytes),
+            meta: image.name.trim().isEmpty ? image.url : image.name.trim(),
+          ),
+      ],
+      initialIndex: index,
+    );
   }
 
   @override
@@ -260,6 +295,7 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
                     images: _images,
                     uploading: _imageUploading,
                     onAdd: _pickImage,
+                    onPreview: _previewImages,
                     onRemove: _removeImage,
                   ),
                   const SizedBox(height: 14),
@@ -358,12 +394,14 @@ class _CreatePostImageGrid extends StatelessWidget {
     required this.images,
     required this.uploading,
     required this.onAdd,
+    required this.onPreview,
     required this.onRemove,
   });
 
   final List<_SelectedPostImage> images;
   final bool uploading;
   final VoidCallback onAdd;
+  final ValueChanged<int> onPreview;
   final ValueChanged<int> onRemove;
 
   @override
@@ -378,11 +416,16 @@ class _CreatePostImageGrid extends StatelessWidget {
           children: [
             for (var i = 0; i < images.length; i++)
               SizedBox.square(
+                key: ValueKey('channel_post_create_image_$i'),
                 dimension: itemSize,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.memory(images[i].bytes, fit: BoxFit.cover),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onPreview(i),
+                      child: Image.memory(images[i].bytes, fit: BoxFit.cover),
+                    ),
                     Positioned(
                       right: 4,
                       top: 4,

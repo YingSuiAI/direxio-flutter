@@ -247,7 +247,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             ),
           ),
           Positioned.fill(
-            top: topInset + 132,
+            top: topInset + 75,
             child: _buildBody(context),
           ),
         ],

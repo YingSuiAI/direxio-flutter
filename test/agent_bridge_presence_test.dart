@@ -44,11 +44,10 @@ void main() {
     final missingContainer = _containerFor(client);
     addTearDown(missingContainer.dispose);
 
-    expect(
-      missingContainer.read(agentBridgePresenceProvider).state,
-      AgentBridgePresenceState.unknown,
-    );
-    expect(missingContainer.read(agentBridgePresenceProvider).label, '状态未知');
+    final missingPresence = missingContainer.read(agentBridgePresenceProvider);
+    expect(missingPresence.state, AgentBridgePresenceState.offline);
+    expect(missingPresence.label, '离线');
+    expect(missingPresence.bridgeConnected, isFalse);
   });
 }
 

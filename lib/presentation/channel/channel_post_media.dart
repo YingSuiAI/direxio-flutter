@@ -11,6 +11,7 @@ import '../chat/product_media_outbox_flow.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../widgets/async_image_preview.dart';
 
 const channelPostMaxImages = 9;
 
@@ -135,13 +136,17 @@ class ChannelPostImageGrid extends StatelessWidget {
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final image in visible)
+            for (var i = 0; i < visible.length; i++)
               SizedBox.square(
-                key: ValueKey('channel_post_image_${image.url.trim()}'),
+                key: ValueKey('channel_post_image_${visible[i].url.trim()}'),
                 dimension: itemSize,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(0),
-                  child: _ChannelPostImageTile(image: image),
+                  child: _ChannelPostImageTile(
+                    image: visible[i],
+                    images: visible,
+                    initialIndex: i,
+                  ),
                 ),
               ),
           ],
@@ -152,14 +157,29 @@ class ChannelPostImageGrid extends StatelessWidget {
 }
 
 class _ChannelPostImageTile extends ConsumerWidget {
-  const _ChannelPostImageTile({required this.image});
+  const _ChannelPostImageTile({
+    required this.image,
+    required this.images,
+    required this.initialIndex,
+  });
 
   final ChannelPostMediaImage image;
+  final List<ChannelPostMediaImage> images;
+  final int initialIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final url = image.url.trim();
+    final child = _buildImage(ref, t, url);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openPreview(context, ref),
+      child: child,
+    );
+  }
+
+  Widget _buildImage(WidgetRef ref, PortalTokens t, String url) {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return Image.network(
         url,
@@ -179,6 +199,54 @@ class _ChannelPostImageTile extends ConsumerWidget {
       loadingBuilder: (_) => _loading(t),
       failedBuilder: (_) => _fallback(t),
     );
+  }
+
+  Future<void> _openPreview(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final items = <AsyncImageGalleryItem>[];
+    var targetIndex = 0;
+    for (var i = 0; i < images.length; i++) {
+      final image = images[i];
+      final url = image.url.trim();
+      final loader = _imageProviderLoader(ref, url);
+      if (loader == null) continue;
+      if (i == initialIndex) targetIndex = items.length;
+      items.add(
+        AsyncImageGalleryItem(
+          loadPreviewProvider: _previewImageProviderLoader(ref, url),
+          loadProvider: loader,
+          meta: image.name.trim().isEmpty ? url : image.name.trim(),
+        ),
+      );
+    }
+    if (items.isEmpty) return Future<void>.value();
+    return showAsyncImageGalleryPreview(
+      context,
+      items: items,
+      initialIndex: targetIndex,
+    );
+  }
+
+  ImageProviderLoader? _imageProviderLoader(WidgetRef ref, String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return () async => NetworkImage(url);
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.isScheme('mxc')) return null;
+    return () async {
+      final bytes = await ref
+          .read(matrixMediaBytesCacheProvider)
+          .read(ref.read(matrixClientProvider), uri);
+      return MemoryImage(bytes);
+    };
+  }
+
+  ImageProviderLoader? _previewImageProviderLoader(WidgetRef ref, String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.isScheme('mxc')) return null;
+    return () async => MemoryImage(await _loadMxcThumbnailBytes(ref, uri));
   }
 
   Future<Uint8List> _loadMxcThumbnailBytes(WidgetRef ref, Uri uri) async {

@@ -686,14 +686,21 @@ class _PublicChannelScaffoldState
           _future = Future.value(joined);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+          SnackBar(
+            content: Text(
+              channelJoinStatusText(joined.memberStatus, l10n: _l10n(context)),
+            ),
+          ),
         );
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _future = Future.value(joined));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+          SnackBar(
+            content:
+                Text(_channelJoinWaitingText(context, joined.memberStatus)),
+          ),
         );
         final projected = await waitForJoinedChannelProjectionData(
           ref,
@@ -745,8 +752,8 @@ class _PublicChannelScaffoldState
   }
 }
 
-String _channelJoinWaitingText(String status) {
-  return channelJoinStatusText(status);
+String _channelJoinWaitingText(BuildContext context, String status) {
+  return channelJoinStatusText(status, l10n: _l10n(context));
 }
 
 bool _looksLikeMatrixRoomId(String value) {

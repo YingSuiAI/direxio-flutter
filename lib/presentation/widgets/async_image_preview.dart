@@ -8,32 +8,8 @@ import '../../core/theme/app_theme.dart';
 typedef ImageProviderLoader = Future<ImageProvider> Function();
 typedef ImagePreviewAction = FutureOr<void> Function();
 
-Future<void> showAsyncImagePreview(
-  BuildContext context, {
-  ImageProviderLoader? loadPreviewProvider,
-  required ImageProviderLoader loadProvider,
-  required String meta,
-  ImagePreviewAction? onDownload,
-}) {
-  return showGeneralDialog<void>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.95),
-    barrierDismissible: true,
-    barrierLabel: 'img-lightbox',
-    transitionDuration: const Duration(milliseconds: 160),
-    pageBuilder: (ctx, a1, a2) {
-      return _AsyncImagePreviewDialog(
-        loadPreviewProvider: loadPreviewProvider,
-        loadProvider: loadProvider,
-        meta: meta,
-        onDownload: onDownload,
-      );
-    },
-  );
-}
-
-class _AsyncImagePreviewDialog extends StatefulWidget {
-  const _AsyncImagePreviewDialog({
+class AsyncImageGalleryItem {
+  const AsyncImageGalleryItem({
     this.loadPreviewProvider,
     required this.loadProvider,
     required this.meta,
@@ -44,42 +20,104 @@ class _AsyncImagePreviewDialog extends StatefulWidget {
   final ImageProviderLoader loadProvider;
   final String meta;
   final ImagePreviewAction? onDownload;
-
-  @override
-  State<_AsyncImagePreviewDialog> createState() =>
-      _AsyncImagePreviewDialogState();
 }
 
-class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
-  Future<ImageProvider>? _previewProviderFuture;
-  late final Future<ImageProvider> _providerFuture;
-  bool _downloading = false;
-  bool _downloaded = false;
+Future<void> showAsyncImagePreview(
+  BuildContext context, {
+  ImageProviderLoader? loadPreviewProvider,
+  required ImageProviderLoader loadProvider,
+  required String meta,
+  ImagePreviewAction? onDownload,
+}) {
+  return showAsyncImageGalleryPreview(
+    context,
+    items: [
+      AsyncImageGalleryItem(
+        loadPreviewProvider: loadPreviewProvider,
+        loadProvider: loadProvider,
+        meta: meta,
+        onDownload: onDownload,
+      ),
+    ],
+  );
+}
+
+Future<void> showAsyncImageGalleryPreview(
+  BuildContext context, {
+  required List<AsyncImageGalleryItem> items,
+  int initialIndex = 0,
+}) {
+  if (items.isEmpty) return Future<void>.value();
+  return showGeneralDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.95),
+    barrierDismissible: true,
+    barrierLabel: 'img-lightbox',
+    transitionDuration: const Duration(milliseconds: 160),
+    pageBuilder: (ctx, a1, a2) {
+      return _AsyncImageGalleryDialog(
+        items: items,
+        initialIndex: initialIndex,
+      );
+    },
+  );
+}
+
+class _AsyncImageGalleryDialog extends StatefulWidget {
+  const _AsyncImageGalleryDialog({
+    required this.items,
+    required this.initialIndex,
+  });
+
+  final List<AsyncImageGalleryItem> items;
+  final int initialIndex;
+
+  @override
+  State<_AsyncImageGalleryDialog> createState() =>
+      _AsyncImageGalleryDialogState();
+}
+
+class _AsyncImageGalleryDialogState extends State<_AsyncImageGalleryDialog> {
+  late final PageController _pageController;
+  late int _index;
+  final Set<int> _downloadingIndexes = <int>{};
+  final Set<int> _downloadedIndexes = <int>{};
 
   @override
   void initState() {
     super.initState();
-    _previewProviderFuture = widget.loadPreviewProvider?.call();
-    _providerFuture = widget.loadProvider();
+    _index = widget.initialIndex.clamp(0, widget.items.length - 1).toInt();
+    _pageController = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _download() async {
-    final onDownload = widget.onDownload;
-    if (onDownload == null || _downloading) return;
+    final onDownload = widget.items[_index].onDownload;
+    if (onDownload == null || _downloadingIndexes.contains(_index)) return;
+    final index = _index;
     setState(() {
-      _downloading = true;
-      _downloaded = false;
+      _downloadingIndexes.add(index);
+      _downloadedIndexes.remove(index);
     });
     try {
       await onDownload();
-      if (mounted) setState(() => _downloaded = true);
+      if (mounted) setState(() => _downloadedIndexes.add(index));
     } finally {
-      if (mounted) setState(() => _downloading = false);
+      if (mounted) setState(() => _downloadingIndexes.remove(index));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.items[_index];
+    final meta = widget.items.length == 1
+        ? item.meta
+        : '${item.meta}  ${_index + 1}/${widget.items.length}';
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
       child: Column(
@@ -104,36 +142,21 @@ class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
           Expanded(
             child: GestureDetector(
               onTap: () {},
-              child: Center(
-                child: FutureBuilder<ImageProvider>(
-                    future: _providerFuture,
-                    builder: (context, fullSnapshot) {
-                      final fullProvider = fullSnapshot.data;
-                      if (fullProvider != null) {
-                        return _PreviewImage(provider: fullProvider);
-                      }
-                      if (_previewProviderFuture != null) {
-                        return FutureBuilder<ImageProvider>(
-                          future: _previewProviderFuture,
-                          builder: (context, previewSnapshot) {
-                            final previewProvider = previewSnapshot.data;
-                            if (previewProvider != null) {
-                              return _PreviewImage(provider: previewProvider);
-                            }
-                            if (fullSnapshot.hasError &&
-                                previewSnapshot.connectionState ==
-                                    ConnectionState.done) {
-                              return const _PreviewErrorIcon();
-                            }
-                            return const _PreviewLoadingIndicator();
-                          },
-                        );
-                      }
-                      if (fullSnapshot.hasError) {
-                        return const _PreviewErrorIcon();
-                      }
-                      return const _PreviewLoadingIndicator();
-                    }),
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: widget.items.length,
+                onPageChanged: (index) => setState(() => _index = index),
+                itemBuilder: (context, index) {
+                  final item = widget.items[index];
+                  return Center(
+                    child: _AsyncImageGalleryPage(
+                      key:
+                          ValueKey('async_image_gallery_${index}_${item.meta}'),
+                      item: item,
+                      interactive: widget.items.length == 1,
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -146,7 +169,7 @@ class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
                   const SizedBox(width: 48),
                   Expanded(
                     child: Text(
-                      widget.meta,
+                      meta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -159,11 +182,11 @@ class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
                   SizedBox(
                     width: 48,
                     height: 48,
-                    child: widget.onDownload == null
+                    child: item.onDownload == null
                         ? const SizedBox.shrink()
                         : _PreviewDownloadButton(
-                            downloading: _downloading,
-                            downloaded: _downloaded,
+                            downloading: _downloadingIndexes.contains(_index),
+                            downloaded: _downloadedIndexes.contains(_index),
                             onTap: _download,
                           ),
                   ),
@@ -173,6 +196,71 @@ class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AsyncImageGalleryPage extends StatefulWidget {
+  const _AsyncImageGalleryPage({
+    super.key,
+    required this.item,
+    required this.interactive,
+  });
+
+  final AsyncImageGalleryItem item;
+  final bool interactive;
+
+  @override
+  State<_AsyncImageGalleryPage> createState() => _AsyncImageGalleryPageState();
+}
+
+class _AsyncImageGalleryPageState extends State<_AsyncImageGalleryPage> {
+  Future<ImageProvider>? _previewProviderFuture;
+  late final Future<ImageProvider> _providerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewProviderFuture = widget.item.loadPreviewProvider?.call();
+    _providerFuture = widget.item.loadProvider();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ImageProvider>(
+      future: _providerFuture,
+      builder: (context, fullSnapshot) {
+        final fullProvider = fullSnapshot.data;
+        if (fullProvider != null) {
+          return _PreviewImage(
+            provider: fullProvider,
+            interactive: widget.interactive,
+          );
+        }
+        if (_previewProviderFuture != null) {
+          return FutureBuilder<ImageProvider>(
+            future: _previewProviderFuture,
+            builder: (context, previewSnapshot) {
+              final previewProvider = previewSnapshot.data;
+              if (previewProvider != null) {
+                return _PreviewImage(
+                  provider: previewProvider,
+                  interactive: widget.interactive,
+                );
+              }
+              if (fullSnapshot.hasError &&
+                  previewSnapshot.connectionState == ConnectionState.done) {
+                return const _PreviewErrorIcon();
+              }
+              return const _PreviewLoadingIndicator();
+            },
+          );
+        }
+        if (fullSnapshot.hasError) {
+          return const _PreviewErrorIcon();
+        }
+        return const _PreviewLoadingIndicator();
+      },
     );
   }
 }
@@ -211,12 +299,19 @@ class _PreviewDownloadButton extends StatelessWidget {
 }
 
 class _PreviewImage extends StatelessWidget {
-  const _PreviewImage({required this.provider});
+  const _PreviewImage({
+    required this.provider,
+    required this.interactive,
+  });
 
   final ImageProvider provider;
+  final bool interactive;
 
   @override
   Widget build(BuildContext context) {
+    if (!interactive) {
+      return Image(image: provider, fit: BoxFit.contain);
+    }
     return InteractiveViewer(
       maxScale: 4,
       child: Image(image: provider, fit: BoxFit.contain),

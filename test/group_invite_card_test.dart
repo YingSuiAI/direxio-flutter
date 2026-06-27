@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/chat/chat_message_cards.dart';
 import 'package:portal_app/presentation/groups/group_invite_card.dart';
 import 'package:portal_app/presentation/groups/group_invite_content.dart';
@@ -55,6 +56,32 @@ void main() {
 
     expect(find.text('Yanan 邀请你加入“产品测试群”'), findsOneWidget);
     expect(find.textContaining('owner'), findsNothing);
+  });
+
+  testWidgets('localizes sender self label in English invite body',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: GroupInviteCard(
+            inviterDisplayName: '我',
+            invite: const GroupInviteContent(
+              groupRoomId: '!group:p2p-im.com',
+              groupName: 'jenfnd',
+            ),
+            joining: false,
+            onJoin: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Me invited you to join "jenfnd"'), findsOneWidget);
+    expect(find.textContaining('我 invited'), findsNothing);
   });
 
   testWidgets('renders group avatar inside invite card', (tester) async {
@@ -124,11 +151,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('已在群里中'));
+    await tester.tap(find.text('已在群聊中'));
     await tester.pump();
 
     expect(joins, 0);
-    expect(find.text('已在群里中'), findsOneWidget);
+    expect(find.text('已在群聊中'), findsOneWidget);
     expect(find.text('加入群聊'), findsNothing);
   });
 

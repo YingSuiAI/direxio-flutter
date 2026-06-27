@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,15 +17,17 @@ const _missingInviteGrantMessage = 'channel invite grant is missing or expired';
 const _missingInviteGrantMessageCompact =
     'channelinvitegrantismissingorexpired';
 
-String channelJoinStatusText(String status) {
+String channelJoinStatusText(String status, {AppLocalizations? l10n}) {
   final normalized = status.trim().toLowerCase();
   return switch (normalized) {
-    asChannelMemberStatusPending => channelJoinPendingText,
+    asChannelMemberStatusPending =>
+      l10n?.channelJoinPending ?? channelJoinPendingText,
     asChannelMemberStatusApproved ||
     asChannelMemberStatusJoining =>
-      channelJoinApprovedText,
-    asChannelMemberStatusJoinFailed => channelJoinFailedText,
-    _ => channelJoinInProgressText,
+      l10n?.channelJoinSyncing ?? channelJoinApprovedText,
+    asChannelMemberStatusJoinFailed =>
+      l10n?.channelJoinRetry ?? channelJoinFailedText,
+    _ => l10n?.channelJoinProcessing ?? channelJoinInProgressText,
   };
 }
 

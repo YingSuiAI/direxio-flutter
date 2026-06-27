@@ -128,9 +128,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       roomId: acceptedContactForUser?.roomId ?? room?.id ?? '',
     );
     final canOpenChat = canUseRealRoom && directProductConversation != null;
-    final canShowFriendProfile = canUseRealRoom;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
+    final acceptedStatus = acceptedContact?.status.trim().toLowerCase() ?? '';
+    final canShowFriendProfile = canUseRealRoom || acceptedStatus == 'accepted';
     final domain = domainFromMxid(userId);
     final uidDomain = reportDomainForUserId(userId, acceptedContact?.domain);
     final currentProfileName = currentUserProfile?.displayName?.trim();
@@ -172,8 +173,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final hideChatAvatarEntries = widget.fromChatAvatar;
     final hideRecommendFriend = widget.fromChatInfo;
     final existingContact = syncCache.contactForUserId(userId);
-    final contactStatus =
-        acceptedContactForUser?.status.trim().toLowerCase() ?? '';
+    final contactStatus = acceptedStatus;
     final shouldLoadPublicChannels =
         widget.fromChatAvatar || contactStatus == 'accepted';
     final publicChannelsRemoteNodeBaseUri =

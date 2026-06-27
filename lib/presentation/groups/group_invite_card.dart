@@ -36,7 +36,7 @@ class GroupInviteCard extends StatelessWidget {
             ? invite.inviterMxid
             : invite.inviterDisplayName;
     final fallbackInviter = l10n?.groupInviteFallbackInviter ?? '对方';
-    final displayInviter = inviter.trim().isEmpty ? fallbackInviter : inviter;
+    final displayInviter = _localizedInviter(inviter, l10n, fallbackInviter);
     final alreadyJoinedMessage = l10n?.groupInviteAlreadyJoined ?? '已在群聊中';
     final titleColor = t.text;
     final bodyColor = t.textMute;
@@ -129,4 +129,15 @@ class GroupInviteCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _localizedInviter(
+  String inviter,
+  AppLocalizations? l10n,
+  String fallbackInviter,
+) {
+  final trimmed = inviter.trim();
+  if (trimmed.isEmpty) return fallbackInviter;
+  if (trimmed == '我') return l10n?.commonMe ?? trimmed;
+  return trimmed;
 }

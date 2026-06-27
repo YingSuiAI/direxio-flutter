@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
+import 'package:portal_app/l10n/app_localizations_en.dart';
 import 'package:portal_app/presentation/channel/channel_join_flow.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
@@ -17,6 +18,19 @@ void main() {
   test('channel join in-progress copy does not use unfinished wording', () {
     expect(channelJoinInProgressText, contains('正在加入频道'));
     expect(channelJoinInProgressText, isNot(contains('未完成')));
+  });
+
+  test('channel join status copy can be localized', () {
+    final l10n = AppLocalizationsEn();
+
+    expect(
+      channelJoinStatusText(asChannelMemberStatusPending, l10n: l10n),
+      'Pending review',
+    );
+    expect(
+      channelJoinStatusText(asChannelMemberStatusJoining, l10n: l10n),
+      'Syncing',
+    );
   });
 
   test('channel share payload parses structured Matrix content', () {

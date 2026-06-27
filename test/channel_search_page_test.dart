@@ -12,6 +12,7 @@ import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
+import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 
 void main() {
   testWidgets('channel search uses localized empty state and actions',
@@ -81,6 +82,33 @@ void main() {
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsWidgets);
+  });
+
+  testWidgets('channel search result sits close to search field',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '产品');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    final searchRect = tester.getRect(find.byType(M3SearchField));
+    final resultRect = tester.getRect(find.text('产品公告'));
+
+    expect(resultRect.top - searchRect.bottom, lessThanOrEqualTo(20));
   });
 
   testWidgets('channel search treats domain text as public directory name',

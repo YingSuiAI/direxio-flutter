@@ -306,14 +306,24 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
         setState(() => _joining = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+          SnackBar(
+            content: Text(
+              channelJoinStatusText(
+                joined.memberStatus,
+                l10n: _channelInfoL10n(context),
+              ),
+            ),
+          ),
         );
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _requested = true);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+          SnackBar(
+            content:
+                Text(_channelJoinWaitingText(context, joined.memberStatus)),
+          ),
         );
         if (sharePayload != null && !channelShareHasInviteGrant(sharePayload)) {
           setState(() => _joining = false);
@@ -459,8 +469,8 @@ Future<void> _shareChannelDetail(
   }
 }
 
-String _channelJoinWaitingText(String status) {
-  return channelJoinStatusText(status);
+String _channelJoinWaitingText(BuildContext context, String status) {
+  return channelJoinStatusText(status, l10n: _channelInfoL10n(context));
 }
 
 bool _looksLikeMatrixRoomId(String value) {

@@ -626,7 +626,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _requestedChannelShareIds.add(key));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+          SnackBar(
+            content: Text(
+              channelJoinStatusText(
+                joined.memberStatus,
+                l10n: _groupChatL10n(context),
+              ),
+            ),
+          ),
         );
         return;
       }

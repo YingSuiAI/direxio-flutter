@@ -250,7 +250,7 @@ SPEC CHECKSUMS:
   FirebaseInstallations: eb29ccbf64eaedf86fd5b2ccc7fabde567660b52
   FirebaseMessaging: 40017d7bc8457ee295b0f41d480a80fdabc9994e
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_olm: 9e3ef39b92a3aa169e630d76d829280629ff6056
+  flutter_olm: 6cdfe35ac7b5481a88013957f192623d029c940c
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   flutter_webrtc: ec91d94b484ad49cf191ef93413f64a40ffd3b4c
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7

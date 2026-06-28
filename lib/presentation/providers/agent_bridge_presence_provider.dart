@@ -70,9 +70,7 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
   }
   final online = agentRoomStatusOnline(room, agentRoomId: agentRoomId);
   if (online == null) {
-    return const AgentBridgePresence(
-      state: AgentBridgePresenceState.offline,
-      online: false,
+    return const AgentBridgePresence.unknown(
       source: 'matrix_agent_status_state_missing',
     );
   }

@@ -1240,8 +1240,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ref.read(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
     final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
-    final agentIsOnline =
-        isAgent && ref.read(agentBridgePresenceProvider).bridgeConnected;
+    final agentPresence =
+        isAgent ? ref.read(agentBridgePresenceProvider) : null;
+    final agentIsOffline =
+        agentPresence?.state == AgentBridgePresenceState.offline;
     final capabilityPolicy = _privateRoomCapabilityPolicy(
       productConversations,
       room,
@@ -1269,7 +1271,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     try {
       if (isAgent) {
-        if (agentIsOnline && mounted) {
+        if (!agentIsOffline && mounted) {
           setState(() => _agentThinkingSince = DateTime.now());
           _scheduleViewportScrollToBottom();
         } else {
@@ -1298,7 +1300,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         setState(() {
           _agentThinkingSince = null;
         });
-        if (!agentIsOnline) {
+        if (agentIsOffline) {
           ref
               .read(agentOfflineReplyCacheProvider.notifier)
               .decrement(widget.roomId);
@@ -2998,6 +3000,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final agentPresence =
         isAgent ? ref.watch(agentBridgePresenceProvider) : null;
     final agentIsOnline = agentPresence?.bridgeConnected ?? false;
+    final agentIsOffline =
+        agentPresence?.state == AgentBridgePresenceState.offline;
     final cachedAgentOfflineReplyCount = isAgent
         ? ref.watch(agentOfflineReplyCacheProvider)[widget.roomId.trim()] ?? 0
         : 0;
@@ -3011,10 +3015,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       });
     }
     final showAgentThinking = isAgent &&
-        agentIsOnline &&
+        !agentIsOffline &&
         agentThinkingSince != null &&
         !hasAgentReply;
-    final showAgentOfflineReply = isAgent && !agentIsOnline;
+    final showAgentOfflineReply = isAgent && agentIsOffline;
     final agentOfflineReplyCount =
         showAgentOfflineReply ? cachedAgentOfflineReplyCount : 0;
     final chatDisplayItems = _buildDirectChatDisplayItems(

@@ -52,6 +52,7 @@ import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_scroll_metrics.dart';
+import '../chat/chat_scroll_to_latest.dart';
 import '../chat/chat_timeline_items.dart';
 import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
@@ -350,9 +351,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Map<String, GlobalKey> _messageAnchorKeys = {};
   final Map<String, int> _messageListIndexes = {};
   final ScrollController _messageScrollCtrl = ScrollController();
-  Object? _lastAutoScrolledTimelineItemKey;
-  Object? _pendingAutoScrollTimelineItemKey;
-  Timer? _latestAutoScrollRetryTimer;
+  final ChatScrollToLatestCoordinator _scrollToLatestCoordinator =
+      ChatScrollToLatestCoordinator();
+  Timer? _scrollToLatestRetryTimer;
   bool _pendingViewportScrollToBottom = false;
   double _lastKeyboardInsetBottom = 0;
   double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
@@ -828,29 +829,33 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   void _scheduleScrollToLatest(Object? newestItemKey) {
-    if ((_pendingTargetEventId?.trim() ?? '').isNotEmpty) return;
-    if (newestItemKey == null) return;
-    if (_lastAutoScrolledTimelineItemKey == newestItemKey ||
-        _pendingAutoScrollTimelineItemKey == newestItemKey) {
+    final targetEventPending = (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+    if (!_scrollToLatestCoordinator.request(
+      newestItemKey,
+      targetEventPending: targetEventPending,
+    )) {
       return;
     }
-    _pendingAutoScrollTimelineItemKey = newestItemKey;
-    _latestAutoScrollRetryTimer?.cancel();
-    _scheduleLatestAutoScrollAttempt(
-      newestItemKey,
-      attempt: 0,
-      instant: _lastAutoScrolledTimelineItemKey == null,
+    _runScheduledScrollToLatest(
+      newestItemKey!,
+      instant: _scrollToLatestCoordinator.shouldJump,
     );
   }
 
-  void _scheduleLatestAutoScrollAttempt(
+  void _runScheduledScrollToLatest(
     Object newestItemKey, {
-    required int attempt,
     required bool instant,
   }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
+      final targetEventPending =
+          (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+      if (!_scrollToLatestCoordinator.shouldRun(
+        newestItemKey,
+        targetEventPending: targetEventPending,
+      )) {
+        return;
+      }
       final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
       final hasPosition = position != null;
       final target = position?.maxScrollExtent ?? 0;
@@ -860,37 +865,38 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         if (instant) {
           _messageScrollCtrl.jumpTo(target);
         } else {
-          unawaited(_messageScrollCtrl.animateTo(
-            target,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-          ));
+          unawaited(
+            _messageScrollCtrl.animateTo(
+              target,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+            ),
+          );
         }
       }
-      final shouldRetry = shouldRetryLatestInitialAutoScroll(
+      final shouldRetry = _scrollToLatestCoordinator.shouldRetryAfterAttempt(
+            newestItemKey,
             hasPosition: hasPosition,
             isAtLatest: isAtLatest,
-            attempt: attempt,
+            allowSettling: instant,
           ) &&
           (instant || !hasPosition);
       if (shouldRetry) {
-        _latestAutoScrollRetryTimer?.cancel();
-        _latestAutoScrollRetryTimer = Timer(
+        _scrollToLatestRetryTimer?.cancel();
+        _scrollToLatestRetryTimer = Timer(
           chatLatestInitialAutoScrollRetryDelay,
           () {
-            if (!mounted) return;
-            _scheduleLatestAutoScrollAttempt(
-              newestItemKey,
-              attempt: attempt + 1,
-              instant: instant,
-            );
+            if (mounted) {
+              _runScheduledScrollToLatest(newestItemKey, instant: instant);
+            }
           },
         );
         return;
       }
-      _pendingAutoScrollTimelineItemKey = null;
-      if (position != null) {
-        _lastAutoScrolledTimelineItemKey = newestItemKey;
+      if (position == null) {
+        _scrollToLatestCoordinator.cancel();
+      } else {
+        _scrollToLatestCoordinator.complete(newestItemKey);
       }
     });
   }
@@ -1585,8 +1591,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     unawaited(_matrixSyncSub?.cancel());
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
+    _scrollToLatestRetryTimer?.cancel();
     _targetEventScrollTimer?.cancel();
-    _latestAutoScrollRetryTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);

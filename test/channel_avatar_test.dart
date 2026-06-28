@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/presentation/channel/channel_avatar_cache.dart';
 import 'package:portal_app/presentation/channel/channel_home_tab.dart';
 import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
 import 'package:portal_app/presentation/channel/channel_member_avatar.dart';
@@ -234,6 +235,55 @@ void main() {
     await tester.pumpWidget(buildTile(refreshedAvatarUrl));
 
     expect(find.text('产'), findsNothing);
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageBytes, bytes);
+    expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets('channel inbox tile renders avatar bytes seeded after create',
+      (tester) async {
+    final client = Client('ChannelSeededAvatarTest');
+    final avatarUrl =
+        'https://cdn.example.com/channel-seeded-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    seedChannelAvatarCacheBytes(
+      avatarUrl,
+      bytes,
+      stableKey: channelAvatarStableCacheKey(
+        channelId: 'ch_avatar_seeded',
+        roomId: '!avatar-seeded:p2p-im.com',
+      ),
+      persist: false,
+    );
+    addTearDown(clearChannelAvatarMemoryCacheForTesting);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: ChannelInboxTile(
+              channel: ChannelInboxItem(
+                id: 'ch_avatar_seeded',
+                roomId: '!avatar-seeded:p2p-im.com',
+                name: '产品公告',
+                domain: 'p2p-im.com',
+                avatarUrl: avatarUrl,
+                latestPreview: '频道介绍',
+                latestAt: null,
+                unreadCount: 0,
+                isOwned: true,
+                tags: const ['文字'],
+              ),
+              showDivider: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
     final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
     expect(avatar.imageBytes, bytes);
     expect(avatar.shape, AvatarShape.squircle);

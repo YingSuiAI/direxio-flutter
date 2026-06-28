@@ -18,7 +18,9 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/im_public_client_provider.dart';
 import '../providers/local_created_channels_provider.dart';
+import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
+import 'channel_avatar_cache.dart';
 
 Future<void> showCreateChannelDialog(
   BuildContext context,
@@ -211,6 +213,25 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       }
       final createdAt = DateTime.now().toUtc();
       final cachedChannel = _channelWithDraftProfile(channel, draft);
+      final avatarPreviewBytes = _avatarPreviewBytes;
+      final avatarImageUrl = avatarHttpUrl(
+        ref.read(matrixClientProvider),
+        cachedChannel.avatarUrl,
+      );
+      if (avatarImageUrl != null &&
+          avatarPreviewBytes != null &&
+          avatarPreviewBytes.isNotEmpty) {
+        unawaited(
+          seedChannelAvatarCacheBytes(
+            avatarImageUrl,
+            avatarPreviewBytes,
+            stableKey: channelAvatarStableCacheKey(
+              channelId: cachedChannel.channelId,
+              roomId: cachedChannel.roomId,
+            ),
+          ),
+        );
+      }
       await ref
           .read(localCreatedChannelsProvider.notifier)
           .cacheCreatedChannel(cachedChannel, createdAt);

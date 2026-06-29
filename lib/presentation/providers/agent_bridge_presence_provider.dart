@@ -73,8 +73,19 @@ final _matrixAgentStatusStateProvider = FutureProvider.autoDispose
     request.stateKey,
   );
   final raw = content['online'];
-  return raw is bool ? raw : null;
+  final online = raw is bool ? raw : null;
+  if (online != null) {
+    ref
+        .read(_matrixAgentStatusSnapshotProvider(request.identity).notifier)
+        .state = online;
+  }
+  return online;
 });
+
+final _matrixAgentStatusSnapshotProvider =
+    StateProvider.autoDispose.family<bool?, _MatrixAgentStatusStateIdentity>(
+  (ref, identity) => null,
+);
 
 /// Agent header presence is native Matrix room state in the real agent room.
 /// Bootstrap only locates the room through `agent_room_id`; it no longer
@@ -106,13 +117,28 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
         source: 'matrix_agent_status_state_missing',
       );
     }
+    final stateIdentity = _MatrixAgentStatusStateIdentity(
+      roomId: agentRoomId,
+      stateKey: agentMXID,
+    );
+    final cachedOnline = ref.watch(
+      _matrixAgentStatusSnapshotProvider(stateIdentity),
+    );
+    if (cachedOnline != null) {
+      return AgentBridgePresence(
+        state: cachedOnline
+            ? AgentBridgePresenceState.online
+            : AgentBridgePresenceState.offline,
+        online: cachedOnline,
+        source: 'matrix.room_state.io.direxio.agent.status.fetch',
+      );
+    }
     final refreshTick =
         ref.watch(_matrixAgentStatusStateRefreshTickProvider).valueOrNull ?? 0;
     final stateFetch = ref.watch(
       _matrixAgentStatusStateProvider(
         _MatrixAgentStatusStateRequest(
-          roomId: agentRoomId,
-          stateKey: agentMXID,
+          identity: stateIdentity,
           refreshTick: refreshTick,
         ),
       ),
@@ -147,25 +173,46 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
 
 class _MatrixAgentStatusStateRequest {
   const _MatrixAgentStatusStateRequest({
-    required this.roomId,
-    required this.stateKey,
+    required this.identity,
     required this.refreshTick,
   });
 
-  final String roomId;
-  final String stateKey;
+  final _MatrixAgentStatusStateIdentity identity;
   final int refreshTick;
+
+  String get roomId => identity.roomId;
+
+  String get stateKey => identity.stateKey;
 
   @override
   bool operator ==(Object other) {
     return other is _MatrixAgentStatusStateRequest &&
-        roomId == other.roomId &&
-        stateKey == other.stateKey &&
+        identity == other.identity &&
         refreshTick == other.refreshTick;
   }
 
   @override
-  int get hashCode => Object.hash(roomId, stateKey, refreshTick);
+  int get hashCode => Object.hash(identity, refreshTick);
+}
+
+class _MatrixAgentStatusStateIdentity {
+  const _MatrixAgentStatusStateIdentity({
+    required this.roomId,
+    required this.stateKey,
+  });
+
+  final String roomId;
+  final String stateKey;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MatrixAgentStatusStateIdentity &&
+        roomId == other.roomId &&
+        stateKey == other.stateKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(roomId, stateKey);
 }
 
 bool? agentRoomStatusOnline(Room room, {required String agentRoomId}) {

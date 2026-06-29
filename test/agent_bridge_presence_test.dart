@@ -187,6 +187,59 @@ void main() {
     expect(calls, greaterThanOrEqualTo(2));
   });
 
+  test('keeps fetched Matrix state stable during background retry ticks',
+      () async {
+    final client = Client(
+      'AgentBridgePresenceNoFlickerTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path ==
+            '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com') {
+          return http.Response('{"online":true}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    )
+      ..homeserver = Uri.parse('https://example.com')
+      ..accessToken = 'access-token'
+      ..setUserId('@owner:example.com');
+    client.rooms.add(Room(id: '!agent-room:example.com', client: client));
+    final container = _containerFor(
+      client,
+      overrides: [
+        agentBridgePresenceStateRefreshIntervalProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    var firstOnlineSeen = false;
+    final statesAfterOnline = <AgentBridgePresenceState>[];
+    final onlinePresence = Completer<void>();
+    final subscription = container.listen<AgentBridgePresence>(
+      agentBridgePresenceProvider,
+      (_, next) {
+        if (firstOnlineSeen) {
+          statesAfterOnline.add(next.state);
+        }
+        if (next.state == AgentBridgePresenceState.online && !firstOnlineSeen) {
+          firstOnlineSeen = true;
+          onlinePresence.complete();
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await onlinePresence.future.timeout(const Duration(milliseconds: 500));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      statesAfterOnline,
+      everyElement(AgentBridgePresenceState.online),
+    );
+  });
+
   test('uses online as the only UI state bit', () {
     final client = _matrixClientWithAgentRoom(online: false);
     final container = _containerFor(client);

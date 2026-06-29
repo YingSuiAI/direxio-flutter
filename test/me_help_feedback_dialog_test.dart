@@ -20,6 +20,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Scaffold(body: MePage(client: client)),
         ),
       ),
@@ -33,18 +36,31 @@ void main() {
     );
     expect(
       (background.image as AssetImage).assetName,
-      'assets/images/ic_help_feedback2.png',
+      'assets/images/ic_help_feedback1.png',
     );
     expect(background.color, PortalTokens.dark.surface);
     expect(background.colorBlendMode, BlendMode.modulate);
 
-    final headline = tester.widget<Text>(find.text('一起打造更好的\nDirexio'));
-    expect(headline.style?.color, PortalTokens.dark.text);
+    expect(find.text('一起打造更好的\nDirexio'), findsNothing);
+    expect(find.text('发现问题或有好想法？'), findsNothing);
+    expect(find.textContaining('liyananinsh@outlook.com'), findsNothing);
+    expect(find.text('我们会持续根据你的反馈优化产品。'), findsNothing);
+    expect(
+      tester.getCenter(find.byType(FilledButton)).dx,
+      closeTo(
+        tester
+                .getCenter(
+                    find.byKey(const ValueKey('help_feedback_background')))
+                .dx -
+            10,
+        0.5,
+      ),
+    );
     final buttonText = tester.widget<Text>(find.text('知道了'));
     expect(buttonText.style?.color, PortalTokens.dark.onAccent);
   });
 
-  testWidgets('help feedback dialog fits localized copy on narrow screens',
+  testWidgets('help feedback dialog keeps only action on narrow screens',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     addTearDown(() async {
@@ -78,6 +94,13 @@ void main() {
       'assets/images/ic_help_feedback2.png',
     );
     expect(find.text('Got it'), findsOneWidget);
+    expect(find.text('Build a Better\nDirexio Together'), findsNothing);
+    expect(find.text('Found an issue or have a great idea?'), findsNothing);
+    expect(find.textContaining('liyananinsh@outlook.com'), findsNothing);
+    expect(
+      find.text('We will keep optimizing based on your feedback.'),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 }

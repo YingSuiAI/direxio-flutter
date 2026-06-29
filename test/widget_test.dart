@@ -19372,7 +19372,7 @@ void main() {
       find.byKey(const ValueKey('help_feedback_background')),
       findsOneWidget,
     );
-    expect(find.textContaining('liyananinsh@outlook.com'), findsOneWidget);
+    expect(find.textContaining('liyananinsh@outlook.com'), findsNothing);
     await tester.tap(find.text('知道了'));
     await tester.pumpAndSettle();
     expect(
@@ -19393,7 +19393,8 @@ void main() {
     expect(find.text('退出登录'), findsNothing);
   });
 
-  testWidgets('help feedback dialog localizes copy in English', (tester) async {
+  testWidgets('help feedback dialog keeps only action in English',
+      (tester) async {
     final client = Client('DirexioTest');
 
     await tester.pumpWidget(
@@ -19414,15 +19415,15 @@ void main() {
     await tester.tap(find.text('Help & Feedback'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Build a Better\nDirexio Together'), findsOneWidget);
+    expect(find.text('Build a Better\nDirexio Together'), findsNothing);
     expect(
       find.text('Found an issue or have a great idea?'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('Contact Us : liyananinsh@outlook.com'), findsOneWidget);
+    expect(find.text('Contact Us : liyananinsh@outlook.com'), findsNothing);
     expect(
       find.text('We will keep optimizing based on your feedback.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Got it'), findsOneWidget);
   });

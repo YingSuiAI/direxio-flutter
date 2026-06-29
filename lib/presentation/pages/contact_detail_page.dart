@@ -157,8 +157,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final avatarUrl = isSelf
         ? profileAvatarHttpUrl(currentUserProfile, client)
         : _firstNonEmpty([
-            localRoomMemberAvatarHttpUrl(room, userId),
             avatarHttpUrl(client, acceptedContact?.avatarUrl),
+            localRoomMemberAvatarHttpUrl(room, userId),
           ]);
     final identityAvatarUrl = isSelf
         ? currentUserProfile?.avatarUrl?.toString()

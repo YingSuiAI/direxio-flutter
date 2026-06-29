@@ -77,14 +77,19 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
       room.client,
       authoritativeMember?.avatarUrl,
     );
+    final contactAvatarUrl = strictGroupContactAvatarUrl(
+      room.client,
+      syncCache,
+      mxid,
+    );
     final avatar = currentUserId.isNotEmpty && mxid == currentUserId
         ? profileAvatarHttpUrl(currentUserProfile, room.client) ??
+            contactAvatarUrl ??
+            authoritativeAvatarUrl ??
+            memberAvatarUrl
+        : contactAvatarUrl ??
             authoritativeAvatarUrl ??
             memberAvatarUrl ??
-            strictGroupContactAvatarUrl(room.client, syncCache, mxid)
-        : authoritativeAvatarUrl ??
-            memberAvatarUrl ??
-            strictGroupContactAvatarUrl(room.client, syncCache, mxid) ??
             cachedMemberAvatarUrls[mxid.trim()];
     final cleanAvatar = avatar?.trim() ?? '';
     if (cleanAvatar.isNotEmpty) avatarUrls[mxid.trim()] = cleanAvatar;
@@ -160,7 +165,17 @@ String? strictGroupContactAvatarUrl(
 ) {
   final contact = syncCache.contactForUserId(mxid.trim());
   if (contact == null) return _strictClientDirectAvatarUrl(client, mxid);
+  final contactAvatar = avatarHttpUrl(client, contact.avatarUrl);
+  if (contactAvatar != null) return contactAvatar;
   final directRoom = client.getRoomById(contact.roomId.trim());
+  final profileAvatar = directRoom == null
+      ? null
+      : _strictDirectRoomProfileAvatarUrl(
+          client,
+          directRoom,
+          contact.userId,
+        );
+  if (profileAvatar != null) return profileAvatar;
   final memberState = directRoom?.getState(
     EventTypes.RoomMember,
     contact.userId.trim(),
@@ -172,16 +187,7 @@ String? strictGroupContactAvatarUrl(
     );
     if (memberAvatar != null) return memberAvatar;
   }
-  final profileAvatar = directRoom == null
-      ? null
-      : _strictDirectRoomProfileAvatarUrl(
-          client,
-          directRoom,
-          contact.userId,
-        );
-  if (profileAvatar != null) return profileAvatar;
-  return avatarHttpUrl(client, contact.avatarUrl) ??
-      _strictClientDirectAvatarUrl(client, mxid);
+  return _strictClientDirectAvatarUrl(client, mxid);
 }
 
 List<String> _liveGroupMemberIds(Room room) {

@@ -281,6 +281,14 @@ class HttpAsClient implements AsClient {
       statusCode: streamed.statusCode,
       elapsed: elapsed,
     );
+    if (_isCursorResetHeader(streamed.headers)) {
+      yield AsEventStreamEvent(
+        seq: 0,
+        type: 'p2p.cursor_reset',
+        createdAt: null,
+        payload: _cursorResetPayloadFromHeaders(streamed.headers, since),
+      );
+    }
     yield* _decodeSseEvents(
       streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),
     );
@@ -305,21 +313,6 @@ class HttpAsClient implements AsClient {
 
   Future<Map<String, dynamic>> getAgentPassword() {
     return _getJson('agents/get-password');
-  }
-
-  Future<Map<String, dynamic>> listApiPermissions() {
-    return _getJson('apis');
-  }
-
-  Future<Map<String, dynamic>> updateApiPermissionStatus(
-    List<Map<String, Object?>> items,
-  ) {
-    return _requestJson(
-      'PUT',
-      'apis/status',
-      body: {'items': items},
-      allowedStatusCodes: const {200},
-    );
   }
 
   @override
@@ -389,28 +382,6 @@ class HttpAsClient implements AsClient {
       'DELETE',
       'favorites/${Uri.encodeComponent(id.toString())}',
       allowedStatusCodes: const {200, 404},
-    );
-  }
-
-  @override
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  }) {
-    return _requestJson(
-      'POST',
-      'reports',
-      body: {
-        'reporter_domain': reporterDomain.trim(),
-        'reported_domain': reportedDomain.trim(),
-        'target_type': targetType,
-        'reason': reason.trim(),
-        if (images.isNotEmpty)
-          'images': images.map((image) => image.trim()).toList(growable: false),
-      },
     );
   }
 
@@ -1114,12 +1085,11 @@ class HttpAsClient implements AsClient {
     int limit = 50,
     int beforeTs = 0,
   }) async {
+    // TODO(backend-contract): channel post list has no stable cursor contract yet.
+    // Keep the client-side signature for local progressive caches, but do not
+    // send limit/before_ts until the P2P action documents those params.
     final body = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/posts',
-      queryParameters: {
-        'limit': limit.toString(),
-        if (beforeTs > 0) 'before_ts': beforeTs.toString(),
-      },
     );
     final raw = body['posts'] as List? ?? const [];
     return raw
@@ -1171,12 +1141,11 @@ class HttpAsClient implements AsClient {
     int page = 1,
     int pageSize = 50,
   }) async {
+    // TODO(backend-contract): channel comments still lack a documented
+    // cursor/page contract; avoid sending page params that older/current
+    // servers may reject.
     final response = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/comments',
-      queryParameters: {
-        'page': page.toString(),
-        'page_size': pageSize.toString(),
-      },
     );
     final raw = response['comments'] as List? ?? const [];
     return raw
@@ -1895,6 +1864,22 @@ class HttpAsClient implements AsClient {
   }
 
   static String _extractErrorMessage(http.Response response) {
+    if (response.statusCode == 429) {
+      final retryAfter = response.headers.entries
+          .firstWhere(
+            (entry) => entry.key.toLowerCase() == 'retry-after',
+            orElse: () => const MapEntry('retry-after', ''),
+          )
+          .value
+          .trim();
+      final suffix = retryAfter.isEmpty ? '' : '，请在 $retryAfter 秒后重试';
+      final detail = _extractStructuredError(response.body);
+      return detail.isEmpty ? '服务器请求过于频繁$suffix' : '$detail$suffix';
+    }
+    if (response.statusCode == 503) {
+      final detail = _extractStructuredError(response.body);
+      return detail.isEmpty ? '服务器暂时繁忙，请稍后再试' : detail;
+    }
     try {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -1907,6 +1892,26 @@ class HttpAsClient implements AsClient {
       // Fall through to a generic HTTP error message.
     }
     return response.reasonPhrase ?? 'P2P request failed';
+  }
+
+  static String _extractStructuredError(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return [
+          decoded['error'],
+          decoded['message'],
+          decoded['detail'],
+        ]
+            .whereType<Object>()
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty)
+            .join(' ');
+      }
+    } catch (_) {
+      return '';
+    }
+    return '';
   }
 
   static bool _isAuthenticationFailureResponse(http.Response response) {
@@ -2126,8 +2131,6 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'agents/get-password') {
     return 'agent.password';
   }
-  if (method == 'GET' && clean == 'apis') return 'apis.list';
-  if (method == 'PUT' && clean == 'apis/status') return 'apis.status';
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
   if (method == 'GET' && clean == 'follows') return 'follows.list';
@@ -2267,7 +2270,6 @@ String _actionFor(String method, String path) {
   }
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
-  if (method == 'POST' && clean == 'reports') return 'reports.submit';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';
   if (method == 'POST' && clean == 'contacts/reactivate') {
     return 'contacts.reactivate';
@@ -2668,6 +2670,38 @@ Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {
   }
   final trailing = buildEvent();
   if (trailing != null) yield trailing;
+}
+
+bool _isCursorResetHeader(Map<String, String> headers) {
+  for (final entry in headers.entries) {
+    if (entry.key.toLowerCase() == 'x-direxio-p2p-events-cursor-reset') {
+      return entry.value.trim().toLowerCase() == 'true';
+    }
+  }
+  return false;
+}
+
+Map<String, dynamic> _cursorResetPayloadFromHeaders(
+  Map<String, String> headers,
+  int? since,
+) {
+  String header(String name) {
+    final lower = name.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value.trim();
+    }
+    return '';
+  }
+
+  int headerInt(String name) => int.tryParse(header(name)) ?? 0;
+  return {
+    'type': 'p2p.cursor_reset',
+    if (since != null && since > 0) 'since': since,
+    'min_seq': headerInt('X-Direxio-P2P-Events-Min-Seq'),
+    'max_seq': headerInt('X-Direxio-P2P-Events-Max-Seq'),
+    'count': headerInt('X-Direxio-P2P-Events-Count'),
+    'recovery': 'bootstrap_required',
+  };
 }
 
 http.Client _streamingHttpClient(http.Client client) {

@@ -301,7 +301,7 @@ void main() {
     expect(contact.status, 'accepted');
   });
 
-  test('agent management helpers use unified API actions', () async {
+  test('agent password helper uses unified API action', () async {
     final seen = <String>[];
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
@@ -315,31 +315,6 @@ void main() {
           case 'agent.password':
             expect(request.url.path, '/_p2p/query');
             return http.Response(jsonEncode({'password': 'secret'}), 200);
-          case 'apis.list':
-            expect(request.url.path, '/_p2p/query');
-            return http.Response(
-              jsonEncode({
-                'items': [
-                  {'action': 'contacts.request', 'enabled': true},
-                ],
-              }),
-              200,
-            );
-          case 'apis.status':
-            expect(request.url.path, '/_p2p/command');
-            expect(body['params'], {
-              'items': [
-                {'action': 'contacts.request', 'enabled': false},
-              ],
-            });
-            return http.Response(
-              jsonEncode({
-                'items': [
-                  {'action': 'contacts.request', 'enabled': false},
-                ],
-              }),
-              200,
-            );
           default:
             fail('unexpected action ${body['action']}');
         }
@@ -347,13 +322,7 @@ void main() {
     );
 
     expect((await client.getAgentPassword())['password'], 'secret');
-    expect((await client.listApiPermissions())['items'], isNotEmpty);
-    final updated = await client.updateApiPermissionStatus([
-      {'action': 'contacts.request', 'enabled': false},
-    ]);
-
-    expect(updated['items'], isNotEmpty);
-    expect(seen, hasLength(3));
+    expect(seen, hasLength(1));
   });
 
   test('maps legacy channel intro field to description', () {
@@ -1162,46 +1131,6 @@ void main() {
         '2026-05-29T10:00:00.000Z');
   });
 
-  test('submitReport posts through unified reports action', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/command');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'action': 'reports.submit',
-          'params': {
-            'reporter_domain': 'p2p-im.com',
-            'reported_domain': 'portal.local',
-            'target_type': 1,
-            'reason': '欺诈',
-          },
-        });
-        return http.Response.bytes(
-          utf8.encode(jsonEncode({
-            'id': 'report-1',
-            'reporter_domain': 'p2p-im.com',
-            'reported_domain': 'portal.local',
-            'target_type': 1,
-            'reason': '欺诈',
-          })),
-          200,
-          headers: {'content-type': 'application/json; charset=utf-8'},
-        );
-      }),
-    );
-
-    final report = await client.submitReport(
-      reporterDomain: ' p2p-im.com ',
-      reportedDomain: ' portal.local ',
-      reason: ' 欺诈 ',
-    );
-
-    expect(report['id'], 'report-1');
-  });
-
   test('portal status treats AS connected session label as healthy', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
@@ -1400,6 +1329,60 @@ void main() {
     expect(events.single.type, 'agent_room.message');
     expect(events.single.roomId, '!real:server');
     expect(events.single.payload['body'], 'hi');
+  });
+
+  test('streamEvents emits cursor reset from response headers', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '',
+          200,
+          headers: {
+            'content-type': 'text/event-stream; charset=utf-8',
+            'X-Direxio-P2P-Events-Cursor-Reset': 'true',
+            'X-Direxio-P2P-Events-Min-Seq': '12',
+            'X-Direxio-P2P-Events-Max-Seq': '19',
+            'X-Direxio-P2P-Events-Count': '8',
+          },
+        );
+      }),
+    );
+
+    final events = await client.streamEvents(since: 8).toList();
+
+    expect(events.single.type, 'p2p.cursor_reset');
+    expect(events.single.seq, 0);
+    expect(events.single.payload['since'], 8);
+    expect(events.single.payload['min_seq'], 12);
+    expect(events.single.payload['max_seq'], 19);
+    expect(events.single.payload['count'], 8);
+    expect(events.single.payload['recovery'], 'bootstrap_required');
+  });
+
+  test('streamEvents decodes cursor reset control payload', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          [
+            'event: p2p.cursor_reset',
+            r'data: {"type":"p2p.cursor_reset","since":8,"min_seq":12,"max_seq":19,"count":8,"recovery":"bootstrap_required"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents(since: 8).toList();
+
+    expect(events.single.type, 'p2p.cursor_reset');
+    expect(events.single.seq, 0);
+    expect(events.single.payload['max_seq'], 19);
   });
 
   test('streamEvents bypasses Matrix response stream timeout wrapper',
@@ -2105,7 +2088,7 @@ void main() {
       }),
     );
 
-    final posts = await client.getChannelPosts('ch1');
+    final posts = await client.getChannelPosts('ch1', limit: 10, beforeTs: 1);
 
     expect(posts.single.authorAvatarUrl, 'mxc://example.com/owner-avatar');
   });

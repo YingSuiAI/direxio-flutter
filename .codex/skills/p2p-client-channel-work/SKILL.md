@@ -1,6 +1,6 @@
 ---
 name: p2p-client-channel-work
-description: Channel workflow for the Flutter P2P client. Use for channel tab, channel inbox data, search, public lookup, create/review/approval, share cards, channel detail, channel posts, or /channel/:id/conversation chat send gating.
+description: "Use when changing Flutter channel behavior: channel tab, inbox data, search, public lookup, create/update, public join request approval, share/invite cards, detail, posts/comments/reactions, or /channel/:id/conversation gating."
 ---
 
 # P2P Client Channel Work
@@ -14,15 +14,20 @@ Read these before editing channel behavior:
 - `docs/P2P_API_BOUNDARY.md` when P2P requests/responses change
 - `lib/presentation/CLAUDE.md` when touching `lib/presentation/`
 
+If channel behavior conflicts with Flutter docs, verify against
+`C:\Users\84960\Desktop\direxio\direxio-message-server`. Backend references:
+`docs/current-project-documentation.md`, `p2p/service_channel*.go`,
+`p2p/action_registry.go`, `p2p/projection`, and `internal/productpolicy`.
+
 Also load `p2p-client-as-contract` for AS model or HTTP contract changes, and `p2p-client-presentation-m3` for UI changes.
 
 ## Channel Identity
 
-A channel is a Matrix room marked by:
-
-```text
-p2p.room.kind = {"kind":"channel"}
-```
+A channel is a Matrix room identified by native Direxio state and ProductCore
+metadata: `m.room.create.content.type=io.direxio.room.channel`,
+`io.direxio.room.profile.room_type=io.direxio.room.channel`, and an explicit
+ProductCore `channel_id`. Do not add new code that depends on legacy
+`p2p.room.kind`.
 
 Use `AsSyncBootstrap.channels` as the primary logged-in source for channel lists. Do not add a duplicate list endpoint without updating interface docs and tests.
 
@@ -31,6 +36,11 @@ Search, channel tab, channel detail, and channel chat must use the same channel 
 Channel search behavior is split by input shape: Matrix room ids still resolve through the P2P public room-id lookup; all other search text uses the signed IM public `/im/channel/list` endpoint with `name`.
 
 When creating a public channel, call the signed IM public `/im/channel/join` directory registration after the local `channels.create` succeeds. When dissolving a channel, call signed `/im/channel/close` with the Matrix `room_id` after the local dissolve succeeds.
+
+Channel type is creation-time metadata. Post channels (`channel_type=post`) use
+shared Matrix history so new members can see existing posts/comments/reactions;
+chat/text channels use joined history visibility. Do not add UI or client
+mutations that try to change channel type after creation.
 
 Channel conversations belong to channel surfaces only. Do not show channel
 ProductCore conversations in the home message list, and do not write them to
@@ -57,30 +67,52 @@ Channel roles are intentionally limited to `owner` and `member`. Do not add
 third management roles, role constants, role labels, permission branches, or
 compatibility mappings outside that two-role model.
 
-Approval or invite does not mean joined. Wait for Matrix/AS join projection before enabling chat send.
+Approval or invite does not mean joined. Matrix `m.room.member membership=join`
+is the final joined fact. Wait for Matrix/ProductCore join projection before
+enabling chat send.
 
-Normalize member status through `AsChannel` / `AsChannelMember`, and treat only `isAsChannelMemberJoined(status)` as joined.
+Normalize member status through `AsChannel` / `AsChannelMember`:
 
-`invite` and `pending` are waiting states. They must not unlock channel sending, post creation, or joined-only navigation.
+- `join`, `joined` -> `joined`
+- `invite`, `invited` -> `invite`
+- `pending` -> `pending`
+- `approved` -> `approved`
+- `joining` -> `joining`
+- `join_failed` -> `join_failed`
+- `reject`, `rejected` -> `rejected`
+
+Treat only `isAsChannelMemberJoined(status)` as joined. `invite`, `pending`,
+`approved`, and `joining` are waiting states. They must not unlock channel
+sending, post creation, or joined-only navigation. `join_failed` and `rejected`
+are not joined states.
 
 Post creation is owner-only. Show the post-list create entry only when the user
 is joined, the channel type is `post`, the resolved role is `owner`, and the
 ProductCore `postCreate` capability allows it. Ordinary `member` roles must not
 see the create entry even if stale capabilities report `postCreate: true`.
 
-Channel join-request review actions return a top-level status such as
-`approved`, `joining`, `joined`, or `join_failed`. Preserve that status in the
+Post/comment history must not assume that one list response is a complete
+history forever. Until the backend exposes a documented cursor/page contract,
+keep progressive loading client-side and do not send invented `limit`,
+`before_ts`, `page`, or `page_size` params from `HttpAsClient`.
+
+Public channel join requests expose `pending`, `rejected`, `approved`,
+`joining`, `joined`, or `join_failed`. Channel join-request review actions
+return a top-level status from that lifecycle. Preserve that status in the
 client UI; do not treat a successful approve request as successful membership
-unless the returned status is `joined`.
+unless the returned status is `joined`. Backend approval writes
+`io.direxio.join_request status=approved`; requester-node Matrix join must
+finish before the projection becomes joined.
 
 Channel list entries with terminal lifecycle such as `deleted`, `left`,
 `dissolve`, or `dissolved` must be hidden even if stale membership still says
 `joined`.
 
 For channel share/invite cards, show an in-progress joining state for
-`pending`, `invite`, or delayed projection. Do not use "unfinished" failure
-copy for these states; refresh bootstrap briefly and auto-open the channel when
-the member projection becomes `joined`.
+`pending`, `invite`, `approved`, `joining`, or delayed projection. Do not use
+failure copy for these states. Show failure only for `join_failed`/`rejected`,
+refresh bootstrap briefly, and auto-open the channel when the member projection
+becomes `joined`.
 
 For `/channel/:id/conversation`, normal text/media messages send through Matrix SDK when the user is joined. Product policy remains the server-side send gate.
 

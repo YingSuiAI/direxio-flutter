@@ -1810,6 +1810,42 @@ class Client extends MatrixApi {
     return _sync();
   }
 
+  /// Immediately starts a filtered sync and stores the returned sync cursor.
+  ///
+  /// Use this for foreground refreshes that need a small timeline window
+  /// instead of the account-wide default sync filter.
+  Future<void> oneShotFilteredSync({
+    String? filter,
+    bool? fullState,
+    PresenceType? setPresence,
+    int timeout = 0,
+  }) async {
+    if (!isLogged() || _disposed || _aborted) return;
+    final syncResp = await sync(
+      filter: filter,
+      since: prevBatch,
+      fullState: fullState,
+      timeout: timeout,
+      setPresence: setPresence ?? syncPresence,
+    );
+    final database = this.database;
+    if (database != null) {
+      await userDeviceKeysLoading;
+      await roomsLoading;
+      await _accountDataLoading;
+      await database.transaction(() async {
+        await _handleSync(syncResp, direction: Direction.f);
+        if (prevBatch != syncResp.nextBatch) {
+          await database.storePrevBatch(syncResp.nextBatch);
+        }
+      });
+    } else {
+      await _handleSync(syncResp, direction: Direction.f);
+    }
+    if (_disposed || _aborted) return;
+    _prevBatch = syncResp.nextBatch;
+  }
+
   /// Pass a timeout to set how long the server waits before sending an empty response.
   /// (Corresponds to the timeout param on the /sync request.)
   Future<void> _sync({Duration? timeout}) {

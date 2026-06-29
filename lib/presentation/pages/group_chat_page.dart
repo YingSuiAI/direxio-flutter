@@ -2731,8 +2731,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final currentChannel = _currentChannelSummary(syncCache);
     final currentGroup =
         currentChannel == null ? _groupSummary(syncCache) : null;
-    final productName = (currentChannel?.name.trim().isNotEmpty ?? false)
-        ? currentChannel!.name.trim()
+    final currentChannelName = currentChannel?.name.trim() ?? '';
+    final productName = currentChannel != null &&
+            _isReadableChannelTitle(
+              currentChannelName,
+              channelId: currentChannel.channelId,
+              roomId: currentChannel.roomId,
+            )
+        ? currentChannelName
         : currentGroup?.name.trim() ?? '';
     final name = remarkName.isNotEmpty
         ? remarkName

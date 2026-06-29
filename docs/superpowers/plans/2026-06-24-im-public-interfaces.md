@@ -143,7 +143,7 @@ Assert `submitReport(files: [...])` sends multipart `/im/report` with text field
 
 Run: `flutter test --no-pub test/im_public_client_test.dart test/contact_detail_report_test.dart test/channel_info_report_test.dart`
 
-Expected: FAIL because report UI still calls `AsClient.submitReport`, uses no image picker, and channel target type is wrong.
+Expected at the time: FAIL because report UI had not yet been moved to the signed imadmin report boundary, had no image picker, and channel target type was wrong.
 
 - [x] **Step 3: Implement upload flow**
 

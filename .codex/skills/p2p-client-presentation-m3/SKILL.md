@@ -1,6 +1,6 @@
 ---
 name: p2p-client-presentation-m3
-description: Material 3 UI workflow for the Flutter P2P client. Use when editing lib/presentation pages, widgets, providers that drive visible UI state, local M3 components, empty states, headers, chat rendering, navigation UI, or visual polish.
+description: Use when editing Flutter lib/presentation UI, visible providers, Material 3 components, empty states, headers, chat rendering, navigation, route gating, product-state display, or visual polish.
 ---
 
 # P2P Client M3 UI
@@ -12,6 +12,10 @@ Before editing `lib/presentation/`, read:
 - `AGENTS.md`
 - `lib/presentation/CLAUDE.md`
 - `docs/FEATURES.md` if the visible behavior or feature status changes
+
+If visible product behavior is unclear or conflicts with Flutter docs, verify
+against `C:\Users\84960\Desktop\direxio\direxio-message-server` before
+choosing UI states or route gates.
 
 Load `p2p-client-channel-work` for channel UI, and `p2p-client-auth-session` for login/restore/session UI.
 
@@ -39,7 +43,9 @@ Keep reusable UI/data adapters outside route pages when shared or testable.
 
 Keep local UI-only state in a provider/store with a clear name, not in AS models.
 
-Use Matrix SDK and AS providers as the sources of logged-in data. Mock data is only for unauthenticated demos, explicit tests, or temporary scaffolding.
+Use Matrix SDK and AS/ProductCore providers as the sources of logged-in data.
+Mock data is only for unauthenticated demos, explicit tests, or temporary
+scaffolding.
 
 The logged-in home conversation list must render a local conversation snapshot
 while ProductCore conversations are still loading and Matrix rooms hydrate after
@@ -50,9 +56,11 @@ show stale cached conversations that ProductCore no longer returns.
 
 Logged-in conversation entry points must open chats from ProductCore
 conversations. Use the ProductCore `conversation_id` plus `matrix_room_id` to
-build routes, and map route type from ProductCore `kind`; do not let contact
-detail, home rows, group lists, or channel conversation routes infer direct vs
-group from raw Matrix rooms or bootstrap-only metadata.
+build routes, map route type from ProductCore `kind`, and require ProductCore
+`capabilities.open`/send-related flags where the code already exposes them. Do
+not let contact detail, home rows, group lists, or channel conversation routes
+infer direct vs group from raw Matrix rooms, display names, member-count text,
+or bootstrap-only metadata.
 
 Exited or removed group conversations remain visible in the home conversation
 list and Contacts -> Groups as read-only history. They must still open the
@@ -82,6 +90,10 @@ The logged-in home conversation list is for direct, group, and Agent
 conversations. Channel conversations belong under the channel tab/detail
 surfaces and must not be written to or displayed from the home conversation
 summary cache.
+
+For product event streams, use local reducers from `GET /_p2p/events` for known
+events. If the event stream signals `p2p.cursor_reset`, clear product UI caches,
+run one `sync.bootstrap`, then continue from the newest event `seq`.
 
 User operation buttons and tap targets are covered by the root
 `UserActionDebounce` 200ms pointer debounce. Keep new app entry builders wrapped

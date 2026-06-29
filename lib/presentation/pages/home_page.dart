@@ -39,6 +39,7 @@ import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
 import '../utils/agent_identity.dart';
 import '../utils/message_preview.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/app_glass_background.dart';
@@ -369,7 +370,10 @@ class _HomePageState extends ConsumerState<HomePage>
 
   Future<void> _refreshAfterResume(Client client) async {
     try {
-      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
+      await syncMatrixForegroundLight(
+        client,
+        timeout: matrixForegroundSyncTimeout,
+      );
       _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
     } catch (e) {
       debugPrint('Matrix resume sync failed: $e');

@@ -25,6 +25,8 @@ abstract class AsCallSessionStore {
   Future<void> upsert(AsCallSession session);
 
   Future<void> upsertAll(Iterable<AsCallSession> sessions);
+
+  Future<void> clear();
 }
 
 class DeferredAsCallSessionStore implements AsCallSessionStore {
@@ -60,6 +62,12 @@ class DeferredAsCallSessionStore implements AsCallSessionStore {
   Future<void> upsertAll(Iterable<AsCallSession> sessions) async {
     final store = await _loadStore();
     await store.upsertAll(sessions);
+  }
+
+  @override
+  Future<void> clear() async {
+    final store = await _loadStore();
+    await store.clear();
   }
 }
 
@@ -141,6 +149,13 @@ class FileAsCallSessionStore implements AsCallSessionStore {
         ? next
         : next.sublist(next.length - maxEntries);
     await _write(capped);
+  }
+
+  @override
+  Future<void> clear() async {
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   AsCallSession? _validOrNull(AsCallSession session) {

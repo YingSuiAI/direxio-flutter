@@ -151,4 +151,9 @@ class _MemoryChannelPostStore implements ChannelPostStore {
           post.postId.trim() == postId.trim();
     });
   }
+
+  @override
+  Future<void> clear() async {
+    _posts.clear();
+  }
 }

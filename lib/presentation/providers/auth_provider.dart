@@ -11,8 +11,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sqflite/sqflite.dart' as sqlite;
 import '../../data/as_client.dart';
+import '../../data/direxio_matrix_events.dart';
 import '../../data/http_as_client.dart';
 import '../../data/local_endpoint_resolver.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_push_registration.dart';
 import '../../data/matrix_sync_timeouts.dart';
@@ -56,6 +58,7 @@ Client matrixClient(Ref ref) {
   client = Client(
     'Direxio',
     httpClient: refreshingHttpClient,
+    importantStateEvents: {direxioAgentStatusEventType},
     databaseBuilder: (_) async {
       final db = kIsWeb
           ? MatrixSdkDatabase('portal_im_db')
@@ -896,7 +899,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> _syncMatrixRoomsAfterLogin(Client client) async {
     try {
-      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
+      await syncMatrixForegroundLight(
+        client,
+        timeout: matrixForegroundSyncTimeout,
+      );
     } catch (e) {
       debugPrint('post-login Matrix room sync failed: $e');
     }

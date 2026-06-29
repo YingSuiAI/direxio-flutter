@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
 import '../../data/channel_post_store.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../../data/matrix_sync_timeouts.dart';
 import '../../data/media_thumbnail_cache.dart';
 import 'as_client_provider.dart';
@@ -122,7 +123,8 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     avatarPreloader: ref.watch(avatarPreloaderProvider),
     mediaThumbnailPreloader: ref.watch(mediaThumbnailPreloaderProvider),
     loadCurrentUserProfile: () => ref.read(currentUserProfileProvider.future),
-    syncMatrixConversations: () => ref.read(matrixClientProvider).oneShotSync(),
+    syncMatrixConversations: () =>
+        syncMatrixForegroundLight(ref.read(matrixClientProvider)),
     loadCachedBootstrap: bootstrapRepository.readCached,
     loadBootstrap: bootstrapRepository.refresh,
     callSessionStore: DeferredAsCallSessionStore(

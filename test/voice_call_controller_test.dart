@@ -1134,6 +1134,11 @@ class _MemoryAsCallSessionStore implements AsCallSessionStore {
       calls[session.callId] = session;
     }
   }
+
+  @override
+  Future<void> clear() async {
+    calls.clear();
+  }
 }
 
 class _RecordingAsClient extends MockAsClient {

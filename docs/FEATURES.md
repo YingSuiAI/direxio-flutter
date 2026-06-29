@@ -1,6 +1,6 @@
 # Direxio Client Feature Status
 
-Last verified from current code: 2026-06-26
+Last verified from current code: 2026-06-29
 
 This document is a current implementation inventory. It is not a roadmap and does not preserve historical plans.
 
@@ -31,7 +31,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Voice/video call UI and P2P call session flows exist; runtime behavior depends on platform permissions and Matrix/WebRTC availability. Active calls consume `call.changed` P2P events for realtime rejected/hangup status.
 - Favorites, likes, comments, drafts, and history pages have UI paths and partial P2P/local backing. Treat each list as real only where the code calls P2P/Matrix directly.
 - Offline push registers a platform token as a Matrix HTTP pusher after login: Android uses FCM with app id `com.direxio.ai`, and iOS uses APNs with app id `com.direxio.app`. The production gateway is `https://push.direxio.ai/_matrix/push/v1/notify`; local HTTP is allowed only for local development hosts. Notification taps open the pushed `room_id` in the matching direct, group, text-channel, or call route when the gateway supplies Direxio routing metadata. Channel post pushes are ignored.
-- MCP permission UI is local until wired to a server-backed policy endpoint.
+- MCP permission UI is local-only; there is no current client API for listing or changing MCP permissions.
 - Blacklist UI is local until server enforcement is implemented.
 
 ## Removed Runtime Fallbacks

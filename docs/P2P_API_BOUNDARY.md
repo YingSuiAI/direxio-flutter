@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-26
+Last verified from current code: 2026-06-29
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -36,7 +36,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Contact request remarks travel as `remark` on `contacts.request` and may be mirrored in contact or `sync.bootstrap.pending.friend_requests` metadata for the verifier UI.
 - Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.
 - Contact identity writes preserve the peer profile: `contacts.request`, `contacts.requests.accept`, and `contacts.update` may send `display_name`, `avatar_url`, and `domain`; `ContactEntry` reads `avatar_url` back for contact and direct-conversation caches.
-- Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
+- Follow/favorite actions: `follows.*`, `favorites.*`. Flutter user-facing report screens use the signed imadmin `/im/report` boundary, not P2P `reports.submit`.
 - Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present. Unified `favorites.add` sends media details inside a Matrix-style `content` snapshot so P2P responses can restore image/file URLs even when only `content` is persisted.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - `groups.invite` is surfaced to receivers as a Matrix room invite and may also appear in `sync.bootstrap.pending.group_invites`; it is not delivered as a private-chat invite message.
@@ -49,7 +49,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Channel join-request review actions return a top-level status with the same approval/join states. The client must preserve that top-level status; approving a request is not a successful join unless the returned status is `joined`.
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
-- Agent/API actions: `agent.*` and `apis.*`. Agent room header presence uses
+- Agent actions: `agent.*`. Agent room header presence uses
   native Matrix room state in the real `agent_room_id`: event type
   `io.direxio.agent.status`, state key `@agent:<server>`, and content field
   `online`. `sync.bootstrap` only supplies the real `agent_room_id`; it does
@@ -62,6 +62,19 @@ This document records the current P2P product API / Matrix boundary used by the 
   updates should persist the last handled SSE `seq` and apply typed local
   reducers from `GET /_p2p/events?since=<last_seq>` instead of full bootstrap
   refreshes.
+- If `GET /_p2p/events` emits `event: p2p.cursor_reset` or returns
+  `X-Direxio-P2P-Events-Cursor-Reset: true`, the client clears local product
+  projection caches, runs one `sync.bootstrap`, persists the response
+  `max_seq` as the recovered cursor when present, and resumes deltas from that
+  sequence. The cursor-reset control event itself must not advance `last_seq`.
+- Foreground Matrix refreshes use `/sync` filters with a low timeline limit and
+  `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
+  delete, and redaction remain Matrix Client-Server responsibilities.
+- Channel post/comment list actions currently do not have a documented
+  cursor/page contract. Client method signatures may keep local progressive
+  loading parameters, but the HTTP client must not send uncontracted
+  `limit`, `before_ts`, `page`, or `page_size` params until the backend
+  contract is added.
 
 ## Matrix Responsibilities
 

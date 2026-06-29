@@ -1,6 +1,10 @@
-# AGENTS.md - p2p-client
+# AGENTS.md - Direxio Flutter P2P Client
 
-This repository is the Flutter client for P2P IM. This file is the authoritative repo-wide instruction file for agents. The root `CLAUDE.md` is only a legacy pointer for tools that still read that filename.
+This repository is the Flutter client for Direxio P2P IM. This file is the authoritative repo-wide instruction file for agents. The root `CLAUDE.md` is only a legacy pointer for tools that still read that filename.
+
+Treat these rules as current-state product and engineering instructions, not as a compatibility guide. Prefer the clean current implementation over legacy-safe shims unless the user explicitly asks for backward compatibility.
+
+## Product Invariants
 
 The product rule is: one person, one node, one owner. Agent/service accounts may appear as system conversations, but they are not normal human contacts.
 
@@ -8,17 +12,21 @@ Current membership roles are intentionally limited to `owner` and `member`.
 Do not add third management roles, role constants, role labels, permission
 branches, or compatibility mappings outside that two-role model.
 
-## Before Editing
+## Operating Order
 
+- Read this file before making changes, then read any directory-specific instruction file that applies.
+- Check the current worktree with `git status --short --branch` and preserve unrelated user or generated changes.
+- Classify the task before editing: UI, P2P Product API contract, signed IM/BI public API, channel workflow, auth/session, platform/build, docs-only, or mixed.
+- When product behavior is unclear or Flutter docs conflict with backend facts, check `C:\Users\84960\Desktop\direxio\direxio-message-server` and treat that backend project as authoritative. Start with its `AGENTS.md`, `docs/current-project-documentation.md`, and the relevant `p2p/service_*.go`, `p2p/action_registry.go`, or `internal/productpolicy` code.
 - If a change touches `lib/presentation/`, read `lib/presentation/CLAUDE.md` first and follow its Material 3 rules.
-- For directories without a more specific instruction file, follow this file.
 - Do not add new repo-wide rules to `CLAUDE.md`; update `AGENTS.md`.
 - Check `docs/FEATURES.md` before changing user-visible behavior, and update it when a feature moves between partial, local, or real status.
 - Check `docs/P2P_API_BOUNDARY.md` before changing P2P product API contracts, and update it in the same change.
+- If business behavior is ambiguous, state the assumption, explain the impact, and choose the smallest concrete behavior that matches the current product model.
 
 ## Project-local Codex Skills
 
-Project-local Codex skills live under `.codex/skills/`. Use `p2p-client-guardrails` as the entry skill, then use the focused skill that matches the task:
+Project-local Codex skills live under `.codex/skills/`. Use `p2p-client-guardrails` as the entry skill for repo work, then load the focused skill that matches the classified task:
 
 - `p2p-client-as-contract`: P2P product API contracts, models, parsing, docs, and tests.
 - `p2p-client-channel-work`: channel search, join, approval, inbox, detail, share, posts, and chat send gating.
@@ -46,36 +54,48 @@ lib/
 
 ## Data Boundaries
 
-- Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
-- Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, access-token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+Choose the integration boundary before adding or changing client behavior:
+
+1. Use Matrix SDK or Matrix Client-Server APIs for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, Matrix message state, ordinary sends, history, unread, message search, and recall.
+2. Use the integrated P2P Product API for product-layer data Matrix does not model cleanly: setup/bootstrap, access-token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, ProductCore conversations, and channel/public product search.
+3. Use signed IM/BI public endpoints for `/im/*` and `/bi/*` calls that require `X-BI-Nonce` and `X-BI-Signature`; this boundary is separate from P2P Product API actions.
+
 - Backend auth responses expose one `access_token`. P2P product API calls use it as bearer auth, and Matrix SDK/Matrix API behavior uses the same token. Do not add separate product or Matrix token fields.
 - Product API calls go through `/_p2p/query` or `/_p2p/command` with an `action` and `params` envelope. Do not add new URL-shaped client contracts unless the backend does.
-- Signed IM/BI public endpoints are a separate boundary from P2P Product API actions. Use the IM public client for `/im/*` and `/bi/*` calls that require `X-BI-Nonce` and `X-BI-Signature`.
+- Current public P2P Product API actions are `portal.bootstrap`, `portal.auth`, `portal.status`, `contacts.reactivate`, `channels.public.search`, `channels.public.get`, `channels.public.join_request`, `channels.public.join_result`, and `users.public_channels`. `channels.public.join_result` is an internal node-to-node callback, not a normal client workflow entry.
 - Do not create duplicate list APIs or duplicate client flows. If data already arrives through `sync.bootstrap`, prefer extending that action contract and the client model.
+- ProductCore conversations are the openable conversation source. Do not reconstruct chat routes from names, member counts, local placeholder ids, or bootstrap-only metadata when ProductCore denies or omits an openable conversation.
 - Runtime views must prefer real Matrix/P2P data. Placeholder fixture data is not allowed in production UI.
 - Do not silently fall back to fixture data. A real empty state is better than fake data.
 
 ## Current P2P Product Contract Rules
 
 - `sync.bootstrap` is metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields to bootstrap.
+- Use `sync.bootstrap` only as a baseline for cold start, login recovery, corrupt local cache, unknown event fallback, or confirmed event gaps. Normal changes should persist the last handled SSE `seq` and apply typed local reducers from `GET /_p2p/events?since=<last_seq>` instead of refreshing full bootstrap snapshots.
+- If `GET /_p2p/events` signals `p2p.cursor_reset`, clear local product projections, run one `sync.bootstrap`, persist the newest handled event `seq`, and resume delta consumption.
 - P2P ordinary message/search/backup actions are removed, not compatibility entries: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 - `portal.setup` is removed. First-time setup must use `portal.status` / `portal.auth`, then password/profile update flows.
+- `portal.bootstrap`, `portal.auth`, and `portal.password` create a new exclusive Matrix device session for the portal owner. Old owner devices should receive `M_UNKNOWN_TOKEN`; `agent.matrix_session.create` is the exception and must not evict the user's phone/browser session.
 - Ordinary message send, media send, history, unread, message search, and recall use Matrix Client-Server APIs.
 - Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both. It hides only the current user's local Matrix read path and is not a redaction.
+- Group invites are surfaced to receivers as Matrix room invites and may also appear in `sync.bootstrap.pending.group_invites`; do not treat the receiver contract as a private-chat invite message.
 - Public remote channel lookup must pass the request-provided `remote_node_base_url` required by the backend. Do not infer a remote P2P URL from a Matrix `room_id` domain.
 - Agent chat header display is Matrix-native room state: read `io.direxio.agent.status` from the real `agent_room_id`. Do not read or add `sync.bootstrap.agent_online` or `agent.presence` SSE reducers. The owner-facing Agent chat status text is limited to localized online/offline labels: `commonOnline` when `online` is true and `commonOffline` otherwise; do not show unknown, connecting, or error status labels in the chat header.
 - Channel member status must be normalized through `AsChannel` / `AsChannelMember` helpers:
   - `join`, `joined` -> `joined`
   - `invite`, `invited` -> `invite`
   - `pending` -> `pending`
+  - `approved` -> `approved`
+  - `joining` -> `joining`
+  - `join_failed` -> `join_failed`
   - `reject`, `rejected` -> `rejected`
-- Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
+- Treat only `isAsChannelMemberJoined(status)` as joined. `invite`, `pending`, `approved`, and `joining` are waiting states and must not unlock channel sending; `join_failed` and `rejected` are not joined states.
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile completion is not part of initialization.
 - Channel share cards must include `channel_id` and `room_id` and must not include invite-grant fields. Sharing a channel is a recommendation card for both owners and ordinary members; receivers open the public channel detail by Matrix `room_id` and apply through `channels.public.join_request`. Direct invite grants are reserved for the owner member-list `+` invite flow, not the share button.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
-- User-facing reports use signed `POST /im/report`, not the P2P `reports.submit` action. Use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`.
+- User-facing reports use the imadmin signed public API, not Direxio Message Server ProductCore. Call signed `POST /im/report` through the IM public client; use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`. Do not wire report UI to P2P `reports.submit`.
 - Public channel directory search/register/close uses signed `/im/channel/list`, `/im/channel/join`, and `/im/channel/close`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.
 
 ## Architecture
@@ -103,7 +123,7 @@ lib/
 
 ## Channel Rules
 
-- Product room classification comes from `io.direxio.room.profile` and P2P product APIs. Do not add new code that depends on legacy `p2p.room.kind`.
+- Product room classification comes from native Direxio Matrix state (`m.room.create.content.type`, `io.direxio.room.profile`) and P2P Product API metadata. Do not add new code that depends on legacy `p2p.room.kind`; when touching an existing fallback, keep new behavior driven by the native profile/Product API source.
 - Channel list uses `AsSyncBootstrap.channels` as the primary logged-in source. Do not add a duplicate list endpoint without updating interface docs and tests.
 - `channels.create` creates a channel through the P2P product API, but owner semantics belong to the portal owner, not the Agent/bot.
 - Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.

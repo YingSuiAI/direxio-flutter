@@ -5,12 +5,35 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../../data/media_thumbnail_cache.dart';
 import '../../l10n/app_localizations.dart';
 import 'chat_media_send_flow.dart';
 import 'product_media_outbox_flow.dart';
 
 String productSendFailureMessage(Object error, {AppLocalizations? l10n}) {
+  final statusCode = error is AsClientException
+      ? error.statusCode
+      : error is MatrixException
+          ? error.response?.statusCode
+          : null;
+  if (statusCode == 429) {
+    return '服务器请求过于频繁，请稍后再试';
+  }
+  if (statusCode == 503) {
+    return '服务器暂时繁忙，请稍后再试';
+  }
+  final errorText = error.toString();
+  if (errorText.contains('M_LIMIT_EXCEEDED') ||
+      errorText.toLowerCase().contains('too many requests') ||
+      errorText.contains('请求过于频繁')) {
+    return '服务器请求过于频繁，请稍后再试';
+  }
+  if (errorText.contains('M_RESOURCE_LIMIT_EXCEEDED') ||
+      errorText.toLowerCase().contains('temporarily unavailable') ||
+      errorText.contains('暂时繁忙')) {
+    return '服务器暂时繁忙，请稍后再试';
+  }
   if (error is AsClientException &&
       error.statusCode == 403 &&
       error.message == 'peer deleted contact') {
@@ -21,7 +44,7 @@ String productSendFailureMessage(Object error, {AppLocalizations? l10n}) {
           error.toString().contains('peer deleted contact'))) {
     return l10n?.chatPeerDeletedContact ?? '对方已删除联系人关系，消息未送达';
   }
-  if (error.toString().contains('peer deleted contact')) {
+  if (errorText.contains('peer deleted contact')) {
     return l10n?.chatPeerDeletedContact ?? '对方已删除联系人关系，消息未送达';
   }
   return l10n?.groupChatSendFailed('$error') ?? '发送失败：$error';
@@ -75,7 +98,7 @@ ChatMediaAttachmentSender createProductRoomMediaSender({
         ),
       );
     },
-    oneShotSync: matrixClient.oneShotSync,
+    oneShotSync: () => syncMatrixForegroundLight(matrixClient),
     onSyncFailure: (error, stackTrace) {
       debugPrint('chat media oneShotSync failed: $error');
     },

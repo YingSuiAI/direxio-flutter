@@ -1,9 +1,9 @@
 ---
 name: p2p-client-guardrails
-description: Repo-wide workflow for the Flutter P2P client. Use for any task in C:\Users\84960\Desktop\direxio\p2p-client, especially code edits, docs updates, tests, commits, or deciding which more specific p2p-client skill applies.
+description: Use when working in the Direxio Flutter P2P client repo, especially code edits, docs updates, tests, commits, backend-contract checks, or deciding which focused p2p-client skill applies.
 ---
 
-# P2P Client Guardrails
+# Direxio Flutter Client Guardrails
 
 ## Start Here
 
@@ -16,6 +16,13 @@ git status --short --branch
 ```
 
 Preserve user or generated changes that are already present. Stage only files that belong to the requested task.
+
+If product behavior is ambiguous or client docs conflict with backend facts, check
+`C:\Users\84960\Desktop\direxio\direxio-message-server` and treat that backend
+project as authoritative. Read its `AGENTS.md` first, then use
+`docs/current-project-documentation.md`, `p2p/action_registry.go`,
+`p2p/service_*.go`, and `internal/productpolicy` as needed for the specific
+business rule.
 
 ## Skill Routing
 
@@ -41,9 +48,19 @@ Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membe
 
 Use AS Product API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 
+Use signed IM/BI public endpoints only for the features currently routed through
+that boundary in the Flutter client, such as public channel directory
+search/register/close and user-facing report screens. User-facing reports are
+explicitly imadmin `/im/report`, not Direxio Message Server ProductCore. For
+other features, verify the backend before describing a P2P action as removed.
+
 Do not add or restore P2P ordinary message/search/backup action clients. Removed actions include `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 
 Ordinary message send, media send, unread, history, message search, and recall belong to Matrix Client-Server APIs. Local delete/clear belongs to the Matrix `io.direxio` local delete extension.
+
+Product room classification comes from native Direxio Matrix state
+`m.room.create.content.type`, `io.direxio.room.profile`, and ProductCore
+metadata. Do not add new code that depends on legacy `p2p.room.kind`.
 
 Do not silently fall back to mock data after login. A real empty state is better than fake data. Mock data belongs only in unauthenticated demos, explicit tests, or temporary UI scaffolding.
 

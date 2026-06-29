@@ -812,23 +812,6 @@ class _EmptyAsClient implements AsClient {
   Future<void> deleteFavorite(int id) async {}
 
   @override
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  }) async =>
-      {
-        'id': 'report-1',
-        'reporter_domain': reporterDomain,
-        'reported_domain': reportedDomain,
-        'target_type': targetType,
-        'reason': reason,
-        'images': images,
-      };
-
-  @override
   Future<PortalStatus> getPortalStatus() async => const PortalStatus(
         dendrite: 'connected',
         federation: 'ok',
@@ -2262,6 +2245,11 @@ class _MemoryChannelPostStore implements ChannelPostStore {
       return post.eventId.trim() == trimmedPost;
     });
   }
+
+  @override
+  Future<void> clear() async {
+    posts.clear();
+  }
 }
 
 class _MemoryLocalOutboxStore implements LocalOutboxStore {
@@ -2619,6 +2607,7 @@ Room _addNamedGroupRoom(
     id: roomId,
     client: client,
     membership: membership,
+    prev_batch: 'test-prev-batch',
   );
   client.rooms.add(room);
   room.setState(

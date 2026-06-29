@@ -588,12 +588,27 @@ class AsEventStreamEvent {
   final DateTime? createdAt;
 
   factory AsEventStreamEvent.fromJson(Map<String, dynamic> json) {
+    final rawPayload = json['payload'];
+    final payload = rawPayload is Map
+        ? rawPayload.cast<String, dynamic>()
+        : json['type'] == 'p2p.cursor_reset'
+            ? (Map<String, dynamic>.from(json)
+              ..removeWhere(
+                (key, _) => const {
+                  'seq',
+                  'type',
+                  'room_id',
+                  'event_id',
+                  'created_at',
+                }.contains(key),
+              ))
+            : const <String, dynamic>{};
     return AsEventStreamEvent(
       seq: _parseInt(json['seq']),
       type: json['type'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
       eventId: json['event_id'] as String? ?? '',
-      payload: (json['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+      payload: payload,
       createdAt: _parseDateTime(json['created_at']),
     );
   }
@@ -2368,15 +2383,6 @@ abstract class AsClient {
 
   /// P2P product API action.
   Future<void> deleteFavorite(int id);
-
-  /// P2P product API action.
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  });
 
   /// P2P product API action.
   Future<ContactEntry> createContactRequest({

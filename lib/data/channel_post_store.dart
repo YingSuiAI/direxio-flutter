@@ -14,6 +14,8 @@ abstract class ChannelPostStore {
   Future<void> upsertPost(AsChannelPost post);
 
   Future<void> removePost(String channelId, String postId);
+
+  Future<void> clear();
 }
 
 class DeferredChannelPostStore implements ChannelPostStore {
@@ -46,6 +48,12 @@ class DeferredChannelPostStore implements ChannelPostStore {
   Future<void> removePost(String channelId, String postId) async {
     final store = await _loadStore();
     await store.removePost(channelId, postId);
+  }
+
+  @override
+  Future<void> clear() async {
+    final store = await _loadStore();
+    await store.clear();
   }
 }
 
@@ -102,6 +110,13 @@ class FileChannelPostStore implements ChannelPostStore {
       return post.eventId.trim() != trimmedPostId;
     }).toList(growable: false);
     await _write(next);
+  }
+
+  @override
+  Future<void> clear() async {
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   Future<List<AsChannelPost>> _readAll() async {

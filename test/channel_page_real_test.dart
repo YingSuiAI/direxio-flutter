@@ -3726,6 +3726,11 @@ class _MemoryChannelPostStore implements ChannelPostStore {
       return post.eventId.trim() == postId.trim();
     });
   }
+
+  @override
+  Future<void> clear() async {
+    _posts.clear();
+  }
 }
 
 class _PublicChannelAsClient extends MockAsClient {

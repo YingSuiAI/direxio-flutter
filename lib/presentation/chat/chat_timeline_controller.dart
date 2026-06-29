@@ -10,18 +10,34 @@ import '../utils/read_marker_sync.dart';
 import '../utils/message_history_policy.dart';
 import '../utils/room_read_state.dart';
 
+typedef ChatTimelineLocalHistoryLoader = Future<List<Event>> Function(
+  Timeline timeline, {
+  required int start,
+  required int limit,
+});
+
+typedef ChatTimelineRoomHistorySyncer = Future<void> Function(
+  Client client, {
+  required String roomId,
+  required int timelineLimit,
+});
+
 class ChatTimelineController {
   const ChatTimelineController({
     required this.room,
     required this.rebuild,
     required this.debugLabel,
     this.initialTargetMessages = chatOpenLocalHistoryTargetMessages,
+    this.localHistoryLoader,
+    this.roomHistorySyncer = syncMatrixRoomHistory,
   });
 
   final Room room;
   final VoidCallback rebuild;
   final String debugLabel;
   final int initialTargetMessages;
+  final ChatTimelineLocalHistoryLoader? localHistoryLoader;
+  final ChatTimelineRoomHistorySyncer roomHistorySyncer;
 
   bool get _canUseMatrixNetwork =>
       room.client.isLogged() && room.client.homeserver != null;
@@ -58,26 +74,31 @@ class ChatTimelineController {
 
   Future<void> hydrateInitialTimeline(Timeline timeline) async {
     await backfillLocalStoredHistory(timeline);
-    await syncEmptyRoomHistoryIfNeeded(timeline);
+    final syncedEmptyHistory = await syncEmptyRoomHistoryIfNeeded(timeline);
+    if (syncedEmptyHistory) {
+      await backfillLocalStoredHistory(timeline);
+    }
     await requestInitialRemoteHistory(timeline);
   }
 
-  Future<void> syncEmptyRoomHistoryIfNeeded(Timeline timeline) async {
-    if (!_canUseMatrixNetwork) return;
+  Future<bool> syncEmptyRoomHistoryIfNeeded(Timeline timeline) async {
+    if (!_canUseMatrixNetwork) return false;
     if (!shouldSyncEmptyRoomHistoryOnOpen(
       timelineEvents: timeline.events,
       prevBatch: timeline.room.prev_batch,
     )) {
-      return;
+      return false;
     }
     try {
-      await syncMatrixRoomHistory(
+      await roomHistorySyncer(
         timeline.room.client,
         roomId: timeline.room.id,
         timelineLimit: chatOpenLocalHistoryPageSize,
       );
+      return true;
     } on Object catch (e) {
       debugPrint('$debugLabel empty room history sync failed: $e');
+      return false;
     }
   }
 
@@ -92,10 +113,8 @@ class ChatTimelineController {
       }
 
       try {
-        final database = timeline.room.client.database;
-        if (database == null) break;
-        final storedEvents = await database.getEventList(
-          timeline.room,
+        final storedEvents = await _loadLocalStoredEvents(
+          timeline,
           start: timeline.events.length,
           limit: chatOpenLocalHistoryPageSize,
         );
@@ -109,6 +128,24 @@ class ChatTimelineController {
       attempts++;
     }
     rebuild();
+  }
+
+  Future<List<Event>> _loadLocalStoredEvents(
+    Timeline timeline, {
+    required int start,
+    required int limit,
+  }) async {
+    final loader = localHistoryLoader;
+    if (loader != null) {
+      return loader(timeline, start: start, limit: limit);
+    }
+    final database = timeline.room.client.database;
+    if (database == null) return const <Event>[];
+    return database.getEventList(
+      timeline.room,
+      start: start,
+      limit: limit,
+    );
   }
 
   Future<void> requestInitialRemoteHistory(Timeline timeline) async {

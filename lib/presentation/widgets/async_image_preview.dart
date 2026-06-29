@@ -10,12 +10,14 @@ typedef ImagePreviewAction = FutureOr<void> Function();
 
 class AsyncImageGalleryItem {
   const AsyncImageGalleryItem({
+    this.initialPreviewProvider,
     this.loadPreviewProvider,
     required this.loadProvider,
     required this.meta,
     this.onDownload,
   });
 
+  final ImageProvider? initialPreviewProvider;
   final ImageProviderLoader? loadPreviewProvider;
   final ImageProviderLoader loadProvider;
   final String meta;
@@ -24,6 +26,7 @@ class AsyncImageGalleryItem {
 
 Future<void> showAsyncImagePreview(
   BuildContext context, {
+  ImageProvider? initialPreviewProvider,
   ImageProviderLoader? loadPreviewProvider,
   required ImageProviderLoader loadProvider,
   required String meta,
@@ -33,6 +36,7 @@ Future<void> showAsyncImagePreview(
     context,
     items: [
       AsyncImageGalleryItem(
+        initialPreviewProvider: initialPreviewProvider,
         loadPreviewProvider: loadPreviewProvider,
         loadProvider: loadProvider,
         meta: meta,
@@ -216,52 +220,103 @@ class _AsyncImageGalleryPage extends StatefulWidget {
 
 class _AsyncImageGalleryPageState extends State<_AsyncImageGalleryPage> {
   Future<ImageProvider>? _previewProviderFuture;
-  late final Future<ImageProvider> _providerFuture;
+  late Future<ImageProvider> _providerFuture;
+  ImageProvider? _visibleProvider;
+  bool _previewDone = false;
+  bool _fullFailed = false;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    _startLoading();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AsyncImageGalleryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item != widget.item) {
+      _startLoading();
+    }
+  }
+
+  void _startLoading() {
+    final generation = ++_loadGeneration;
+    _visibleProvider = widget.item.initialPreviewProvider;
+    _previewDone = false;
+    _fullFailed = false;
     _previewProviderFuture = widget.item.loadPreviewProvider?.call();
     _providerFuture = widget.item.loadProvider();
+    _loadPreviewProvider(generation);
+    _loadFullProvider(generation);
+  }
+
+  Future<void> _loadPreviewProvider(int generation) async {
+    final future = _previewProviderFuture;
+    if (future == null) {
+      _previewDone = true;
+      return;
+    }
+    try {
+      final provider = await future;
+      if (!mounted || generation != _loadGeneration) return;
+      if (_visibleProvider == null) {
+        setState(() => _visibleProvider = provider);
+      }
+    } catch (_) {
+      // Preview bytes are an optimization. The full image loader decides
+      // whether the dialog can ultimately render an image.
+    } finally {
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _previewDone = true);
+      }
+    }
+  }
+
+  Future<void> _loadFullProvider(int generation) async {
+    try {
+      final provider = await _providerFuture;
+      if (!mounted || generation != _loadGeneration) return;
+      if (_visibleProvider != null) {
+        await _precacheProvider(provider, generation);
+        if (!mounted || generation != _loadGeneration) return;
+      }
+      setState(() => _visibleProvider = provider);
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _fullFailed = true);
+    }
+  }
+
+  Future<void> _precacheProvider(
+    ImageProvider provider,
+    int generation,
+  ) async {
+    try {
+      await precacheImage(
+        provider,
+        context,
+        onError: (_, __) {},
+      );
+    } catch (_) {
+      // If Flutter cannot precache this provider, still let the Image widget
+      // attempt to render it while keeping gapless playback enabled.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ImageProvider>(
-      future: _providerFuture,
-      builder: (context, fullSnapshot) {
-        final fullProvider = fullSnapshot.data;
-        if (fullProvider != null) {
-          return _PreviewImage(
-            provider: fullProvider,
-            interactive: widget.interactive,
-          );
-        }
-        if (_previewProviderFuture != null) {
-          return FutureBuilder<ImageProvider>(
-            future: _previewProviderFuture,
-            builder: (context, previewSnapshot) {
-              final previewProvider = previewSnapshot.data;
-              if (previewProvider != null) {
-                return _PreviewImage(
-                  provider: previewProvider,
-                  interactive: widget.interactive,
-                );
-              }
-              if (fullSnapshot.hasError &&
-                  previewSnapshot.connectionState == ConnectionState.done) {
-                return const _PreviewErrorIcon();
-              }
-              return const _PreviewLoadingIndicator();
-            },
-          );
-        }
-        if (fullSnapshot.hasError) {
-          return const _PreviewErrorIcon();
-        }
-        return const _PreviewLoadingIndicator();
-      },
-    );
+    final provider = _visibleProvider;
+    if (provider != null) {
+      return _PreviewImage(
+        provider: provider,
+        interactive: widget.interactive,
+      );
+    }
+    if (_fullFailed && _previewDone) {
+      return const _PreviewErrorIcon();
+    }
+    return const _PreviewLoadingIndicator();
   }
 }
 
@@ -310,11 +365,19 @@ class _PreviewImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!interactive) {
-      return Image(image: provider, fit: BoxFit.contain);
+      return Image(
+        image: provider,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      );
     }
     return InteractiveViewer(
       maxScale: 4,
-      child: Image(image: provider, fit: BoxFit.contain),
+      child: Image(
+        image: provider,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      ),
     );
   }
 }

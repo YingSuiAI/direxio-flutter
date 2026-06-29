@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -85,6 +87,56 @@ void main() {
     expect(presence.bridgeConnected, isFalse);
   });
 
+  test('prints Agent online and offline status from Matrix state', () {
+    final messages = _collectAgentStatusPrints(() {
+      final onlineContainer = _containerFor(
+        _matrixClientWithAgentRoom(online: true),
+      );
+      addTearDown(onlineContainer.dispose);
+      onlineContainer.read(agentBridgePresenceProvider);
+
+      final offlineContainer = _containerFor(
+        _matrixClientWithAgentRoom(online: false),
+      );
+      addTearDown(offlineContainer.dispose);
+      offlineContainer.read(agentBridgePresenceProvider);
+    });
+
+    expect(
+      messages,
+      contains(
+        '[AgentStatus] room_id=!agent-room:example.com '
+        'event=io.direxio.agent.status online=true state=online label=在线 '
+        'source=matrix.room_state.io.direxio.agent.status',
+      ),
+    );
+    expect(
+      messages,
+      contains(
+        '[AgentStatus] room_id=!agent-room:example.com '
+        'event=io.direxio.agent.status online=false state=offline label=离线 '
+        'source=matrix.room_state.io.direxio.agent.status',
+      ),
+    );
+  });
+
+  test('prints effective offline status when Matrix state is missing', () {
+    final messages = _collectAgentStatusPrints(() {
+      final missingContainer = _containerFor(_matrixClientWithAgentRoom());
+      addTearDown(missingContainer.dispose);
+      missingContainer.read(agentBridgePresenceProvider);
+    });
+
+    expect(
+      messages,
+      contains(
+        '[AgentStatus] room_id=!agent-room:example.com '
+        'event=io.direxio.agent.status online=null state=unknown label=离线 '
+        'source=matrix_agent_status_state_missing',
+      ),
+    );
+  });
+
   test('distinguishes bootstrap loading from missing Matrix state', () {
     final loadingContainer = ProviderContainer();
     addTearDown(loadingContainer.dispose);
@@ -102,6 +154,19 @@ void main() {
     expect(missingPresence.label, '离线');
     expect(missingPresence.bridgeConnected, isFalse);
   });
+}
+
+List<String> _collectAgentStatusPrints(void Function() body) {
+  final messages = <String>[];
+  runZoned(
+    body,
+    zoneSpecification: ZoneSpecification(
+      print: (_, __, ___, line) {
+        if (line.startsWith('[AgentStatus]')) messages.add(line);
+      },
+    ),
+  );
+  return messages;
 }
 
 ProviderContainer _containerFor(Client client) {

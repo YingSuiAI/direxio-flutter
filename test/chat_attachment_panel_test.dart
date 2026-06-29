@@ -6,8 +6,10 @@ import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/chat/chat_attachment_panel.dart';
 
 void main() {
-  testWidgets('attachment panel exposes video call action separately',
-      (tester) async {
+  testWidgets('attachment panel exposes call actions when callbacks exist', (
+    tester,
+  ) async {
+    var voiceCallTapped = false;
     var videoCallTapped = false;
 
     await tester.pumpWidget(
@@ -22,6 +24,7 @@ void main() {
               useAsProductMedia: false,
               onClose: () {},
               onCannotSend: (_) {},
+              onVoiceCall: () => voiceCallTapped = true,
               onVideoCall: () => videoCallTapped = true,
             ),
           ),
@@ -29,8 +32,12 @@ void main() {
       ),
     );
 
+    expect(find.text('语音通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
     expect(find.text('视频'), findsOneWidget);
+
+    await tester.tap(find.text('语音通话'));
+    expect(voiceCallTapped, isTrue);
 
     await tester.tap(find.text('视频通话'));
     expect(videoCallTapped, isTrue);
@@ -58,16 +65,11 @@ void main() {
       ),
     );
 
-    for (final label in [
-      'Album',
-      'Camera',
-      'Voice call',
-      'Video Call',
-      'Video',
-      'File',
-    ]) {
+    for (final label in ['Album', 'Camera', 'Video', 'File']) {
       expect(find.text(label), findsOneWidget);
     }
+    expect(find.text('Voice call'), findsNothing);
+    expect(find.text('Video Call'), findsNothing);
     expect(find.text('Location'), findsNothing);
     expect(find.text('Contact card'), findsNothing);
     expect(find.text('相册'), findsNothing);

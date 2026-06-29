@@ -78,6 +78,76 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
+  testWidgets('shows initial preview before async loaders settle',
+      (tester) async {
+    final previewCompleter = Completer<ImageProvider>();
+    final fullCompleter = Completer<ImageProvider>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return TextButton(
+              onPressed: () {
+                unawaited(showAsyncImagePreview(
+                  context,
+                  initialPreviewProvider: MemoryImage(_transparentPng),
+                  loadPreviewProvider: () => previewCompleter.future,
+                  loadProvider: () => fullCompleter.future,
+                  meta: '我 · 16:25',
+                ));
+              },
+              child: const Text('open'),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('keeps the previous frame while swapping preview to full image',
+      (tester) async {
+    final fullCompleter = Completer<ImageProvider>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return TextButton(
+              onPressed: () {
+                unawaited(showAsyncImagePreview(
+                  context,
+                  loadPreviewProvider: () async => MemoryImage(_transparentPng),
+                  loadProvider: () => fullCompleter.future,
+                  meta: '我 · 16:25',
+                ));
+              },
+              child: const Text('open'),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final previewImage = tester.widget<Image>(find.byType(Image));
+    expect(previewImage.gaplessPlayback, isTrue);
+
+    fullCompleter.complete(MemoryImage(_transparentPng));
+    await tester.pumpAndSettle();
+
+    final fullImage = tester.widget<Image>(find.byType(Image));
+    expect(fullImage.gaplessPlayback, isTrue);
+  });
+
   testWidgets('does not expose separate forward or download toolbar actions',
       (tester) async {
     await tester.pumpWidget(

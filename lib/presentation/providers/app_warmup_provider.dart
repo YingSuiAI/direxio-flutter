@@ -136,6 +136,7 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     ),
     loadChannelPosts: (channelId, {int limit = 50}) =>
         asClient.getChannelPosts(channelId, limit: limit),
+    deferChannelPostPrewarm: true,
     onBootstrapLoaded: (bootstrap) {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
@@ -177,6 +178,8 @@ class AppWarmupService {
     this.channelPostsPerChannel = 50,
     this.callContextEventsPerRoom = 80,
     this.preloadConcurrency = 3,
+    this.deferChannelPostPrewarm = false,
+    this.deferredChannelPostPrewarmDelay = const Duration(seconds: 2),
     this.profileTimeout = const Duration(seconds: 6),
     this.syncTimeout = const Duration(seconds: 10),
     this.matrixSyncTimeout = matrixForegroundSyncTimeout,
@@ -204,6 +207,8 @@ class AppWarmupService {
   final int channelPostsPerChannel;
   final int callContextEventsPerRoom;
   final int preloadConcurrency;
+  final bool deferChannelPostPrewarm;
+  final Duration deferredChannelPostPrewarmDelay;
   final Duration profileTimeout;
   final Duration syncTimeout;
   final Duration matrixSyncTimeout;
@@ -234,8 +239,20 @@ class AppWarmupService {
       cachedAvatarPreloadFuture,
       _preloadHomeAvatars(bootstrap, profile, preloadedAvatarUrls),
       localWarmupFuture,
-      _prewarmChannelPosts(bootstrap),
+      if (!deferChannelPostPrewarm) _prewarmChannelPosts(bootstrap),
     ]);
+    if (deferChannelPostPrewarm) {
+      _scheduleDeferredChannelPostPrewarm(bootstrap);
+    }
+  }
+
+  void _scheduleDeferredChannelPostPrewarm(AsSyncBootstrap? bootstrap) {
+    unawaited(Future<void>(() async {
+      if (deferredChannelPostPrewarmDelay > Duration.zero) {
+        await Future<void>.delayed(deferredChannelPostPrewarmDelay);
+      }
+      await _prewarmChannelPosts(bootstrap);
+    }));
   }
 
   Future<void> _preloadHomeAvatars(

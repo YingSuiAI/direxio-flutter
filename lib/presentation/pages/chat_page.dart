@@ -37,7 +37,9 @@ import '../chat/agent_slash_commands.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
+import '../chat/chat_event_preview_thumbnail.dart';
 import '../chat/chat_glass_background.dart';
+import '../chat/chat_event_open_guard.dart';
 import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
@@ -83,6 +85,7 @@ import '../../data/as_call_session_store.dart';
 import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
+import '../../data/media_thumbnail_cache.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -425,6 +428,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _retryingOutboxIds = {};
   final Set<String> _openingFileEventIds = {};
+  final ChatEventOpenGuard _videoOpenGuard = ChatEventOpenGuard();
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _downloadingImageEventIds = {};
@@ -2145,10 +2149,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 点击图片进入临时预览；长期保存由预览页底部下载按钮触发。
   Future<void> _openImageEvent(Event e, String meta) async {
     final cacheKey = e.eventId.trim();
+    final cache = cacheKey.isEmpty
+        ? null
+        : ref.read(mediaThumbnailCacheProvider).valueOrNull;
+    final initialPreviewBytes = cacheKey.isEmpty ? null : cache?.peek(cacheKey);
     final cacheFuture =
         cacheKey.isEmpty ? null : ref.read(mediaThumbnailCacheProvider.future);
     await showAsyncImagePreview(
       context,
+      initialPreviewProvider:
+          initialPreviewBytes == null ? null : MemoryImage(initialPreviewBytes),
       loadPreviewProvider: cacheFuture == null
           ? null
           : () async {
@@ -2159,11 +2169,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             },
       loadProvider: () async {
         final file = await e.downloadAndDecryptAttachment();
+        if (cacheKey.isNotEmpty && cacheFuture != null) {
+          unawaited(_rememberImagePreviewBytes(
+            cacheFuture,
+            cacheKey,
+            file.bytes,
+          ));
+        }
         return MemoryImage(file.bytes);
       },
       meta: meta,
       onDownload: () => _downloadImageEvent(e),
     );
+  }
+
+  Future<void> _rememberImagePreviewBytes(
+    Future<MediaThumbnailCache> cacheFuture,
+    String cacheKey,
+    Uint8List bytes,
+  ) async {
+    await writeSentMediaThumbnail(
+      cacheFuture,
+      cacheKey,
+      bytes,
+      resizeImage: true,
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _downloadImageEvent(Event e) async {
@@ -2227,6 +2258,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String? fileName,
   }) async {
     final matrixFile = await downloadChatEventAttachment(e);
+    final resolvedFileName = chatEventAttachmentFileName(
+      e,
+      matrixFile,
+      fallbackName: fileName ?? e.body,
+    );
     final baseDir = persistent
         ? Directory(
             '${(await getApplicationDocumentsDirectory()).path}/P2P IM Downloads',
@@ -2234,7 +2270,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         : Directory('${(await getTemporaryDirectory()).path}/p2p-im-open');
     return writeChatActionFile(
       directory: baseDir,
-      fileName: fileName ?? e.body,
+      fileName: resolvedFileName,
       bytes: matrixFile.bytes,
     );
   }
@@ -2265,6 +2301,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _openVideoEvent(Event e) async {
+    final openKey = _fileActionKey(e);
+    await _videoOpenGuard.runOnce(openKey, () => _openVideoEventOnce(e));
+  }
+
+  Future<void> _openVideoEventOnce(Event e) async {
     try {
       final file = await _materializeFileEvent(e, persistent: false);
       if (!mounted) return;
@@ -4244,14 +4285,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             ),
                           );
                         },
-                  visibleActions: isAgent
-                      ? const {
-                          ChatAttachmentAction.album,
-                          ChatAttachmentAction.camera,
-                          ChatAttachmentAction.video,
-                          ChatAttachmentAction.file,
-                        }
-                      : null,
                 ),
               if (showEmojiPanelContent)
                 ChatEmojiPanel(
@@ -6145,9 +6178,9 @@ class _MatrixThumb extends ConsumerWidget {
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
       loadBytes: () async {
-        final file = await downloadChatEventThumbnail(event);
-        return file.bytes;
+        return loadChatEventPreviewThumbnail(event);
       },
+      validateBytes: isSupportedChatPreviewImageBytes,
       fit: fit,
       loadingBuilder: (_) => Container(
         color: t.surfaceHigh,

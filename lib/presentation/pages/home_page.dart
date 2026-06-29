@@ -135,6 +135,7 @@ class _HomePageState extends ConsumerState<HomePage>
   bool _resumeSyncInFlight = false;
   bool _asBootstrapRefreshInFlight = false;
   bool _asBootstrapRefreshScheduled = false;
+  bool _homeMatrixRefreshScheduled = false;
   bool _staleBootstrapClearScheduled = false;
   Timer? _asBootstrapLiveRefreshTimer;
   Timer? _asBootstrapRefreshTimer;
@@ -155,13 +156,11 @@ class _HomePageState extends ConsumerState<HomePage>
     _lastHomeSyncSignature = _homeSyncSignature(client);
     _attachVoiceCallController(client);
     _syncSub = client.onSync.stream.listen((_) {
-      _refreshHomeAfterMatrixSync(client);
-      scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
+      _scheduleHomeRefreshAfterMatrixUpdate(client);
     });
     _eventSub = client.onEvent.stream.listen((update) {
       if (!_homeEventUpdateMayAffectConversation(update)) return;
-      _refreshHomeAfterMatrixSync(client);
-      scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
+      _scheduleHomeRefreshAfterMatrixUpdate(client);
     });
     unawaited(ref.read(appWarmupProvider.future));
     _startAsBootstrapLiveRefresh();
@@ -252,6 +251,15 @@ class _HomePageState extends ConsumerState<HomePage>
     _asBootstrapLiveRefreshTimer?.cancel();
     _asBootstrapRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _scheduleHomeRefreshAfterMatrixUpdate(Client client) {
+    if (_homeMatrixRefreshScheduled) return;
+    _homeMatrixRefreshScheduled = true;
+    scheduleMicrotask(() {
+      _homeMatrixRefreshScheduled = false;
+      _refreshHomeAfterMatrixSync(client);
+    });
   }
 
   void _startAsBootstrapLiveRefresh() {

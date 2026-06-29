@@ -331,10 +331,8 @@ class MainActivity : FlutterActivity() {
                 ?.toLongOrNull()
                 ?.coerceAtLeast(0L)
                 ?: 0L
-            val frame = retriever.getFrameAtTime(
-                0,
-                android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-            )?.let { scaleBitmapToMaxSide(it, videoThumbnailMaxSide) }
+            val frame = decodeVideoFrame(retriever)
+                ?.let { scaleBitmapToMaxSide(it, videoThumbnailMaxSide) }
                 ?: throw IllegalStateException("Failed to decode video frame.")
 
             val output = ByteArrayOutputStream()
@@ -351,6 +349,23 @@ class MainActivity : FlutterActivity() {
         } finally {
             retriever.release()
         }
+    }
+
+    private fun decodeVideoFrame(
+        retriever: android.media.MediaMetadataRetriever
+    ): Bitmap? {
+        val timesUs = longArrayOf(0L, 100_000L, 500_000L, 1_000_000L)
+        val options = intArrayOf(
+            android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            android.media.MediaMetadataRetriever.OPTION_CLOSEST
+        )
+        for (option in options) {
+            for (timeUs in timesUs) {
+                val frame = retriever.getFrameAtTime(timeUs, option)
+                if (frame != null) return frame
+            }
+        }
+        return null
     }
 
     private fun scaleBitmapToMaxSide(bitmap: Bitmap, maxSide: Int): Bitmap {

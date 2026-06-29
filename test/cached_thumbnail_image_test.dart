@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -55,6 +56,66 @@ void main() {
     expect(find.text('loading'), findsNothing);
   });
 
+  testWidgets('starts preview load without waiting for pending cache',
+      (tester) async {
+    final cacheCompleter = Completer<MediaThumbnailCache>();
+    var loadAttempts = 0;
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$pending-cache',
+        cacheFuture: cacheCompleter.future,
+        loadBytes: () async {
+          loadAttempts += 1;
+          return Uint8List.fromList([5]);
+        },
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        loadingBuilder: (_) => const Text('loading'),
+      ),
+    ));
+
+    await tester.pump();
+
+    expect(loadAttempts, 1);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('loading'), findsNothing);
+
+    cacheCompleter.complete(_MemoryThumbnailCache());
+    await tester.pump();
+  });
+
+  testWidgets('ignores invalid cached bytes and reloads preview',
+      (tester) async {
+    final cache = _MemoryThumbnailCache();
+    await cache.write(r'$bad-cache', Uint8List.fromList([1, 2, 3]));
+    var loadAttempts = 0;
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$bad-cache',
+        cache: cache,
+        cacheFuture: Future.value(cache),
+        validateBytes: (bytes) =>
+            bytes.length >= 3 &&
+            bytes[0] == 0xFF &&
+            bytes[1] == 0xD8 &&
+            bytes[2] == 0xFF,
+        loadBytes: () async {
+          loadAttempts += 1;
+          return Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]);
+        },
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        loadingBuilder: (_) => const Text('loading'),
+      ),
+    ));
+
+    await tester.pump();
+
+    expect(loadAttempts, 1);
+    expect(find.text('255,216,255,224'), findsOneWidget);
+    expect(find.text('1,2,3'), findsNothing);
+  });
+
   testWidgets('renders failed placeholder when thumbnail bytes are invalid',
       (tester) async {
     await tester.pumpWidget(_App(
@@ -101,6 +162,120 @@ void main() {
     expect(find.text('4'), findsOneWidget);
     expect(find.text('temporary failure'), findsNothing);
     expect(attempts, 2);
+  });
+
+  testWidgets('keeps retrying visible thumbnails after retry delays are used',
+      (tester) async {
+    var attempts = 0;
+    var online = false;
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$eventual',
+        cacheFuture: null,
+        retryDelays: const [
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 20),
+        ],
+        loadBytes: () async {
+          attempts += 1;
+          if (!online) throw StateError('offline');
+          return Uint8List.fromList([6]);
+        },
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        failedBuilder: (_) => Text('failed $attempts'),
+      ),
+    ));
+
+    await tester.pump();
+    expect(find.text('failed 1'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump();
+    expect(find.text('failed 2'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump();
+    expect(find.text('failed 3'), findsOneWidget);
+
+    online = true;
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump();
+
+    expect(find.text('6'), findsOneWidget);
+    expect(attempts, 4);
+  });
+
+  testWidgets('retries immediately when app resumes from background',
+      (tester) async {
+    var attempts = 0;
+    var online = false;
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$foreground',
+        cacheFuture: null,
+        retryDelays: const [Duration(hours: 1)],
+        loadBytes: () async {
+          attempts += 1;
+          if (!online) throw StateError('offline');
+          return Uint8List.fromList([3]);
+        },
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        failedBuilder: (_) => Text('failed $attempts'),
+      ),
+    ));
+
+    await tester.pump();
+    expect(find.text('failed 1'), findsOneWidget);
+    expect(attempts, 1);
+
+    online = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('failed 1'), findsNothing);
+    expect(attempts, 2);
+  });
+
+  testWidgets(
+      'recovers from failed state when parent rebuild finds cache bytes',
+      (tester) async {
+    final cache = _MemoryThumbnailCache();
+    var version = 0;
+
+    Widget buildSubject() {
+      return _App(
+        child: Column(
+          children: [
+            Text('version $version'),
+            CachedThumbnailImage(
+              cacheKey: r'$recover',
+              cache: cache,
+              cacheFuture: Future.value(cache),
+              loadBytes: () async => throw StateError('offline'),
+              imageBuilder: (_, bytes) => Text(bytes.join(',')),
+              failedBuilder: (_) => const Text('failed'),
+              loadingBuilder: (_) => const Text('loading'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildSubject());
+    await tester.pump();
+
+    expect(find.text('failed'), findsOneWidget);
+
+    await cache.write(r'$recover', Uint8List.fromList([8]));
+    version += 1;
+    await tester.pumpWidget(buildSubject());
+    await tester.pump();
+
+    expect(find.text('8'), findsOneWidget);
+    expect(find.text('failed'), findsNothing);
   });
 }
 

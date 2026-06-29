@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -61,29 +63,51 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
   final syncCache = ref.watch(asSyncCacheProvider);
   final agentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
   if (agentRoomId.isEmpty) {
-    return syncCache.bootstrap == null
+    final presence = syncCache.bootstrap == null
         ? const AgentBridgePresence.connecting()
         : const AgentBridgePresence.unknown(source: 'missing_agent_room_id');
+    return _logAgentStatus('<missing>', presence);
   }
   ref.watch(_matrixAgentStateTickProvider);
   final room = ref.watch(matrixClientProvider).getRoomById(agentRoomId);
   if (room == null) {
-    return const AgentBridgePresence.connecting();
+    return _logAgentStatus(agentRoomId, const AgentBridgePresence.connecting());
   }
   final online = agentRoomStatusOnline(room, agentRoomId: agentRoomId);
   if (online == null) {
-    return const AgentBridgePresence.unknown(
-      source: 'matrix_agent_status_state_missing',
+    return _logAgentStatus(
+      agentRoomId,
+      const AgentBridgePresence.unknown(
+        source: 'matrix_agent_status_state_missing',
+      ),
     );
   }
-  return AgentBridgePresence(
-    state: online
-        ? AgentBridgePresenceState.online
-        : AgentBridgePresenceState.offline,
-    online: online,
-    source: 'matrix.room_state.io.direxio.agent.status',
+  return _logAgentStatus(
+    agentRoomId,
+    AgentBridgePresence(
+      state: online
+          ? AgentBridgePresenceState.online
+          : AgentBridgePresenceState.offline,
+      online: online,
+      source: 'matrix.room_state.io.direxio.agent.status',
+    ),
   );
 });
+
+AgentBridgePresence _logAgentStatus(
+  String agentRoomId,
+  AgentBridgePresence presence,
+) {
+  final state = presence.state.name;
+  final message = '[AgentStatus] room_id=$agentRoomId '
+      'event=$direxioAgentStatusEventType '
+      'online=${presence.online} state=$state label=${presence.label} '
+      'source=${presence.source}';
+  developer.log(message, name: 'AgentStatus');
+  // ignore: avoid_print
+  print(message);
+  return presence;
+}
 
 bool? agentRoomStatusOnline(Room room, {required String agentRoomId}) {
   final agentMXID = agentMXIDFromAgentRoomID(agentRoomId);

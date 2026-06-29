@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/agent_bridge_presence_provider.dart';
@@ -73,6 +75,169 @@ void main() {
     expect(presence.label, '在线');
     expect(presence.bridgeConnected, isTrue);
     expect(presence.source, 'matrix.room_state.io.direxio.agent.status');
+  });
+
+  test('falls back to Matrix state API when local agent state is missing',
+      () async {
+    final requestedPaths = <String>[];
+    final client = Client(
+      'AgentBridgePresenceStateFallbackTest',
+      httpClient: MockClient((request) async {
+        requestedPaths.add(request.url.path);
+        if (request.url.path ==
+            '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com') {
+          return http.Response('{"online":true}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    )
+      ..homeserver = Uri.parse('https://example.com')
+      ..accessToken = 'access-token'
+      ..setUserId('@owner:example.com');
+    client.rooms.add(Room(id: '!agent-room:example.com', client: client));
+    final container = _containerFor(client);
+    addTearDown(container.dispose);
+
+    final seenStates = <String>[];
+    final onlinePresence = Completer<AgentBridgePresence>();
+    final subscription = container.listen<AgentBridgePresence>(
+      agentBridgePresenceProvider,
+      (_, next) {
+        seenStates.add('${next.state}:${next.source}');
+        if (next.state == AgentBridgePresenceState.online &&
+            !onlinePresence.isCompleted) {
+          onlinePresence.complete(next);
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    final presence = await onlinePresence.future.timeout(
+      const Duration(milliseconds: 500),
+      onTimeout: () => throw TestFailure(
+        'Agent status fallback did not become online. '
+        'seen=$seenStates paths=$requestedPaths',
+      ),
+    );
+
+    expect(presence.state, AgentBridgePresenceState.online);
+    expect(presence.bridgeConnected, isTrue);
+    expect(presence.source, 'matrix.room_state.io.direxio.agent.status.fetch');
+    expect(requestedPaths, [
+      '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com',
+    ]);
+  });
+
+  test('retries Matrix state API after transient lookup failure', () async {
+    var calls = 0;
+    final client = Client(
+      'AgentBridgePresenceStateRetryTest',
+      httpClient: MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          throw http.ClientException('Failed host lookup', request.url);
+        }
+        if (request.url.path ==
+            '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com') {
+          return http.Response('{"online":true}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    )
+      ..homeserver = Uri.parse('https://example.com')
+      ..accessToken = 'access-token'
+      ..setUserId('@owner:example.com');
+    client.rooms.add(Room(id: '!agent-room:example.com', client: client));
+    final container = _containerFor(
+      client,
+      overrides: [
+        agentBridgePresenceStateRefreshIntervalProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final seenStates = <String>[];
+    final onlinePresence = Completer<AgentBridgePresence>();
+    final subscription = container.listen<AgentBridgePresence>(
+      agentBridgePresenceProvider,
+      (_, next) {
+        seenStates.add('${next.state}:${next.source}');
+        if (next.state == AgentBridgePresenceState.online &&
+            !onlinePresence.isCompleted) {
+          onlinePresence.complete(next);
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    final presence = await onlinePresence.future.timeout(
+      const Duration(seconds: 1),
+      onTimeout: () => throw TestFailure(
+        'Agent status fallback did not recover. '
+        'seen=$seenStates calls=$calls',
+      ),
+    );
+
+    expect(presence.state, AgentBridgePresenceState.online);
+    expect(presence.bridgeConnected, isTrue);
+    expect(calls, greaterThanOrEqualTo(2));
+  });
+
+  test('keeps fetched Matrix state stable during background retry ticks',
+      () async {
+    final client = Client(
+      'AgentBridgePresenceNoFlickerTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path ==
+            '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com') {
+          return http.Response('{"online":true}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    )
+      ..homeserver = Uri.parse('https://example.com')
+      ..accessToken = 'access-token'
+      ..setUserId('@owner:example.com');
+    client.rooms.add(Room(id: '!agent-room:example.com', client: client));
+    final container = _containerFor(
+      client,
+      overrides: [
+        agentBridgePresenceStateRefreshIntervalProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    var firstOnlineSeen = false;
+    final statesAfterOnline = <AgentBridgePresenceState>[];
+    final onlinePresence = Completer<void>();
+    final subscription = container.listen<AgentBridgePresence>(
+      agentBridgePresenceProvider,
+      (_, next) {
+        if (firstOnlineSeen) {
+          statesAfterOnline.add(next.state);
+        }
+        if (next.state == AgentBridgePresenceState.online && !firstOnlineSeen) {
+          firstOnlineSeen = true;
+          onlinePresence.complete();
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await onlinePresence.future.timeout(const Duration(milliseconds: 500));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      statesAfterOnline,
+      everyElement(AgentBridgePresenceState.online),
+    );
   });
 
   test('uses online as the only UI state bit', () {
@@ -169,13 +334,17 @@ List<String> _collectAgentStatusPrints(void Function() body) {
   return messages;
 }
 
-ProviderContainer _containerFor(Client client) {
+ProviderContainer _containerFor(
+  Client client, {
+  List<Override> overrides = const [],
+}) {
   return ProviderContainer(
     overrides: [
       matrixClientProvider.overrideWithValue(client),
       asSyncCacheProvider.overrideWith(
         (ref) => AsSyncCacheState(bootstrap: _bootstrap()),
       ),
+      ...overrides,
     ],
   );
 }

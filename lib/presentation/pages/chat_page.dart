@@ -6422,6 +6422,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
     const dark = Color(0xFF4A4A4A); // theme-fixed: Figma menu surface
     const divider = Color(0x17FFFFFF); // theme-fixed: Figma row divider
     const itemW = 68.6;
+    final l10n = AppLocalizations.of(context);
     return Material(
       color: Colors.transparent,
       child: SizedBox(
@@ -6463,41 +6464,41 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (canCopy)
-                            const _MsgCtxMenuItem(
+                            _MsgCtxMenuItem(
                               width: itemW,
                               icon: Symbols.content_copy,
-                              label: '复制',
+                              label: l10n.groupChatCopy,
                               value: 'copy',
                             ),
-                          const _MsgCtxMenuItem(
+                          _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.forward,
-                            label: '转发',
+                            label: l10n.groupChatForward,
                             value: 'forward',
                           ),
-                          const _MsgCtxMenuItem(
+                          _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.bookmark,
-                            label: '收藏',
+                            label: l10n.groupChatFavorite,
                             value: 'fav',
                           ),
-                          const _MsgCtxMenuItem(
+                          _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.delete,
-                            label: '删除',
+                            label: l10n.groupChatDelete,
                             value: 'delete',
                           ),
-                          const _MsgCtxMenuItem(
+                          _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.format_list_bulleted,
-                            label: '多选',
+                            label: l10n.groupChatMultiSelect,
                             value: 'multi',
                           ),
                         ],
                       ),
                     ),
                     if (canQuote)
-                      const Positioned(
+                      Positioned(
                         left: 1,
                         top: 87,
                         width: 69,
@@ -6505,12 +6506,12 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         child: _MsgCtxMenuItem(
                           width: 69,
                           icon: Symbols.format_quote_rounded,
-                          label: '引用',
+                          label: l10n.groupChatQuote,
                           value: 'quote',
                         ),
                       ),
                     if (canRecall)
-                      const Positioned(
+                      Positioned(
                         left: 70,
                         top: 87,
                         width: 69,
@@ -6518,7 +6519,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         child: _MsgCtxMenuItem(
                           width: 69,
                           icon: Symbols.undo,
-                          label: '撤回',
+                          label: l10n.groupChatRecall,
                           value: 'recall',
                         ),
                       ),

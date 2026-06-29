@@ -3153,7 +3153,7 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
       ],
       child: MaterialApp(
         theme: AppTheme.light,
-        locale: locale,
+        locale: locale ?? const Locale('zh'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: ChatPage(roomId: roomId),
@@ -21631,6 +21631,50 @@ void main() {
     expect(find.text('删除'), findsOneWidget);
     expect(find.text('多选'), findsOneWidget);
     expect(find.text('引用'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
+  });
+
+  testWidgets('private chat long press localizes message actions in English',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      locale: const Locale('en'),
+    );
+
+    await tester.longPress(find.text('别人发来的消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Forward'), findsOneWidget);
+    expect(find.text('Favorite'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Select'), findsOneWidget);
+    expect(find.text('Quote'), findsOneWidget);
+    expect(find.text('复制'), findsNothing);
+    expect(find.text('转发'), findsNothing);
+    expect(find.text('收藏'), findsNothing);
+    expect(find.text('删除'), findsNothing);
+    expect(find.text('多选'), findsNothing);
+    expect(find.text('引用'), findsNothing);
+    await tester.pump(const Duration(seconds: 13));
+  });
+
+  testWidgets('private chat long press localizes recall action in English',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      eventId: r'$direct-own-english',
+      body: 'My direct message',
+      senderMxid: '@owner:p2p-im.com',
+      locale: const Locale('en'),
+    );
+
+    await tester.longPress(find.text('My direct message'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recall'), findsOneWidget);
+    expect(find.text('撤回'), findsNothing);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('private chat delete hides message through Matrix local delete',
@@ -21706,6 +21750,7 @@ void main() {
     expect(find.text('收藏'), findsOneWidget);
     expect(find.text('删除'), findsOneWidget);
     expect(find.text('多选'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('private chat uses current profile avatar for own messages',

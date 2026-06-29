@@ -175,6 +175,73 @@ void main() {
   });
 
   testWidgets(
+      'channel inbox tile keeps cached avatar stable across brief unmount',
+      (tester) async {
+    final client = Client('ChannelUnmountAvatarTest');
+    final avatarUrl =
+        'https://cdn.example.com/channel-unmount-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (url) async => url == avatarUrl ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+
+    var showTile = true;
+    Widget buildSubject() => ProviderScope(
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: Scaffold(
+              body: showTile
+                  ? ChannelInboxTile(
+                      channel: ChannelInboxItem(
+                        id: 'ch_avatar_unmount',
+                        roomId: '!avatar-unmount:p2p-im.com',
+                        name: '产品公告',
+                        domain: 'p2p-im.com',
+                        avatarUrl: avatarUrl,
+                        latestPreview: '频道介绍',
+                        latestAt: null,
+                        unreadCount: 0,
+                        isOwned: true,
+                        tags: const ['文字'],
+                      ),
+                      showDivider: false,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildSubject());
+    for (var i = 0;
+        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(tester.widget<PortalAvatar>(find.byType(PortalAvatar)).imageBytes,
+        bytes);
+
+    showTile = false;
+    await tester.pumpWidget(buildSubject());
+    await tester.pump();
+    clearChannelAvatarMemoryCacheForTesting();
+    final pendingRead = Completer<Uint8List?>();
+    setChannelAvatarCacheReaderForTesting((_) => pendingRead.future);
+
+    showTile = true;
+    await tester.pumpWidget(buildSubject());
+
+    expect(find.text('产'), findsNothing);
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageBytes, bytes);
+    expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets(
       'channel inbox tile keeps avatar stable when refreshed url changes',
       (tester) async {
     final client = Client('ChannelStableAvatarUrlChangeTest');

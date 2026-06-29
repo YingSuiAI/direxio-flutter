@@ -79,23 +79,91 @@ String _channelListScope(Client client, AuthState? auth) {
 final _channelPendingReviewCountProvider =
     FutureProvider.autoDispose.family<int, String>((ref, scope) async {
   if (scope.trim().isEmpty) return 0;
-  final channels = await ref.watch(_channelListProvider(scope).future);
-  var count = 0;
-  for (final channel in channels.where(_canReviewChannel)) {
-    final channelId = channel.channelId.trim().isEmpty
-        ? channel.roomId.trim()
-        : channel.channelId.trim();
-    if (channelId.isEmpty) continue;
-    final members = await ref.read(asClientProvider).getChannelMembers(
+  final pending =
+      await ref.watch(_channelPendingReviewItemsProvider(scope).future);
+  return pending.length;
+});
+
+final _channelPendingReviewItemsProvider =
+    FutureProvider.autoDispose.family<List<_ReviewItem>, String>((ref, scope) {
+  return _loadPendingReviewItems(ref, scope);
+});
+
+final _channelAvatarBytesProvider =
+    FutureProvider.autoDispose.family<Uint8List?, _ChannelAvatarBytesKey>(
+  (ref, key) {
+    final keepAlive = ref.keepAlive();
+    Timer? disposeTimer;
+    ref.onCancel(() {
+      disposeTimer = Timer(const Duration(seconds: 30), keepAlive.close);
+    });
+    ref.onResume(() {
+      disposeTimer?.cancel();
+      disposeTimer = null;
+    });
+    ref.onDispose(() => disposeTimer?.cancel());
+    return loadCachedChannelAvatarBytes(
+      key.imageUrl,
+      stableKey: key.stableKey,
+    );
+  },
+);
+
+Future<List<_ReviewItem>> _loadPendingReviewItems(
+  Ref ref,
+  String scope,
+) async {
+  if (scope.trim().isEmpty) return const <_ReviewItem>[];
+  final auth = ref.read(authStateNotifierProvider).valueOrNull;
+  if (auth?.isLoggedIn != true) return const <_ReviewItem>[];
+  final syncCache = asSyncCacheForUser(
+    ref.read(asSyncCacheProvider),
+    auth?.userId,
+  );
+  final listedChannels = await ref.watch(_channelListProvider(scope).future);
+  final ownedChannels = listedChannels.where(_canReviewChannel).toList(
+        growable: false,
+      );
+  if (ownedChannels.isEmpty) return const <_ReviewItem>[];
+
+  final asClient = ref.read(asClientProvider);
+  final items = <_ReviewItem>[];
+  const maxConcurrentRequests = 4;
+  for (var start = 0;
+      start < ownedChannels.length;
+      start += maxConcurrentRequests) {
+    final end = math.min(start + maxConcurrentRequests, ownedChannels.length);
+    final batch = ownedChannels.sublist(start, end);
+    final batches = await Future.wait(
+      batch.map((channel) async {
+        final channelId = _reviewChannelId(channel);
+        if (channelId.isEmpty) return const <_ReviewItem>[];
+        final members = await asClient.getChannelMembers(
           channelId,
           status: asChannelMemberStatusPending,
         );
-    count += members
-        .where((member) => member.status == asChannelMemberStatusPending)
-        .length;
+        return members
+            .where((member) => member.status == asChannelMemberStatusPending)
+            .map((member) {
+          final identity = _reviewMemberIdentity(syncCache, member);
+          return _ReviewItem(
+            channelId: channelId,
+            channelName: channel.name.trim(),
+            userMxid: member.userMxid,
+            name: identity.name,
+            avatarUrl: identity.avatarUrl,
+            joinedAtMs: member.joinedAtMs,
+            status: _ReviewStatus.pending,
+          );
+        }).toList(growable: false);
+      }),
+    );
+    for (final batchItems in batches) {
+      items.addAll(batchItems);
+    }
   }
-  return count;
-});
+  return items;
+}
 
 class ChannelExplorePage extends ConsumerStatefulWidget {
   const ChannelExplorePage({super.key});
@@ -287,6 +355,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                   onTap: () async {
                     await context.push('/channels/review');
                     if (!context.mounted) return;
+                    ref.invalidate(_channelPendingReviewItemsProvider);
                     ref.invalidate(_channelPendingReviewCountProvider);
                     ref.invalidate(_channelListProvider);
                   },
@@ -547,40 +616,11 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   Future<List<_ReviewItem>> _loadReviewItems() async {
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
     if (auth?.isLoggedIn != true) return const <_ReviewItem>[];
-    final syncCache = asSyncCacheForUser(
-      ref.read(asSyncCacheProvider),
-      auth?.userId,
+    final scope = _channelListScope(
+      ref.read(matrixClientProvider),
+      auth,
     );
-    final listedChannels = await ref.read(asClientProvider).listChannels();
-    final ownedChannels = listedChannels.where(_canReviewChannel).toList(
-          growable: false,
-        );
-    final items = <_ReviewItem>[];
-    for (final channel in ownedChannels) {
-      final channelId = channel.channelId.trim().isEmpty
-          ? channel.roomId.trim()
-          : channel.channelId.trim();
-      if (channelId.isEmpty) continue;
-      final members = await ref
-          .read(asClientProvider)
-          .getChannelMembers(channelId, status: asChannelMemberStatusPending);
-      for (final member in members) {
-        if (member.status != asChannelMemberStatusPending) continue;
-        final identity = _reviewMemberIdentity(syncCache, member);
-        items.add(
-          _ReviewItem(
-            channelId: channelId,
-            channelName: channel.name.trim(),
-            userMxid: member.userMxid,
-            name: identity.name,
-            avatarUrl: identity.avatarUrl,
-            joinedAtMs: member.joinedAtMs,
-            status: _ReviewStatus.pending,
-          ),
-        );
-      }
-    }
-    return items;
+    return ref.read(_channelPendingReviewItemsProvider(scope).future);
   }
 
   @override
@@ -674,6 +714,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       setState(() {
         _items[index] = item.copyWith(status: nextStatus);
       });
+      ref.invalidate(_channelPendingReviewItemsProvider);
       ref.invalidate(_channelPendingReviewCountProvider);
       ref.invalidate(_channelListProvider);
     } catch (err) {
@@ -711,6 +752,12 @@ _ReviewMemberIdentity _reviewMemberIdentity(
       ? member.avatarUrl.trim()
       : contact?.avatarUrl.trim() ?? '';
   return _ReviewMemberIdentity(name: name, avatarUrl: avatarUrl);
+}
+
+String _reviewChannelId(AsChannel channel) {
+  final channelId = channel.channelId.trim();
+  if (channelId.isNotEmpty) return channelId;
+  return channel.roomId.trim();
 }
 
 String _reviewContactName(AsSyncContact? contact, String mxid) {
@@ -1429,34 +1476,48 @@ class _ChannelAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageUrl = avatarHttpUrl(
-      ref.watch(matrixClientProvider),
+      ref.read(matrixClientProvider),
       channel.avatarUrl,
     );
     if (imageUrl != null) {
       final stableKey = _channelAvatarStableCacheKey(channel);
-      final memoryBytes = cachedChannelAvatarBytes(imageUrl, stableKey);
-      return FutureBuilder<Uint8List?>(
-        initialData: memoryBytes,
-        future: loadCachedChannelAvatarBytes(
-          imageUrl,
-          stableKey: stableKey,
-        ),
-        builder: (context, snapshot) {
-          final bytes = snapshot.data;
-          if (bytes != null && bytes.isNotEmpty) {
-            return PortalAvatar(
-              seed: channel.name,
-              size: size,
-              imageBytes: bytes,
-              shape: AvatarShape.squircle,
-            );
-          }
-          return _ChannelAvatarFallback(channel: channel, size: size);
-        },
+      final key = _ChannelAvatarBytesKey(
+        imageUrl: imageUrl,
+        stableKey: stableKey,
       );
+      final bytes = ref.watch(_channelAvatarBytesProvider(key)).valueOrNull ??
+          cachedChannelAvatarBytes(imageUrl, stableKey);
+      if (bytes != null && bytes.isNotEmpty) {
+        return PortalAvatar(
+          seed: channel.name,
+          size: size,
+          imageBytes: bytes,
+          shape: AvatarShape.squircle,
+        );
+      }
     }
     return _ChannelAvatarFallback(channel: channel, size: size);
   }
+}
+
+class _ChannelAvatarBytesKey {
+  const _ChannelAvatarBytesKey({
+    required this.imageUrl,
+    required this.stableKey,
+  });
+
+  final String imageUrl;
+  final String? stableKey;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _ChannelAvatarBytesKey &&
+        other.imageUrl == imageUrl &&
+        other.stableKey == stableKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(imageUrl, stableKey);
 }
 
 class _ChannelAvatarFallback extends StatelessWidget {

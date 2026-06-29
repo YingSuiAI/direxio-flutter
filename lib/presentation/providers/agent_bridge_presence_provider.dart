@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../data/direxio_matrix_events.dart' as direxio_matrix_events;
 import 'as_sync_cache_provider.dart';
 import 'auth_provider.dart';
 
-const direxioAgentStatusEventType = 'io.direxio.agent.status';
+const direxioAgentStatusEventType =
+    direxio_matrix_events.direxioAgentStatusEventType;
 
 enum AgentBridgePresenceState { connecting, online, offline, error, unknown }
 

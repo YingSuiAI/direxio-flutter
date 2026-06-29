@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sqflite/sqflite.dart' as sqlite;
 import '../../data/as_client.dart';
+import '../../data/direxio_matrix_events.dart';
 import '../../data/http_as_client.dart';
 import '../../data/local_endpoint_resolver.dart';
 import '../../data/matrix_foreground_sync.dart';
@@ -57,6 +58,7 @@ Client matrixClient(Ref ref) {
   client = Client(
     'Direxio',
     httpClient: refreshingHttpClient,
+    importantStateEvents: {direxioAgentStatusEventType},
     databaseBuilder: (_) async {
       final db = kIsWeb
           ? MatrixSdkDatabase('portal_im_db')

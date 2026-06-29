@@ -7,6 +7,59 @@ import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 
 void main() {
+  test('tracks Agent status state from the initial limited Matrix timeline',
+      () async {
+    const agentRoomId = '!agent-room:example.com';
+    final container = ProviderContainer(
+      overrides: [
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: _bootstrap()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final keepAlive = container.listen(
+      matrixClientProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(keepAlive.close);
+    final client = container.read(matrixClientProvider)
+      ..setUserId('@owner:example.com');
+
+    await client.handleSync(
+      SyncUpdate.fromJson({
+        'next_batch': 's1',
+        'rooms': {
+          'join': {
+            agentRoomId: {
+              'state': {'events': <Object?>[]},
+              'timeline': {
+                'limited': true,
+                'prev_batch': 't1',
+                'events': [
+                  {
+                    'type': direxioAgentStatusEventType,
+                    'state_key': '@agent:example.com',
+                    'sender': '@agent:example.com',
+                    'event_id': r'$agent-status',
+                    'origin_server_ts': 1,
+                    'content': {'online': true},
+                  },
+                ],
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    final presence = container.read(agentBridgePresenceProvider);
+
+    expect(presence.state, AgentBridgePresenceState.online);
+    expect(presence.bridgeConnected, isTrue);
+  });
+
   test('uses Matrix agent room state as header status', () {
     final client = _matrixClientWithAgentRoom(online: true);
     final container = _containerFor(client);

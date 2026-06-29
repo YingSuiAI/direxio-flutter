@@ -3026,8 +3026,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       agentOfflineReplyCount: agentOfflineReplyCount,
       currentUserId: currentUserId,
     );
-    final showDefaultAgentOfflineReply =
-        showAgentOfflineReply && agentOfflineReplyCount == 0;
+    final showDefaultAgentOfflineReply = isAgent &&
+        !agentIsOnline &&
+        agentOfflineReplyCount == 0 &&
+        chatDisplayItems.isEmpty;
     final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversation = productDirectConversationForPeer(
       productConversations,
@@ -3078,11 +3080,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final onlineLabel = l10n?.commonOnline ?? '在线';
     final offlineLabel = l10n?.commonOffline ?? '离线';
     final agentPresenceState = agentPresence?.state;
+    final agentHeaderSubtitle = agentIsOnline ? onlineLabel : offlineLabel;
     final headerSubtitle = isWaitingForAccept
         ? l10n?.requestsWaitingPeerAccept ?? '等待对方接受'
         : isAgent
-            ? agentPresence?.label ??
-                (agentIsOnline ? onlineLabel : offlineLabel)
+            ? agentHeaderSubtitle
             : peerIsTyping
                 ? '在想'
                 : peerIsOnline
@@ -3093,9 +3095,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final headerSubtitleStatus = isAgent
         ? switch (agentPresenceState) {
             AgentBridgePresenceState.online => ChatCapsuleSubtitleStatus.online,
-            AgentBridgePresenceState.offline =>
-              ChatCapsuleSubtitleStatus.offline,
-            _ => null,
+            _ => ChatCapsuleSubtitleStatus.offline,
           }
         : (peerIsTyping || peerIsOnline
             ? ChatCapsuleSubtitleStatus.online
@@ -3187,7 +3187,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             child: timelineItems.isEmpty &&
                     topSystemNoticeText == null &&
                     !showAgentThinking &&
-                    !showAgentOfflineReply
+                    !showDefaultAgentOfflineReply
                 ? LayoutBuilder(
                     builder: (context, constraints) {
                       final emptyHeight = math.max(

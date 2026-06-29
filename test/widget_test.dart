@@ -21225,6 +21225,51 @@ void main() {
     );
   });
 
+  testWidgets('agent chat header localizes online status', (tester) async {
+    final client = Client('DirexioAgentOnlineHeaderLocaleTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addTestRoom(
+      client,
+      roomId: '!agent-online:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
+    );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          agentBridgePresenceProvider.overrideWithValue(
+            const AgentBridgePresence(
+              state: AgentBridgePresenceState.online,
+              online: true,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ChatPage(roomId: '!agent-online:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Direxio AI'), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
+    expect(find.text('在想'), findsNothing);
+    expect(find.text('在线'), findsNothing);
+    expect(find.text('离线'), findsNothing);
+  });
+
   testWidgets('agent chat attachment tools hide call actions', (tester) async {
     final client = Client('DirexioAgentAttachmentToolsTest')
       ..setUserId('@owner:p2p-im.com');

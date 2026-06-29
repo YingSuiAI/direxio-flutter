@@ -37,11 +37,11 @@ class AgentBridgePresence {
 
   String get label {
     return switch (state) {
-      AgentBridgePresenceState.connecting => '连接中',
       AgentBridgePresenceState.online => '在线',
       AgentBridgePresenceState.offline => '离线',
-      AgentBridgePresenceState.error => '状态异常',
-      AgentBridgePresenceState.unknown => '状态未知',
+      AgentBridgePresenceState.connecting => '离线',
+      AgentBridgePresenceState.error => '离线',
+      AgentBridgePresenceState.unknown => '离线',
     };
   }
 }

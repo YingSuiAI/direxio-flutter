@@ -66,14 +66,17 @@ ProductCore/Matrix conversation entries are available, use that merged live
 projection for display instead of waiting for the local summary snapshot to be
 reloaded.
 
-Agent chat headers must show Matrix room-state presence, not typing or
-streaming generation state. Source it from the real agent room
+Agent chat headers must show Matrix room-state availability, not Matrix typing
+or streaming generation state. Source it from the real agent room
 `io.direxio.agent.status` state event located by `sync.bootstrap`
-`agent_room_id`; do not consume `agent.presence` SSE for this state. `online`
-is the only owner-facing status bit. Agent Markdown, cards, Matrix edits including
-SDK-aggregated display events, stream fragments, typewritten appended reply
-updates, and `/` quick-command suggestions belong in the chat UI while actual
-sends remain ordinary Matrix text sends to the real `agent_room_id`.
+`agent_room_id`; do not consume `agent.presence` SSE for this state. The
+owner-facing Agent chat status text is limited to localized online/offline
+labels: `commonOnline` when `online` is true and `commonOffline` otherwise; do
+not show unknown, connecting, or error labels in the chat header. Agent
+Markdown, cards, Matrix edits including SDK-aggregated display events, stream
+fragments, typewritten appended reply updates, and `/` quick-command suggestions
+belong in the chat UI while actual sends remain ordinary Matrix text sends to
+the real `agent_room_id`.
 
 The logged-in home conversation list is for direct, group, and Agent
 conversations. Channel conversations belong under the channel tab/detail

@@ -307,21 +307,6 @@ class HttpAsClient implements AsClient {
     return _getJson('agents/get-password');
   }
 
-  Future<Map<String, dynamic>> listApiPermissions() {
-    return _getJson('apis');
-  }
-
-  Future<Map<String, dynamic>> updateApiPermissionStatus(
-    List<Map<String, Object?>> items,
-  ) {
-    return _requestJson(
-      'PUT',
-      'apis/status',
-      body: {'items': items},
-      allowedStatusCodes: const {200},
-    );
-  }
-
   @override
   Future<List<FollowEntry>> getFollows() async {
     final body = await _getJson('follows');
@@ -2104,8 +2089,6 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'agents/get-password') {
     return 'agent.password';
   }
-  if (method == 'GET' && clean == 'apis') return 'apis.list';
-  if (method == 'PUT' && clean == 'apis/status') return 'apis.status';
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
   if (method == 'GET' && clean == 'follows') return 'follows.list';

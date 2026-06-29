@@ -301,7 +301,7 @@ void main() {
     expect(contact.status, 'accepted');
   });
 
-  test('agent management helpers use unified API actions', () async {
+  test('agent password helper uses unified API action', () async {
     final seen = <String>[];
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
@@ -315,31 +315,6 @@ void main() {
           case 'agent.password':
             expect(request.url.path, '/_p2p/query');
             return http.Response(jsonEncode({'password': 'secret'}), 200);
-          case 'apis.list':
-            expect(request.url.path, '/_p2p/query');
-            return http.Response(
-              jsonEncode({
-                'items': [
-                  {'action': 'contacts.request', 'enabled': true},
-                ],
-              }),
-              200,
-            );
-          case 'apis.status':
-            expect(request.url.path, '/_p2p/command');
-            expect(body['params'], {
-              'items': [
-                {'action': 'contacts.request', 'enabled': false},
-              ],
-            });
-            return http.Response(
-              jsonEncode({
-                'items': [
-                  {'action': 'contacts.request', 'enabled': false},
-                ],
-              }),
-              200,
-            );
           default:
             fail('unexpected action ${body['action']}');
         }
@@ -347,13 +322,7 @@ void main() {
     );
 
     expect((await client.getAgentPassword())['password'], 'secret');
-    expect((await client.listApiPermissions())['items'], isNotEmpty);
-    final updated = await client.updateApiPermissionStatus([
-      {'action': 'contacts.request', 'enabled': false},
-    ]);
-
-    expect(updated['items'], isNotEmpty);
-    expect(seen, hasLength(3));
+    expect(seen, hasLength(1));
   });
 
   test('maps legacy channel intro field to description', () {

@@ -51,6 +51,11 @@ Agent room text and `/` commands are ordinary Matrix message sends into the
 real private `agent_room_id`. Do not add P2P command facades for chat text, and
 do not depend on legacy pseudo agent room ids.
 
+MCP permission listing and status changes are local-only in Flutter unless the
+backend exposes a new contract. Do not add or restore ProductCore helper
+methods or action mappings for server-backed MCP permission list/status
+management.
+
 Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_p2p/query` action `sync.bootstrap`, prefer extending that contract and the client model.
 
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.

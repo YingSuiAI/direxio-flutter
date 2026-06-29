@@ -49,7 +49,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Channel join-request review actions return a top-level status with the same approval/join states. The client must preserve that top-level status; approving a request is not a successful join unless the returned status is `joined`.
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
-- Agent/API actions: `agent.*` and `apis.*`. Agent room header presence uses
+- Agent actions: `agent.*`. Agent room header presence uses
   native Matrix room state in the real `agent_room_id`: event type
   `io.direxio.agent.status`, state key `@agent:<server>`, and content field
   `online`. `sync.bootstrap` only supplies the real `agent_room_id`; it does

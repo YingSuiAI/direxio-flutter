@@ -1,4 +1,4 @@
 interface:
   display_name: "P2P Client Guardrails"
-  short_description: "Repo rules for p2p-client work"
-  default_prompt: "Use $p2p-client-guardrails before making repo changes in p2p-client."
+  short_description: "Repo rules and backend contract checks"
+  default_prompt: "Use $p2p-client-guardrails before changing the Direxio Flutter client."

@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-26
+Last verified from current code: 2026-06-29
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -36,7 +36,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Contact request remarks travel as `remark` on `contacts.request` and may be mirrored in contact or `sync.bootstrap.pending.friend_requests` metadata for the verifier UI.
 - Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.
 - Contact identity writes preserve the peer profile: `contacts.request`, `contacts.requests.accept`, and `contacts.update` may send `display_name`, `avatar_url`, and `domain`; `ContactEntry` reads `avatar_url` back for contact and direct-conversation caches.
-- Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
+- Follow/favorite actions: `follows.*`, `favorites.*`. Flutter user-facing report screens use the signed imadmin `/im/report` boundary, not P2P `reports.submit`.
 - Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present. Unified `favorites.add` sends media details inside a Matrix-style `content` snapshot so P2P responses can restore image/file URLs even when only `content` is persisted.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - `groups.invite` is surfaced to receivers as a Matrix room invite and may also appear in `sync.bootstrap.pending.group_invites`; it is not delivered as a private-chat invite message.

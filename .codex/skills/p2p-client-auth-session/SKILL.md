@@ -1,6 +1,6 @@
 ---
 name: p2p-client-auth-session
-description: Authentication and session workflow for the Flutter P2P client. Use for login, setup/bootstrap, portal discovery, restore, route guards, credential storage, Matrix/AS token handling, auth providers, or session-expiry behavior.
+description: "Use when changing Flutter auth/session behavior: portal bootstrap/auth/password, login, restore, route guards, credential storage, Matrix/P2P token handling, session expiry, device eviction, or auth providers."
 ---
 
 # P2P Client Auth Session
@@ -13,6 +13,11 @@ Read these before auth/session work:
 - `docs/FEATURES.md`
 - `docs/P2P_API_BOUNDARY.md` when P2P auth or portal/session shapes change
 
+If auth/session behavior conflicts with Flutter docs, verify against
+`C:\Users\84960\Desktop\direxio\direxio-message-server`, especially backend
+`docs/current-project-documentation.md`, `p2p/service_portal*.go`,
+`p2p/action_registry.go`, and Matrix session/device code.
+
 If the change touches `lib/presentation/`, also load `p2p-client-presentation-m3`.
 
 ## Auth Boundaries
@@ -22,6 +27,13 @@ Keep P2P product API auth and Matrix SDK auth responsibilities explicit. Backend
 Do not add ad hoc token fallbacks or separate token fields such as `product_token`, `matrix_token`, `product_access_token`, or `matrix_access_token`. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, test doubles, auth providers, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 Portal bootstrap, password auth, and owner profile updates are P2P product-layer concerns. `initialized` is the only initialization flag and means the generated initial password has been changed; owner profile setup must not gate initialization.
+
+`portal.bootstrap`, `portal.auth`, and `portal.password` create a new exclusive
+Matrix device session for the portal owner. After the new session is created,
+old owner phone/browser devices should receive Matrix `M_UNKNOWN_TOKEN` and must
+return to manual login. `agent.matrix_session.create` is the exception: it
+creates a local `@agent:<server>` Matrix session and must not evict owner
+devices.
 
 Only confirmed credential rejection should expire a restored session. Transient SDK/network restore failures should keep stored credentials and present a retryable logged-in shell when that is the current product behavior.
 

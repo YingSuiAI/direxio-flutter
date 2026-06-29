@@ -21,6 +21,7 @@ import 'presentation/providers/as_event_stream_provider.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
+import 'presentation/providers/push_context_provider.dart';
 import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/call/active_call_mini_window.dart';
 import 'presentation/widgets/app_glass_background.dart';
@@ -124,6 +125,7 @@ class PortalApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeProvider);
     ref.watch(asEventStreamRefreshProvider);
     ref.watch(messageSoundControllerProvider);
+    ref.watch(direxioPushContextLifecycleProvider);
     ref.watch(pushNotificationBootstrapProvider);
     ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
       if (previous == null || next <= previous) return;

@@ -24,6 +24,15 @@ If the change touches `lib/presentation/`, also load `p2p-client-presentation-m3
 
 Keep P2P product API auth and Matrix SDK auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P calls should use it as the bearer credential, and Matrix-native login/session, room, timeline, membership, media, profile, and read-marker behavior should flow through Matrix SDK or Matrix API code using the same token.
 
+Foreground/background push context is Matrix-native session behavior. After a
+user is logged in, the client writes global account data type
+`io.direxio.push.context`: `resumed` writes `{"foreground": true}` immediately
+and renews every 30 seconds; all other lifecycle states write
+`{"foreground": false}` and stop renewal. The server stamps foreground writes
+with a server-clock 60-second expiry, so the client must not send expiry
+timestamps. Do not implement this as a P2P action, a pusher field, or a `/sync`
+heuristic.
+
 Do not add ad hoc token fallbacks or separate token fields such as `product_token`, `matrix_token`, `product_access_token`, or `matrix_access_token`. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, test doubles, auth providers, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 Portal bootstrap, password auth, and owner profile updates are P2P product-layer concerns. `initialized` is the only initialization flag and means the generated initial password has been changed; owner profile setup must not gate initialization.

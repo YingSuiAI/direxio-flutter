@@ -54,6 +54,28 @@ final _matrixAgentStateTickProvider = StreamProvider<int>((ref) {
   return client.onSync.stream.map((_) => ++tick);
 });
 
+final agentBridgePresenceStateRefreshIntervalProvider =
+    Provider<Duration>((ref) => const Duration(seconds: 5));
+
+final _matrixAgentStatusStateRefreshTickProvider =
+    StreamProvider.autoDispose<int>((ref) async* {
+  final interval = ref.watch(agentBridgePresenceStateRefreshIntervalProvider);
+  yield 0;
+  yield* Stream.periodic(interval, (tick) => tick + 1);
+});
+
+final _matrixAgentStatusStateProvider = FutureProvider.autoDispose
+    .family<bool?, _MatrixAgentStatusStateRequest>((ref, request) async {
+  final client = ref.watch(matrixClientProvider);
+  final content = await client.getRoomStateWithKey(
+    request.roomId,
+    direxioAgentStatusEventType,
+    request.stateKey,
+  );
+  final raw = content['online'];
+  return raw is bool ? raw : null;
+});
+
 /// Agent header presence is native Matrix room state in the real agent room.
 /// Bootstrap only locates the room through `agent_room_id`; it no longer
 /// mirrors the online bit.
@@ -66,15 +88,53 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
         : const AgentBridgePresence.unknown(source: 'missing_agent_room_id');
   }
   ref.watch(_matrixAgentStateTickProvider);
-  final room = ref.watch(matrixClientProvider).getRoomById(agentRoomId);
+  final client = ref.watch(matrixClientProvider);
+  final room = client.getRoomById(agentRoomId);
   if (room == null) {
     return const AgentBridgePresence.connecting();
   }
   final online = agentRoomStatusOnline(room, agentRoomId: agentRoomId);
   if (online == null) {
-    return const AgentBridgePresence.unknown(
-      source: 'matrix_agent_status_state_missing',
+    final agentMXID = agentMXIDFromAgentRoomID(agentRoomId);
+    final homeserver = client.homeserver;
+    final accessToken = client.accessToken;
+    if (agentMXID == null ||
+        homeserver == null ||
+        accessToken == null ||
+        accessToken.trim().isEmpty) {
+      return const AgentBridgePresence.unknown(
+        source: 'matrix_agent_status_state_missing',
+      );
+    }
+    final refreshTick =
+        ref.watch(_matrixAgentStatusStateRefreshTickProvider).valueOrNull ?? 0;
+    final stateFetch = ref.watch(
+      _matrixAgentStatusStateProvider(
+        _MatrixAgentStatusStateRequest(
+          roomId: agentRoomId,
+          stateKey: agentMXID,
+          refreshTick: refreshTick,
+        ),
+      ),
     );
+    return switch (stateFetch) {
+      AsyncData(value: final fetchedOnline?) => AgentBridgePresence(
+          state: fetchedOnline
+              ? AgentBridgePresenceState.online
+              : AgentBridgePresenceState.offline,
+          online: fetchedOnline,
+          source: 'matrix.room_state.io.direxio.agent.status.fetch',
+        ),
+      AsyncError(:final error) => AgentBridgePresence(
+          state: AgentBridgePresenceState.error,
+          error: error,
+          source: 'matrix_agent_status_state_fetch_failed',
+        ),
+      AsyncData() => const AgentBridgePresence.unknown(
+          source: 'matrix_agent_status_state_fetch_missing',
+        ),
+      _ => const AgentBridgePresence.connecting(),
+    };
   }
   return AgentBridgePresence(
     state: online
@@ -84,6 +144,29 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
     source: 'matrix.room_state.io.direxio.agent.status',
   );
 });
+
+class _MatrixAgentStatusStateRequest {
+  const _MatrixAgentStatusStateRequest({
+    required this.roomId,
+    required this.stateKey,
+    required this.refreshTick,
+  });
+
+  final String roomId;
+  final String stateKey;
+  final int refreshTick;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MatrixAgentStatusStateRequest &&
+        roomId == other.roomId &&
+        stateKey == other.stateKey &&
+        refreshTick == other.refreshTick;
+  }
+
+  @override
+  int get hashCode => Object.hash(roomId, stateKey, refreshTick);
+}
 
 bool? agentRoomStatusOnline(Room room, {required String agentRoomId}) {
   final agentMXID = agentMXIDFromAgentRoomID(agentRoomId);

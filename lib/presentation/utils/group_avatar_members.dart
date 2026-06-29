@@ -65,10 +65,16 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
         );
   final states = room.states[EventTypes.RoomMember] ?? const {};
   final currentUserId = room.client.userID?.trim() ?? '';
-  final members = <GroupCompositeAvatarMember>[];
-  final avatarUrls = <String, String>{};
-  for (final mxid in resolvedOrder.take(9)) {
-    final authoritativeMember = authoritativeById[mxid.trim()];
+  final memberIds = resolvedOrder
+      .take(9)
+      .map((mxid) => mxid.trim())
+      .where((mxid) => mxid.isNotEmpty)
+      .toList(growable: false);
+  final freshAvatarUrls = <String, String>{};
+  final cachedAvatarUrls = <String, String>{};
+  final freshAvatarOwners = <String, Set<String>>{};
+  for (final mxid in memberIds) {
+    final authoritativeMember = authoritativeById[mxid];
     final member = states[mxid]?.asUser(room);
     final memberAvatarUrl = member == null
         ? null
@@ -82,16 +88,36 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
       syncCache,
       mxid,
     );
-    final avatar = currentUserId.isNotEmpty && mxid == currentUserId
+    final freshAvatar = currentUserId.isNotEmpty && mxid == currentUserId
         ? profileAvatarHttpUrl(currentUserProfile, room.client) ??
             contactAvatarUrl ??
             authoritativeAvatarUrl ??
             memberAvatarUrl
-        : contactAvatarUrl ??
-            authoritativeAvatarUrl ??
-            memberAvatarUrl ??
-            cachedMemberAvatarUrls[mxid.trim()];
-    final cleanAvatar = avatar?.trim() ?? '';
+        : contactAvatarUrl ?? authoritativeAvatarUrl ?? memberAvatarUrl;
+    final cleanFreshAvatar = freshAvatar?.trim() ?? '';
+    if (cleanFreshAvatar.isNotEmpty) {
+      freshAvatarUrls[mxid] = cleanFreshAvatar;
+      (freshAvatarOwners[cleanFreshAvatar] ??= <String>{}).add(mxid);
+    }
+    final cleanCachedAvatar = cachedMemberAvatarUrls[mxid]?.trim() ?? '';
+    if (cleanCachedAvatar.isNotEmpty) {
+      cachedAvatarUrls[mxid] = cleanCachedAvatar;
+    }
+  }
+
+  final members = <GroupCompositeAvatarMember>[];
+  final avatarUrls = <String, String>{};
+  for (final mxid in memberIds) {
+    final freshAvatar = freshAvatarUrls[mxid];
+    final cachedAvatar = cachedAvatarUrls[mxid];
+    final cleanAvatar = freshAvatar ??
+        (_cachedAvatarBelongsToOtherFreshMember(
+          memberId: mxid,
+          avatarUrl: cachedAvatar,
+          freshAvatarOwners: freshAvatarOwners,
+        )
+            ? ''
+            : cachedAvatar ?? '');
     if (cleanAvatar.isNotEmpty) avatarUrls[mxid.trim()] = cleanAvatar;
     members.add(
       GroupCompositeAvatarMember(
@@ -111,6 +137,18 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
       avatarUrls,
     ),
   );
+}
+
+bool _cachedAvatarBelongsToOtherFreshMember({
+  required String memberId,
+  required String? avatarUrl,
+  required Map<String, Set<String>> freshAvatarOwners,
+}) {
+  final cleanAvatar = avatarUrl?.trim() ?? '';
+  if (cleanAvatar.isEmpty) return false;
+  final owners = freshAvatarOwners[cleanAvatar];
+  if (owners == null || owners.isEmpty) return false;
+  return !owners.contains(memberId);
 }
 
 List<GroupCompositeAvatarMember> cachedGroupAvatarMembers({
@@ -164,7 +202,7 @@ String? strictGroupContactAvatarUrl(
   String mxid,
 ) {
   final contact = syncCache.contactForUserId(mxid.trim());
-  if (contact == null) return _strictClientDirectAvatarUrl(client, mxid);
+  if (contact == null) return _clientDirectAvatarUrl(client, mxid);
   final contactAvatar = avatarHttpUrl(client, contact.avatarUrl);
   if (contactAvatar != null) return contactAvatar;
   final directRoom = client.getRoomById(contact.roomId.trim());
@@ -187,7 +225,7 @@ String? strictGroupContactAvatarUrl(
     );
     if (memberAvatar != null) return memberAvatar;
   }
-  return _strictClientDirectAvatarUrl(client, mxid);
+  return _clientDirectAvatarUrl(client, mxid);
 }
 
 List<String> _liveGroupMemberIds(Room room) {
@@ -314,23 +352,23 @@ String? _strictDirectRoomProfileAvatarUrl(
   return null;
 }
 
-String? _strictClientDirectAvatarUrl(Client client, String mxid) {
+String? _clientDirectAvatarUrl(Client client, String mxid) {
+  final trimmed = mxid.trim();
+  if (trimmed.isEmpty) return null;
   for (final room in client.rooms) {
     final profileAvatar = _strictDirectRoomProfileAvatarUrl(
       client,
       room,
-      mxid,
+      trimmed,
     );
     if (profileAvatar != null) return profileAvatar;
-    final content = room.getState(nativeRoomProfileEventType)?.content;
-    if (content == null || content['room_type'] != nativeDirectRoomType) {
+    if (!isProductDirectContactRoom(room)) {
       continue;
     }
-    final trimmed = mxid.trim();
-    if (content['requester_mxid'] != trimmed &&
-        content['target_mxid'] != trimmed) {
-      continue;
-    }
+    if (productDirectPeerMxid(room) != trimmed) continue;
+    final directAvatar =
+        avatarHttpUrl(client, productDirectPeerAvatarUrl(room));
+    if (directAvatar != null) return directAvatar;
     final memberState = room.getState(EventTypes.RoomMember, trimmed);
     if (memberState == null) continue;
     final memberAvatar = matrixContentHttpUrl(

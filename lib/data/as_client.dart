@@ -2370,15 +2370,6 @@ abstract class AsClient {
   Future<void> deleteFavorite(int id);
 
   /// P2P product API action.
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  });
-
-  /// P2P product API action.
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',

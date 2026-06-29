@@ -16,7 +16,7 @@ import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'support/mock_as_client.dart';
 
 void main() {
-  testWidgets('contact detail submits user report through unified AS API',
+  testWidgets('contact detail submits user report through signed IM API',
       (tester) async {
     late http.Request seen;
     final matrixClient = Client('ContactDetailReportTest')
@@ -49,7 +49,17 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('举报用户'));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -180),
+    );
+    await tester.pumpAndSettle();
+
+    final reportAction = find.ancestor(
+      of: find.text('举报用户'),
+      matching: find.byType(InkWell),
+    );
+    await tester.tap(reportAction.first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('欺诈'));
     await tester.pumpAndSettle();

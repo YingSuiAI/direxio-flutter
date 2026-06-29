@@ -812,23 +812,6 @@ class _EmptyAsClient implements AsClient {
   Future<void> deleteFavorite(int id) async {}
 
   @override
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  }) async =>
-      {
-        'id': 'report-1',
-        'reporter_domain': reporterDomain,
-        'reported_domain': reportedDomain,
-        'target_type': targetType,
-        'reason': reason,
-        'images': images,
-      };
-
-  @override
   Future<PortalStatus> getPortalStatus() async => const PortalStatus(
         dendrite: 'connected',
         federation: 'ok',

@@ -393,28 +393,6 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<Map<String, dynamic>> submitReport({
-    required String reporterDomain,
-    required String reportedDomain,
-    required String reason,
-    int targetType = 1,
-    List<String> images = const [],
-  }) {
-    return _requestJson(
-      'POST',
-      'reports',
-      body: {
-        'reporter_domain': reporterDomain.trim(),
-        'reported_domain': reportedDomain.trim(),
-        'target_type': targetType,
-        'reason': reason.trim(),
-        if (images.isNotEmpty)
-          'images': images.map((image) => image.trim()).toList(growable: false),
-      },
-    );
-  }
-
-  @override
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
@@ -2267,7 +2245,6 @@ String _actionFor(String method, String path) {
   }
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
-  if (method == 'POST' && clean == 'reports') return 'reports.submit';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';
   if (method == 'POST' && clean == 'contacts/reactivate') {
     return 'contacts.reactivate';

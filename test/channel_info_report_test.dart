@@ -17,7 +17,7 @@ import 'package:portal_app/presentation/providers/im_public_client_provider.dart
 import 'support/mock_as_client.dart';
 
 void main() {
-  testWidgets('channel info submits report through unified AS API',
+  testWidgets('channel info submits report through signed IM API',
       (tester) async {
     late http.Request seen;
     final matrixClient = Client('ChannelInfoReportTest')

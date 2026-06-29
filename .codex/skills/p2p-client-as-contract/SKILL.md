@@ -39,8 +39,9 @@ Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them 
 User-facing reports must call imadmin `/im/report`, not Direxio Message Server
 ProductCore. Use `targetType = 1` for friends, `2` for groups, and `3` for
 channels. Image evidence is sent as repeated multipart `files` fields; do not
-send the legacy `images` field for uploaded files. Do not connect report UI to
-P2P `reports.submit` even if legacy client abstractions still expose it.
+send the legacy `images` field for uploaded files. Do not add Flutter
+`AsClient` / `HttpAsClient` report methods or connect report UI to P2P
+`reports.submit`.
 
 Do not add or restore P2P ordinary message/search/backup action clients. These actions are removed, not deprecated compatibility paths: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 

@@ -405,6 +405,47 @@ void main() {
     expect(find.text('共 1 条消息'), findsOneWidget);
   });
 
+  testWidgets('compact selection actions stay above the bottom system inset',
+      (tester) async {
+    const screenSize = Size(320, 240);
+    const bottomInset = 34.0;
+    await tester.binding.setSurfaceSize(screenSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: screenSize,
+            viewPadding: EdgeInsets.only(bottom: bottomInset),
+          ),
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: ChatRecordSelectionBar(
+                count: 3,
+                compact: true,
+                onExit: () {},
+                onDelete: () {},
+                onFavorite: () {},
+                onForward: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final safeBottom = screenSize.height - bottomInset;
+    expect(tester.getRect(find.byIcon(Symbols.delete)).bottom,
+        lessThan(safeBottom));
+    expect(tester.getRect(find.byIcon(Symbols.bookmark)).bottom,
+        lessThan(safeBottom));
+    expect(tester.getRect(find.byIcon(Symbols.ios_share)).bottom,
+        lessThan(safeBottom));
+  });
+
   testWidgets('chat record detail opens nested image messages', (tester) async {
     final client = _mediaClient();
     final payload = buildChatRecordPayload(

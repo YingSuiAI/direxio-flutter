@@ -1967,21 +1967,54 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _deleteEventForMe(Event event) async {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty) return;
+    await _deleteEventIdsForMe([eventId]);
+  }
+
+  Future<void> _deleteSelectedEventsForMe(List<Event> events) async {
+    final eventIds = events
+        .where((event) => _selected.contains(event.eventId))
+        .map((event) => event.eventId.trim())
+        .where((eventId) => eventId.isNotEmpty)
+        .toList(growable: false);
+    if (eventIds.isEmpty) return;
+    await _deleteEventIdsForMe(eventIds, closeSelection: true);
+  }
+
+  Future<void> _deleteEventIdsForMe(
+    Iterable<String> eventIds, {
+    bool closeSelection = false,
+  }) async {
+    final ids = <String>[];
+    final seen = <String>{};
+    for (final rawId in eventIds) {
+      final eventId = rawId.trim();
+      if (eventId.isEmpty || !seen.add(eventId)) continue;
+      ids.add(eventId);
+    }
+    if (ids.isEmpty) return;
     try {
       await ref
           .read(matrixMessageVisibilityClientProvider)
-          .hideEvents(roomId: widget.roomId, eventIds: [eventId]);
+          .hideEvents(roomId: widget.roomId, eventIds: ids);
       await ref.read(chatClearStateStoreProvider.future).then(
-            (store) => store.writeDeletedEventIds(widget.roomId, [eventId]),
+            (store) => store.writeDeletedEventIds(widget.roomId, ids),
           );
       if (!mounted) return;
-      ref
-          .read(asSyncCacheProvider.notifier)
-          .update((state) => state.withDeletedMessage(widget.roomId, eventId));
+      ref.read(asSyncCacheProvider.notifier).update((state) {
+        var next = state;
+        for (final eventId in ids) {
+          next = next.withDeletedMessage(widget.roomId, eventId);
+        }
+        return next;
+      });
       unawaited(_refreshBootstrapAfterVisibilityMutation());
       setState(() {
-        _locallyHiddenEventIds.add(eventId);
-        _selected.remove(eventId);
+        _locallyHiddenEventIds.addAll(ids);
+        _selected.removeWhere(ids.contains);
+        if (closeSelection) {
+          _multiSelect = false;
+          _selected.clear();
+        }
       });
     } on Object catch (err) {
       debugPrint('delete message for me failed: $err');
@@ -4190,23 +4223,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       sourceRoomType: _favoriteRoomType(room),
                     ),
                   ),
-                  onDelete: () async {
-                    for (final id in _selected.toList()) {
-                      Event? ev;
-                      for (final e in visibleEvents) {
-                        if (e.eventId == id) {
-                          ev = e;
-                          break;
-                        }
-                      }
-                      if (ev == null) continue;
-                      await _deleteEventForMe(ev);
-                    }
-                    setState(() {
-                      _multiSelect = false;
-                      _selected.clear();
-                    });
-                  },
+                  onDelete: () =>
+                      unawaited(_deleteSelectedEventsForMe(visibleEvents)),
                 )
               else
                 ChatCapsuleInputBar(

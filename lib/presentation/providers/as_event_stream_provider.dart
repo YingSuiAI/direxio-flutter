@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
 import '../../data/as_event_cursor_store.dart';
+import '../../data/as_realtime_transport.dart';
+import '../../data/http_as_client.dart';
 import '../../data/matrix_foreground_sync.dart';
 import '../call/voice_call_controller.dart';
 import 'as_event_cursor_store_provider.dart';
@@ -27,6 +29,9 @@ typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
 typedef AsEventSeqRead = Future<int> Function();
 typedef AsEventSeqWrite = Future<void> Function(int seq);
+typedef AsEventSeqAck = Future<void> Function(int seq);
+typedef AsLifecycleReport = Future<void> Function(bool foreground);
+typedef AsFocusedRoomReport = Future<void> Function(String roomId);
 typedef ProductCacheClear = Future<void> Function();
 typedef AsProductEventApply = FutureOr<AsProductEventHandling> Function(
   AsEventStreamEvent event,
@@ -37,22 +42,26 @@ enum AsProductEventHandling { handled, bootstrapRequired }
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
   final auth = ref.watch(authStateNotifierProvider).valueOrNull;
-  if (auth?.hasUsablePortalSession != true) return null;
+  final matrixClient = ref.watch(matrixClientProvider);
+  final hasMatrixSession = auth?.isLoggedIn == true &&
+      (matrixClient.accessToken?.trim().isNotEmpty ?? false);
+  if (auth?.hasUsablePortalSession != true && !hasMatrixSession) return null;
 
   final asClient = ref.watch(asClientProvider);
+  final realtimeTransport = _realtimeTransportFor(asClient);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);
   final cursorStore = DeferredAsEventCursorStore(
     () => ref.read(asEventCursorStoreProvider.future),
   );
-  final matrixClient = ref.watch(matrixClientProvider);
   final callSessionStore = ref.watch(asCallSessionStoreProvider.future);
   final voiceCallController = ref.watch(voiceCallControllerProvider);
   final controller = AsEventStreamRefreshController(
-    openEvents: asClient.streamEvents,
+    openEvents: realtimeTransport.streamEvents,
     syncMatrixConversations: () => syncMatrixForegroundLight(matrixClient),
     loadBootstrap: bootstrapRepository.refresh,
     readLastSeq: cursorStore.readLastSeq,
     writeLastSeq: cursorStore.writeLastSeq,
+    ackEventSeq: realtimeTransport.ackEventSeq,
     clearLastSeq: cursorStore.clear,
     clearProductCache: () async {
       await bootstrapRepository.clear();
@@ -83,6 +92,8 @@ final asEventStreamRefreshProvider =
           );
       ref.invalidate(productConversationsProvider);
     },
+    reportLifecycle: realtimeTransport.reportLifecycle,
+    reportFocusedRoom: realtimeTransport.reportFocusedRoom,
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');
     },
@@ -90,9 +101,20 @@ final asEventStreamRefreshProvider =
   controller.start();
   ref.onDispose(() {
     unawaited(controller.stop());
+    unawaited(realtimeTransport.close());
   });
   return controller;
 });
+
+AsRealtimeTransport _realtimeTransportFor(AsClient asClient) {
+  final sse = SseAsRealtimeTransport(asClient.streamEvents);
+  if (asClient is! HttpAsClient) return sse;
+  final ws = WsAsRealtimeTransport(
+    baseUri: asClient.realtimeBaseUri,
+    createTicket: asClient.createRealtimeWSTicket,
+  );
+  return FallbackAsRealtimeTransport(primary: ws, fallback: sse);
+}
 
 class AsEventStreamRefreshController {
   AsEventStreamRefreshController({
@@ -102,10 +124,13 @@ class AsEventStreamRefreshController {
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
     AsEventSeqRead? readLastSeq,
     AsEventSeqWrite? writeLastSeq,
+    AsEventSeqAck? ackEventSeq,
     Future<void> Function()? clearLastSeq,
     ProductCacheClear? clearProductCache,
     AsProductEventApply? applyProductEvent,
     AsCallChanged? onCallChanged,
+    AsLifecycleReport? reportLifecycle,
+    AsFocusedRoomReport? reportFocusedRoom,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -114,10 +139,13 @@ class AsEventStreamRefreshController {
         _onBootstrapLoaded = onBootstrapLoaded,
         _readLastSeq = readLastSeq ?? (() async => 0),
         _writeLastSeq = writeLastSeq ?? ((_) async {}),
+        _ackEventSeq = ackEventSeq ?? ((_) async {}),
         _clearLastSeq = clearLastSeq ?? (() async {}),
         _clearProductCache = clearProductCache ?? (() async {}),
         _applyProductEvent = applyProductEvent,
         _onCallChanged = onCallChanged,
+        _reportLifecycle = reportLifecycle ?? ((_) async {}),
+        _reportFocusedRoom = reportFocusedRoom ?? ((_) async {}),
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -127,10 +155,13 @@ class AsEventStreamRefreshController {
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
   final AsEventSeqRead _readLastSeq;
   final AsEventSeqWrite _writeLastSeq;
+  final AsEventSeqAck _ackEventSeq;
   final Future<void> Function() _clearLastSeq;
   final ProductCacheClear _clearProductCache;
   final AsProductEventApply? _applyProductEvent;
   final AsCallChanged? _onCallChanged;
+  final AsLifecycleReport _reportLifecycle;
+  final AsFocusedRoomReport _reportFocusedRoom;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -144,6 +175,18 @@ class AsEventStreamRefreshController {
   int _refreshTargetSeq = 0;
 
   int get lastSeq => _lastSeq;
+
+  Future<void> reportLifecycle({required bool foreground}) {
+    return _reportLifecycle(foreground);
+  }
+
+  Future<void> reportFocusedRoom(String roomId) {
+    return _reportFocusedRoom(roomId.trim());
+  }
+
+  Future<void> clearFocusedRoom() {
+    return _reportFocusedRoom('');
+  }
 
   void start() {
     if (_started) return;
@@ -282,6 +325,7 @@ class AsEventStreamRefreshController {
     if (seq <= 0) return;
     if (seq > _lastSeq) _lastSeq = seq;
     await _writeLastSeq(_lastSeq);
+    await _ackEventSeq(_lastSeq);
   }
 }
 

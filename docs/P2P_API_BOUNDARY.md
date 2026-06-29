@@ -59,23 +59,27 @@ This document records the current P2P product API / Matrix boundary used by the 
   client APIs.
 - Sync strategy: use `sync.bootstrap` only for cold start, login recovery,
   corrupt local cache, unknown event fallback, or confirmed event gaps. Normal
-  updates should persist the last handled SSE `seq` and apply typed local
-  reducers from `GET /_p2p/events?since=<last_seq>` instead of full bootstrap
-  refreshes.
-- If `GET /_p2p/events` emits `event: p2p.cursor_reset` or returns
+  updates should create a `realtime.ws_ticket.create` ticket, connect
+  `GET /_p2p/ws`, persist the last handled `seq`, send `client.ack`, and apply
+  typed local reducers from WS `server.event` frames instead of full bootstrap
+  refreshes. `GET /_p2p/events?since=<last_seq>` remains the SSE fallback when
+  WS cannot connect.
+- If WS emits `server.cursor_reset`, or the SSE fallback emits
+  `event: p2p.cursor_reset` / returns
   `X-Direxio-P2P-Events-Cursor-Reset: true`, the client clears local product
-  projection caches, runs one `sync.bootstrap`, persists the response
-  `max_seq` as the recovered cursor when present, and resumes deltas from that
-  sequence. The cursor-reset control event itself must not advance `last_seq`.
+  projection caches, runs one `sync.bootstrap`, persists the response `max_seq`
+  as the recovered cursor when present, and resumes deltas from that sequence.
+  The cursor-reset control event itself must not advance `last_seq`.
 - Foreground Matrix refreshes use `/sync` filters with a low timeline limit and
   `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
   delete, and redaction remain Matrix Client-Server responsibilities.
-- Foreground/background push context uses Matrix global account data type
-  `io.direxio.push.context`. Logged-in clients write `{"foreground": true}`
-  immediately on `resumed` and every 30 seconds, and write
-  `{"foreground": false}` for non-resumed lifecycle states. The backend stamps
-  foreground writes with a server-clock 60-second expiry; the client must not
-  send expiry timestamps or model this as a P2P action.
+- Foreground/background and current-room push context use WS frames:
+  `client.lifecycle` reports resumed/background state, `client.focus` reports
+  the currently opened room, and `client.ack` reports the latest handled event
+  sequence. Logged-in clients still write Matrix global account data
+  `io.direxio.push.context` every 30 seconds as a migration fallback. The
+  backend stamps session/account-data freshness with server time; the client
+  must not send expiry timestamps.
 - Channel post/comment list actions currently do not have a documented
   cursor/page contract. Client method signatures may keep local progressive
   loading parameters, but the HTTP client must not send uncontracted
@@ -101,8 +105,8 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Message search via Matrix search.
 - Local delete/clear through the Matrix `io.direxio` local visibility endpoint.
 - Read markers and sync via Matrix `/sync`.
-- Foreground/background push context via global account data
-  `io.direxio.push.context`.
+- Foreground/background and current-room push context via WS, with
+  `io.direxio.push.context` retained as fallback.
 
 ## Bootstrap Privacy
 

@@ -77,6 +77,7 @@ import '../utils/chat_file_actions.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/realtime_room_focus.dart';
 
 void _groupChatGestureLog(String message) {
   debugPrint('[group chat gesture] $message');
@@ -2898,537 +2899,621 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final voiceCallController = ref.watch(voiceCallControllerProvider);
     final l10n = _groupChatL10n(context);
 
-    return Scaffold(
-      body: ChatGlassBackground(
-        child: ChatLayeredLayout(
-          messageTopInset: messageTopInset,
-          messageBottomInset: messageBottomInset,
-          header: _multiSelect
-              ? ChatSelectionHeader(
-                  count: _selected.length,
-                  onCancel: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                )
-              : StreamBuilder<GroupCallUiState>(
-                  stream: voiceCallController.groupStateStream,
-                  initialData: voiceCallController.currentGroupState,
-                  builder: (context, snapshot) {
-                    final activeGroupCall = _activeGroupCallForHeader(
-                      controllerState: snapshot.data ?? GroupCallUiState.idle,
-                      timelineEntry: activeTimelineGroupCall,
-                      roomId: activeRoomId,
-                    );
-                    return ChatCapsuleHeader(
-                      title: channelTitle,
-                      subtitle: activeGroupCall == null
-                          ? l10n.groupChatMemberCount(headerMemberCount)
-                          : l10n.groupChatCalling,
-                      onTitleTap: activeGroupCall == null
-                          ? null
-                          : () => context.push(
-                                groupCallJoinRoute(
-                                  roomId: activeRoomId,
-                                  roomName: name,
-                                  callType: activeGroupCall.callType,
-                                  callId: activeGroupCall.callId,
-                                  incoming: activeGroupCall.requiresJoin,
+    return RealtimeRoomFocus(
+      roomId: activeRoomId,
+      child: Scaffold(
+        body: ChatGlassBackground(
+          child: ChatLayeredLayout(
+            messageTopInset: messageTopInset,
+            messageBottomInset: messageBottomInset,
+            header: _multiSelect
+                ? ChatSelectionHeader(
+                    count: _selected.length,
+                    onCancel: () => setState(() {
+                      _multiSelect = false;
+                      _selected.clear();
+                    }),
+                  )
+                : StreamBuilder<GroupCallUiState>(
+                    stream: voiceCallController.groupStateStream,
+                    initialData: voiceCallController.currentGroupState,
+                    builder: (context, snapshot) {
+                      final activeGroupCall = _activeGroupCallForHeader(
+                        controllerState: snapshot.data ?? GroupCallUiState.idle,
+                        timelineEntry: activeTimelineGroupCall,
+                        roomId: activeRoomId,
+                      );
+                      return ChatCapsuleHeader(
+                        title: channelTitle,
+                        subtitle: activeGroupCall == null
+                            ? l10n.groupChatMemberCount(headerMemberCount)
+                            : l10n.groupChatCalling,
+                        onTitleTap: activeGroupCall == null
+                            ? null
+                            : () => context.push(
+                                  groupCallJoinRoute(
+                                    roomId: activeRoomId,
+                                    roomName: name,
+                                    callType: activeGroupCall.callType,
+                                    callId: activeGroupCall.callId,
+                                    incoming: activeGroupCall.requiresJoin,
+                                  ),
+                                ),
+                        onBack: () => unawaited(_popGroupChatOrHome(context)),
+                        showEncryptionIcon: true,
+                        actions: [
+                          ChatCapsuleAction(
+                            icon: Symbols.more_vert,
+                            tooltip: l10n.groupChatDetails,
+                            color: t.accent,
+                            onTap: () => context.push(_infoRoute),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+            messageLayer: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _closePanels(),
+              child: timelineItems.isEmpty
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final emptyHeight = math.max(
+                          0.0,
+                          constraints.maxHeight - messagePadding.vertical,
+                        );
+                        return RefreshIndicator(
+                          color: t.accent,
+                          onRefresh: _requestOlderMessages,
+                          child: ListView(
+                            controller: _messageScrollCtrl,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: messagePadding,
+                            children: [
+                              SizedBox(
+                                height: emptyHeight,
+                                child: Center(
+                                  child: Text(
+                                    l10n.groupChatEmpty,
+                                    style: AppTheme.sans(
+                                      size: 13,
+                                      color: t.textMute,
+                                    ),
+                                  ),
                                 ),
                               ),
-                      onBack: () => unawaited(_popGroupChatOrHome(context)),
-                      showEncryptionIcon: true,
-                      actions: [
-                        ChatCapsuleAction(
-                          icon: Symbols.more_vert,
-                          tooltip: l10n.groupChatDetails,
-                          color: t.accent,
-                          onTap: () => context.push(_infoRoute),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-          messageLayer: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _closePanels(),
-            child: timelineItems.isEmpty
-                ? LayoutBuilder(
-                    builder: (context, constraints) {
-                      final emptyHeight = math.max(
-                        0.0,
-                        constraints.maxHeight - messagePadding.vertical,
-                      );
-                      return RefreshIndicator(
+                            ],
+                          ),
+                        );
+                      },
+                    )
+                  : ChatTimelineListMotion(
+                      itemCount: timelineItems.length,
+                      newestItemKey: newestTimelineItemKey,
+                      child: RefreshIndicator(
                         color: t.accent,
                         onRefresh: _requestOlderMessages,
-                        child: ListView(
+                        child: ListView.builder(
                           controller: _messageScrollCtrl,
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: messagePadding,
-                          children: [
-                            SizedBox(
-                              height: emptyHeight,
-                              child: Center(
-                                child: Text(
-                                  l10n.groupChatEmpty,
-                                  style: AppTheme.sans(
-                                    size: 13,
-                                    color: t.textMute,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  )
-                : ChatTimelineListMotion(
-                    itemCount: timelineItems.length,
-                    newestItemKey: newestTimelineItemKey,
-                    child: RefreshIndicator(
-                      color: t.accent,
-                      onRefresh: _requestOlderMessages,
-                      child: ListView.builder(
-                        controller: _messageScrollCtrl,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: messagePadding,
-                        itemCount: timelineItems.length,
-                        itemBuilder: (context, i) {
-                          final itemKey = displayTimelineItemKeys[i];
-                          final contextMenuPlacement =
-                              _messageContextMenuPlacement(
-                            i,
-                            displayTimelineItems.length,
-                          );
-                          Widget enter(
-                            Widget child, {
-                            required bool isMe,
-                            required Object id,
-                            GlobalKey? anchorKey,
-                            bool flashing = false,
-                          }) {
-                            return chatMessageEntrance(
-                              key: ValueKey('group_message_enter_$id'),
-                              isMe: isMe,
-                              index: i,
-                              enabled:
-                                  _initialTimelineEntrances.contains(itemKey),
-                              child: anchorKey == null
-                                  ? _MessageJumpFlash(
-                                      flashing: flashing,
-                                      child: child,
-                                    )
-                                  : KeyedSubtree(
-                                      key: anchorKey,
-                                      child: _MessageJumpFlash(
+                          itemCount: timelineItems.length,
+                          itemBuilder: (context, i) {
+                            final itemKey = displayTimelineItemKeys[i];
+                            final contextMenuPlacement =
+                                _messageContextMenuPlacement(
+                              i,
+                              displayTimelineItems.length,
+                            );
+                            Widget enter(
+                              Widget child, {
+                              required bool isMe,
+                              required Object id,
+                              GlobalKey? anchorKey,
+                              bool flashing = false,
+                            }) {
+                              return chatMessageEntrance(
+                                key: ValueKey('group_message_enter_$id'),
+                                isMe: isMe,
+                                index: i,
+                                enabled:
+                                    _initialTimelineEntrances.contains(itemKey),
+                                child: anchorKey == null
+                                    ? _MessageJumpFlash(
                                         flashing: flashing,
                                         child: child,
+                                      )
+                                    : KeyedSubtree(
+                                        key: anchorKey,
+                                        child: _MessageJumpFlash(
+                                          flashing: flashing,
+                                          child: child,
+                                        ),
+                                      ),
+                              );
+                            }
+
+                            return displayTimelineItems[i].when(
+                              outbox: (pending) {
+                                if (pending.messageKind ==
+                                    LocalOutboxMessageKind.text) {
+                                  return enter(
+                                    _GroupPendingTextBubble(
+                                      text: pending.text,
+                                      time: DateFormat('HH:mm').format(
+                                        pending.createdAt.toLocal(),
+                                      ),
+                                      status: pending.status,
+                                      avatarSeed: currentUserAvatarSeed,
+                                      avatarUrl: currentUserAvatarUrl,
+                                      onRetry: () => unawaited(
+                                        _retryFailedTextMessage(pending),
+                                      ),
+                                      onLongPressAt: (position) =>
+                                          _onLongPressOutboxItem(
+                                        pending,
+                                        position,
+                                        placement: contextMenuPlacement,
                                       ),
                                     ),
-                            );
-                          }
-
-                          return displayTimelineItems[i].when(
-                            outbox: (pending) {
-                              if (pending.messageKind ==
-                                  LocalOutboxMessageKind.text) {
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                }
+                                final playback = _voicePlayer.playback.value;
+                                final isPlaying =
+                                    playback.messageId == pending.id &&
+                                        playback.playing;
                                 return enter(
-                                  _GroupPendingTextBubble(
-                                    text: pending.text,
-                                    time: DateFormat('HH:mm').format(
-                                      pending.createdAt.toLocal(),
-                                    ),
-                                    status: pending.status,
-                                    avatarSeed: currentUserAvatarSeed,
-                                    avatarUrl: currentUserAvatarUrl,
-                                    onRetry: () => unawaited(
-                                      _retryFailedTextMessage(pending),
-                                    ),
-                                    onLongPressAt: (position) =>
-                                        _onLongPressOutboxItem(
-                                      pending,
-                                      position,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
+                                  _isGroupVoiceOutboxItem(pending)
+                                      ? _GroupVoiceMessageBubble(
+                                          isMe: true,
+                                          time: DateFormat('HH:mm').format(
+                                            pending.createdAt.toLocal(),
+                                          ),
+                                          durationSeconds:
+                                              _groupVoiceDurationSecondsFromMs(
+                                            pending.durationMs,
+                                          ),
+                                          selected: false,
+                                          multiSelect: false,
+                                          isPlaying: isPlaying,
+                                          currentPlaySeconds:
+                                              playback.position.inSeconds,
+                                          senderAvatarUrl: currentUserAvatarUrl,
+                                          onLongPressAt: (position) =>
+                                              _onLongPressOutboxItem(
+                                            pending,
+                                            position,
+                                            placement: contextMenuPlacement,
+                                          ),
+                                        )
+                                      : _GroupPendingMediaBubble(
+                                          item: pending,
+                                          avatarSeed: currentUserAvatarSeed,
+                                          avatarUrl: currentUserAvatarUrl,
+                                          onRetry: () => unawaited(
+                                            _retryFailedMediaUpload(pending),
+                                          ),
+                                          onLongPressAt: (position) =>
+                                              _onLongPressOutboxItem(
+                                            pending,
+                                            position,
+                                            placement: contextMenuPlacement,
+                                          ),
+                                        ),
                                   isMe: true,
                                   id: pending.id,
                                 );
-                              }
-                              final playback = _voicePlayer.playback.value;
-                              final isPlaying =
-                                  playback.messageId == pending.id &&
-                                      playback.playing;
-                              return enter(
-                                _isGroupVoiceOutboxItem(pending)
-                                    ? _GroupVoiceMessageBubble(
-                                        isMe: true,
-                                        time: DateFormat('HH:mm').format(
-                                          pending.createdAt.toLocal(),
-                                        ),
-                                        durationSeconds:
-                                            _groupVoiceDurationSecondsFromMs(
-                                          pending.durationMs,
-                                        ),
-                                        selected: false,
-                                        multiSelect: false,
-                                        isPlaying: isPlaying,
-                                        currentPlaySeconds:
-                                            playback.position.inSeconds,
-                                        senderAvatarUrl: currentUserAvatarUrl,
-                                        onLongPressAt: (position) =>
-                                            _onLongPressOutboxItem(
-                                          pending,
-                                          position,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      )
-                                    : _GroupPendingMediaBubble(
-                                        item: pending,
-                                        avatarSeed: currentUserAvatarSeed,
-                                        avatarUrl: currentUserAvatarUrl,
-                                        onRetry: () => unawaited(
-                                          _retryFailedMediaUpload(pending),
-                                        ),
-                                        onLongPressAt: (position) =>
-                                            _onLongPressOutboxItem(
-                                          pending,
-                                          position,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                isMe: true,
-                                id: pending.id,
-                              );
-                            },
-                            asCall: (session) {
-                              final callerId = session.createdByMxid.trim();
-                              final callerIsMe = callerId == myId;
-                              final senderName = _displayNameForMxid(
-                                room,
-                                syncCache,
-                                callerId,
-                              );
-                              final senderAvatarUrl = _avatarUrlForMxid(
-                                room,
-                                syncCache,
-                                callerId,
-                                currentUserProfile,
-                              );
-                              return enter(
-                                _GroupAsCallRecordMessageBubble(
-                                  isMe: callerIsMe,
-                                  senderId: callerId,
-                                  senderName: senderName,
-                                  senderAvatarUrl: senderAvatarUrl,
-                                  onAvatarTap: isChannelConversation
-                                      ? null
-                                      : _memberAvatarTap(callerId),
-                                  onAvatarLongPress: _memberAvatarMention(
-                                    callerId,
-                                    senderName,
-                                  ),
-                                  isVideo: asCallSessionRecordIsVideo(session),
-                                  text: asCallSessionRecordText(
-                                    session,
-                                    l10n: l10n,
-                                  ),
-                                  time: DateFormat('HH:mm').format(
-                                    asCallSessionStableTimestamp(session)
-                                        .toLocal(),
-                                  ),
-                                ),
-                                isMe: callerIsMe,
-                                id: session.callId,
-                              );
-                            },
-                            event: (e) {
-                              final selected = _selected.contains(e.eventId);
-                              final chatRecordPayload =
-                                  chatRecordPayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                              );
-                              final channelSharePayload =
-                                  channelSharePayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                              );
-                              final channelShareJoinId =
-                                  channelSharePayload == null
-                                      ? ''
-                                      : channelShareJoinKey(
-                                          channelSharePayload,
-                                        );
-                              final redPacketPayload =
-                                  redPacketPayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                                body: e.body,
-                              );
-                              final isMe = e.senderId == myId;
-                              final anchorKey = _messageAnchorKey(e.eventId);
-                              final flashing =
-                                  _flashingMessageEventId == e.eventId.trim();
-                              final senderAvatarUrl = _avatarUrlForMxid(
-                                room,
-                                syncCache,
-                                e.senderId,
-                                currentUserProfile,
-                              );
-                              final senderAvatarTap = isChannelConversation
-                                  ? null
-                                  : _memberAvatarTap(e.senderId);
-                              final senderAvatarLongPress =
-                                  _memberAvatarMention(
-                                e.senderId,
-                                e.senderFromMemoryOrFallback.calcDisplayname(),
-                              );
-                              void toggle() => setState(() {
-                                    if (selected) {
-                                      _selected.remove(e.eventId);
-                                    } else {
-                                      _selected.add(e.eventId);
-                                    }
-                                  });
-                              if (isCallRecordEvent(e)) {
-                                final callId = asCallIdForCallRecord(
-                                  e,
-                                  callRecordContextEvents,
-                                );
-                                final pendingAsGroupCall =
-                                    isProductGroupCallEvent(e) &&
-                                        callId != null &&
-                                        !_roomAsCallHistory.containsKey(
-                                          callId.trim(),
-                                        );
-                                final callerEvent = callRecordSenderEvent(
-                                  e,
-                                  callRecordContextEvents,
-                                );
-                                final callerId = callRecordSenderId(
-                                  e,
-                                  callRecordContextEvents,
-                                );
+                              },
+                              asCall: (session) {
+                                final callerId = session.createdByMxid.trim();
                                 final callerIsMe = callerId == myId;
-                                final callerName = callerEvent
-                                        ?.senderFromMemoryOrFallback
-                                        .calcDisplayname() ??
-                                    e.senderFromMemoryOrFallback
-                                        .calcDisplayname();
+                                final senderName = _displayNameForMxid(
+                                  room,
+                                  syncCache,
+                                  callerId,
+                                );
+                                final senderAvatarUrl = _avatarUrlForMxid(
+                                  room,
+                                  syncCache,
+                                  callerId,
+                                  currentUserProfile,
+                                );
                                 return enter(
-                                  _GroupCallRecordMessageBubble(
-                                    event: callerEvent ?? e,
+                                  _GroupAsCallRecordMessageBubble(
                                     isMe: callerIsMe,
-                                    isVideo: callRecordIsVideo(
-                                      e,
-                                      callRecordContextEvents,
-                                    ),
-                                    text: callRecordText(
-                                      e,
-                                      callRecordContextEvents,
-                                      asCallSessionPending: pendingAsGroupCall,
-                                      l10n: l10n,
-                                    ),
-                                    senderName: callerName,
-                                    senderAvatarUrl: _avatarUrlForMxid(
-                                      room,
-                                      syncCache,
-                                      callerId,
-                                      currentUserProfile,
-                                    ),
+                                    senderId: callerId,
+                                    senderName: senderName,
+                                    senderAvatarUrl: senderAvatarUrl,
                                     onAvatarTap: isChannelConversation
                                         ? null
                                         : _memberAvatarTap(callerId),
                                     onAvatarLongPress: _memberAvatarMention(
                                       callerId,
-                                      callerName,
+                                      senderName,
+                                    ),
+                                    isVideo:
+                                        asCallSessionRecordIsVideo(session),
+                                    text: asCallSessionRecordText(
+                                      session,
+                                      l10n: l10n,
                                     ),
                                     time: DateFormat('HH:mm').format(
-                                      e.originServerTs.toLocal(),
-                                    ),
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect ? toggle : null,
-                                    onLongPressAt: (position) =>
-                                        _onLongPressEvent(
-                                      e,
-                                      position,
-                                      roomName: name,
-                                      placement: contextMenuPlacement,
+                                      asCallSessionStableTimestamp(session)
+                                          .toLocal(),
                                     ),
                                   ),
                                   isMe: callerIsMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
+                                  id: session.callId,
                                 );
-                              }
-                              if (e.messageType == MessageTypes.Image &&
-                                  e.hasAttachment) {
-                                final senderName = e.senderFromMemoryOrFallback
-                                    .calcDisplayname();
-                                final localOrder =
-                                    messageOrder.entryForEvent(e.eventId);
-                                final time = DateFormat('HH:mm').format(
-                                  (localOrder?.createdAt ?? e.originServerTs)
-                                      .toLocal(),
+                              },
+                              event: (e) {
+                                final selected = _selected.contains(e.eventId);
+                                final chatRecordPayload =
+                                    chatRecordPayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
                                 );
-                                return enter(
-                                  _GroupImageMessageBubble(
-                                    event: e,
-                                    isMe: isMe,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    onAvatarTap: senderAvatarTap,
-                                    onAvatarLongPress: senderAvatarLongPress,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    mediaSize: chatMediaBubbleSizeForEvent(e),
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => unawaited(
-                                              _openImageEvent(
-                                                e,
-                                                '${isMe ? l10n.groupChatMe : senderName} · $time',
-                                              ),
-                                            ),
-                                    onLongPressAt: (position) =>
-                                        _onLongPressEvent(
-                                      e,
-                                      position,
-                                      roomName: name,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
+                                final channelSharePayload =
+                                    channelSharePayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
                                 );
-                              }
-                              if (e.messageType == MessageTypes.Video &&
-                                  e.hasAttachment) {
-                                return enter(
-                                  _GroupImageMessageBubble(
-                                    event: e,
-                                    isMe: isMe,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    onAvatarTap: senderAvatarTap,
-                                    onAvatarLongPress: senderAvatarLongPress,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    fallbackIcon: Symbols.movie,
-                                    fit: BoxFit.cover,
-                                    mediaSize: chatMessageDefaultMediaSize,
-                                    centerOverlay:
-                                        const _GroupVideoPlayOverlay(),
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => unawaited(_openVideoEvent(e)),
-                                    onLongPressAt: (position) =>
-                                        _onLongPressEvent(
-                                      e,
-                                      position,
-                                      roomName: name,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
+                                final channelShareJoinId =
+                                    channelSharePayload == null
+                                        ? ''
+                                        : channelShareJoinKey(
+                                            channelSharePayload,
+                                          );
+                                final redPacketPayload =
+                                    redPacketPayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                  body: e.body,
                                 );
-                              }
-                              if (_isGroupVoiceEvent(e)) {
-                                final playback = _voicePlayer.playback.value;
-                                final eventId = e.eventId.trim();
-                                final isPlaying =
-                                    playback.messageId == eventId &&
-                                        playback.playing;
-                                final localOrder =
-                                    messageOrder.entryForEvent(e.eventId);
-                                final time = DateFormat('HH:mm').format(
-                                  (localOrder?.createdAt ?? e.originServerTs)
-                                      .toLocal(),
+                                final isMe = e.senderId == myId;
+                                final anchorKey = _messageAnchorKey(e.eventId);
+                                final flashing =
+                                    _flashingMessageEventId == e.eventId.trim();
+                                final senderAvatarUrl = _avatarUrlForMxid(
+                                  room,
+                                  syncCache,
+                                  e.senderId,
+                                  currentUserProfile,
                                 );
-                                return enter(
-                                  _GroupVoiceMessageBubble(
-                                    event: e,
-                                    isMe: isMe,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    onAvatarTap: senderAvatarTap,
-                                    onAvatarLongPress: senderAvatarLongPress,
-                                    time: time,
-                                    durationSeconds:
-                                        _groupVoiceDurationSecondsForEvent(e),
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    isPlaying: isPlaying,
-                                    currentPlaySeconds:
-                                        playback.position.inSeconds,
-                                    onSeek: isPlaying
-                                        ? (seconds) =>
-                                            _seekVoiceEvent(e, seconds)
-                                        : null,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => unawaited(_openFileEvent(e)),
-                                    onLongPressAt: (position) =>
-                                        _onLongPressEvent(
-                                      e,
-                                      position,
-                                      roomName: name,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
+                                final senderAvatarTap = isChannelConversation
+                                    ? null
+                                    : _memberAvatarTap(e.senderId);
+                                final senderAvatarLongPress =
+                                    _memberAvatarMention(
+                                  e.senderId,
+                                  e.senderFromMemoryOrFallback
+                                      .calcDisplayname(),
                                 );
-                              }
-                              if (e.messageType == MessageTypes.File &&
-                                  !_isGroupVoiceEvent(e) &&
-                                  e.hasAttachment) {
-                                final localOrder =
-                                    messageOrder.entryForEvent(e.eventId);
-                                final time = DateFormat('HH:mm').format(
-                                  (localOrder?.createdAt ?? e.originServerTs)
-                                      .toLocal(),
-                                );
-                                final size = e.infoMap['size'];
-                                final sizeBytes = size is int ? size : 0;
-                                final kind = fileKindLabel(
-                                  e.attachmentMimetype,
-                                  e.body,
-                                );
-                                final sizeLabel = sizeBytes > 0
-                                    ? '$kind · ${formatByteSize(sizeBytes)}'
-                                    : kind;
-                                final eventId = e.eventId.trim();
-                                return enter(
-                                  _GroupFileMessageBubble(
-                                    event: e,
-                                    isMe: isMe,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    onAvatarTap: senderAvatarTap,
-                                    onAvatarLongPress: senderAvatarLongPress,
-                                    time: time,
-                                    fileName: e.body,
-                                    sizeLabel: sizeLabel,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    trailing: _GroupFileDownloadStatusIcon(
-                                      downloading: _downloadingFileEventIds
-                                          .contains(eventId),
-                                      downloaded: _downloadedFileEventIds
-                                          .contains(eventId),
-                                      onDownload: () => unawaited(
-                                        _downloadFileEvent(e),
+                                void toggle() => setState(() {
+                                      if (selected) {
+                                        _selected.remove(e.eventId);
+                                      } else {
+                                        _selected.add(e.eventId);
+                                      }
+                                    });
+                                if (isCallRecordEvent(e)) {
+                                  final callId = asCallIdForCallRecord(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final pendingAsGroupCall =
+                                      isProductGroupCallEvent(e) &&
+                                          callId != null &&
+                                          !_roomAsCallHistory.containsKey(
+                                            callId.trim(),
+                                          );
+                                  final callerEvent = callRecordSenderEvent(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final callerId = callRecordSenderId(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final callerIsMe = callerId == myId;
+                                  final callerName = callerEvent
+                                          ?.senderFromMemoryOrFallback
+                                          .calcDisplayname() ??
+                                      e.senderFromMemoryOrFallback
+                                          .calcDisplayname();
+                                  return enter(
+                                    _GroupCallRecordMessageBubble(
+                                      event: callerEvent ?? e,
+                                      isMe: callerIsMe,
+                                      isVideo: callRecordIsVideo(
+                                        e,
+                                        callRecordContextEvents,
+                                      ),
+                                      text: callRecordText(
+                                        e,
+                                        callRecordContextEvents,
+                                        asCallSessionPending:
+                                            pendingAsGroupCall,
+                                        l10n: l10n,
+                                      ),
+                                      senderName: callerName,
+                                      senderAvatarUrl: _avatarUrlForMxid(
+                                        room,
+                                        syncCache,
+                                        callerId,
+                                        currentUserProfile,
+                                      ),
+                                      onAvatarTap: isChannelConversation
+                                          ? null
+                                          : _memberAvatarTap(callerId),
+                                      onAvatarLongPress: _memberAvatarMention(
+                                        callerId,
+                                        callerName,
+                                      ),
+                                      time: DateFormat('HH:mm').format(
+                                        e.originServerTs.toLocal(),
+                                      ),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect ? toggle : null,
+                                      onLongPressAt: (position) =>
+                                          _onLongPressEvent(
+                                        e,
+                                        position,
+                                        roomName: name,
+                                        placement: contextMenuPlacement,
                                       ),
                                     ),
+                                    isMe: callerIsMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                if (e.messageType == MessageTypes.Image &&
+                                    e.hasAttachment) {
+                                  final senderName = e
+                                      .senderFromMemoryOrFallback
+                                      .calcDisplayname();
+                                  final localOrder =
+                                      messageOrder.entryForEvent(e.eventId);
+                                  final time = DateFormat('HH:mm').format(
+                                    (localOrder?.createdAt ?? e.originServerTs)
+                                        .toLocal(),
+                                  );
+                                  return enter(
+                                    _GroupImageMessageBubble(
+                                      event: e,
+                                      isMe: isMe,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      onAvatarTap: senderAvatarTap,
+                                      onAvatarLongPress: senderAvatarLongPress,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      mediaSize: chatMediaBubbleSizeForEvent(e),
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => unawaited(
+                                                _openImageEvent(
+                                                  e,
+                                                  '${isMe ? l10n.groupChatMe : senderName} · $time',
+                                                ),
+                                              ),
+                                      onLongPressAt: (position) =>
+                                          _onLongPressEvent(
+                                        e,
+                                        position,
+                                        roomName: name,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                if (e.messageType == MessageTypes.Video &&
+                                    e.hasAttachment) {
+                                  return enter(
+                                    _GroupImageMessageBubble(
+                                      event: e,
+                                      isMe: isMe,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      onAvatarTap: senderAvatarTap,
+                                      onAvatarLongPress: senderAvatarLongPress,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      fallbackIcon: Symbols.movie,
+                                      fit: BoxFit.cover,
+                                      mediaSize: chatMessageDefaultMediaSize,
+                                      centerOverlay:
+                                          const _GroupVideoPlayOverlay(),
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => unawaited(_openVideoEvent(e)),
+                                      onLongPressAt: (position) =>
+                                          _onLongPressEvent(
+                                        e,
+                                        position,
+                                        roomName: name,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                if (_isGroupVoiceEvent(e)) {
+                                  final playback = _voicePlayer.playback.value;
+                                  final eventId = e.eventId.trim();
+                                  final isPlaying =
+                                      playback.messageId == eventId &&
+                                          playback.playing;
+                                  final localOrder =
+                                      messageOrder.entryForEvent(e.eventId);
+                                  final time = DateFormat('HH:mm').format(
+                                    (localOrder?.createdAt ?? e.originServerTs)
+                                        .toLocal(),
+                                  );
+                                  return enter(
+                                    _GroupVoiceMessageBubble(
+                                      event: e,
+                                      isMe: isMe,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      onAvatarTap: senderAvatarTap,
+                                      onAvatarLongPress: senderAvatarLongPress,
+                                      time: time,
+                                      durationSeconds:
+                                          _groupVoiceDurationSecondsForEvent(e),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      isPlaying: isPlaying,
+                                      currentPlaySeconds:
+                                          playback.position.inSeconds,
+                                      onSeek: isPlaying
+                                          ? (seconds) =>
+                                              _seekVoiceEvent(e, seconds)
+                                          : null,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => unawaited(_openFileEvent(e)),
+                                      onLongPressAt: (position) =>
+                                          _onLongPressEvent(
+                                        e,
+                                        position,
+                                        roomName: name,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                if (e.messageType == MessageTypes.File &&
+                                    !_isGroupVoiceEvent(e) &&
+                                    e.hasAttachment) {
+                                  final localOrder =
+                                      messageOrder.entryForEvent(e.eventId);
+                                  final time = DateFormat('HH:mm').format(
+                                    (localOrder?.createdAt ?? e.originServerTs)
+                                        .toLocal(),
+                                  );
+                                  final size = e.infoMap['size'];
+                                  final sizeBytes = size is int ? size : 0;
+                                  final kind = fileKindLabel(
+                                    e.attachmentMimetype,
+                                    e.body,
+                                  );
+                                  final sizeLabel = sizeBytes > 0
+                                      ? '$kind · ${formatByteSize(sizeBytes)}'
+                                      : kind;
+                                  final eventId = e.eventId.trim();
+                                  return enter(
+                                    _GroupFileMessageBubble(
+                                      event: e,
+                                      isMe: isMe,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      onAvatarTap: senderAvatarTap,
+                                      onAvatarLongPress: senderAvatarLongPress,
+                                      time: time,
+                                      fileName: e.body,
+                                      sizeLabel: sizeLabel,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      trailing: _GroupFileDownloadStatusIcon(
+                                        downloading: _downloadingFileEventIds
+                                            .contains(eventId),
+                                        downloaded: _downloadedFileEventIds
+                                            .contains(eventId),
+                                        onDownload: () => unawaited(
+                                          _downloadFileEvent(e),
+                                        ),
+                                      ),
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => unawaited(_openFileEvent(e)),
+                                      onLongPressAt: (position) =>
+                                          _onLongPressEvent(
+                                        e,
+                                        position,
+                                        roomName: name,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                return enter(
+                                  _GroupMessageBubble(
+                                    event: e,
+                                    redPacketPayload: redPacketPayload,
+                                    quote: _replyPreviewForEvent(
+                                      e,
+                                      visibleEvents,
+                                    ),
+                                    onTapQuote: _scrollToQuotedEvent,
+                                    isMe: isMe,
+                                    senderAvatarUrl: senderAvatarUrl,
+                                    onAvatarTap: senderAvatarTap,
+                                    onAvatarLongPress: senderAvatarLongPress,
+                                    channelShareJoining: _joiningChannelShareIds
+                                        .contains(channelShareJoinId),
+                                    channelShareAlreadyJoined:
+                                        channelSharePayload != null &&
+                                            (channelShareIsJoined(
+                                                  ref.read(asSyncCacheProvider),
+                                                  channelSharePayload,
+                                                ) ||
+                                                isMe),
+                                    channelShareAlreadyRequested:
+                                        _requestedChannelShareIds
+                                            .contains(channelShareJoinId),
+                                    onJoinChannelShare:
+                                        channelSharePayload == null
+                                            ? null
+                                            : () => unawaited(
+                                                  _joinChannelShare(
+                                                    channelSharePayload,
+                                                  ),
+                                                ),
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
                                     onTap: _multiSelect
                                         ? toggle
-                                        : () => unawaited(_openFileEvent(e)),
+                                        : redPacketPayload != null
+                                            ? () => _openRedPacketDetail(
+                                                  redPacketPayload,
+                                                )
+                                            : channelSharePayload != null
+                                                ? () => context.push(
+                                                      channelShareOpenRoute(
+                                                        ref.read(
+                                                          asSyncCacheProvider,
+                                                        ),
+                                                        channelSharePayload,
+                                                        productConversations: ref
+                                                                .read(
+                                                                  productConversationsProvider,
+                                                                )
+                                                                .valueOrNull ??
+                                                            const [],
+                                                      ),
+                                                      extra:
+                                                          channelSharePayload,
+                                                    )
+                                                : chatRecordPayload == null
+                                                    ? null
+                                                    : () =>
+                                                        _openChatRecordDetail(
+                                                          chatRecordPayload,
+                                                        ),
                                     onLongPressAt: (position) =>
                                         _onLongPressEvent(
                                       e,
@@ -3442,175 +3527,102 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   anchorKey: anchorKey,
                                   flashing: flashing,
                                 );
-                              }
-                              return enter(
-                                _GroupMessageBubble(
-                                  event: e,
-                                  redPacketPayload: redPacketPayload,
-                                  quote: _replyPreviewForEvent(
-                                    e,
-                                    visibleEvents,
-                                  ),
-                                  onTapQuote: _scrollToQuotedEvent,
-                                  isMe: isMe,
-                                  senderAvatarUrl: senderAvatarUrl,
-                                  onAvatarTap: senderAvatarTap,
-                                  onAvatarLongPress: senderAvatarLongPress,
-                                  channelShareJoining: _joiningChannelShareIds
-                                      .contains(channelShareJoinId),
-                                  channelShareAlreadyJoined:
-                                      channelSharePayload != null &&
-                                          (channelShareIsJoined(
-                                                ref.read(asSyncCacheProvider),
-                                                channelSharePayload,
-                                              ) ||
-                                              isMe),
-                                  channelShareAlreadyRequested:
-                                      _requestedChannelShareIds
-                                          .contains(channelShareJoinId),
-                                  onJoinChannelShare:
-                                      channelSharePayload == null
-                                          ? null
-                                          : () => unawaited(
-                                                _joinChannelShare(
-                                                  channelSharePayload,
-                                                ),
-                                              ),
-                                  selected: selected,
-                                  multiSelect: _multiSelect,
-                                  onTap: _multiSelect
-                                      ? toggle
-                                      : redPacketPayload != null
-                                          ? () => _openRedPacketDetail(
-                                                redPacketPayload,
-                                              )
-                                          : channelSharePayload != null
-                                              ? () => context.push(
-                                                    channelShareOpenRoute(
-                                                      ref.read(
-                                                        asSyncCacheProvider,
-                                                      ),
-                                                      channelSharePayload,
-                                                      productConversations: ref
-                                                              .read(
-                                                                productConversationsProvider,
-                                                              )
-                                                              .valueOrNull ??
-                                                          const [],
-                                                    ),
-                                                    extra: channelSharePayload,
-                                                  )
-                                              : chatRecordPayload == null
-                                                  ? null
-                                                  : () => _openChatRecordDetail(
-                                                        chatRecordPayload,
-                                                      ),
-                                  onLongPressAt: (position) =>
-                                      _onLongPressEvent(
-                                    e,
-                                    position,
-                                    roomName: name,
-                                    placement: contextMenuPlacement,
-                                  ),
-                                ),
-                                isMe: isMe,
-                                id: e.eventId,
-                                anchorKey: anchorKey,
-                                flashing: flashing,
-                              );
-                            },
-                          );
-                        },
+                              },
+                            );
+                          },
+                        ),
                       ),
                     ),
+            ),
+            bottomOverlay: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_replyTo != null && !removedFromGroup)
+                  _GroupReplyBar(
+                    text: _replyTo!.body,
+                    sender:
+                        _replyTo!.senderFromMemoryOrFallback.calcDisplayname(),
+                    onClose: () => setState(() => _replyTo = null),
                   ),
-          ),
-          bottomOverlay: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_replyTo != null && !removedFromGroup)
-                _GroupReplyBar(
-                  text: _replyTo!.body,
-                  sender:
-                      _replyTo!.senderFromMemoryOrFallback.calcDisplayname(),
-                  onClose: () => setState(() => _replyTo = null),
-                ),
-              if (_multiSelect)
-                ChatRecordSelectionBar(
-                  count: _selected.length,
-                  compact: true,
-                  onExit: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                  onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
-                  onForward: () =>
-                      unawaited(_forwardSelectedEvents(events, name)),
-                  onDelete: () => unawaited(_deleteSelectedEventsForMe(events)),
-                )
-              else if (removedFromGroup)
-                const _GroupRemovedComposerBar()
-              else
-                ChatCapsuleInputBar(
-                  ctrl: _msgCtrl,
-                  onSend: _send,
-                  onPlus: canSendMedia
-                      ? _togglePlus
-                      : () => _showGroupCannotSendToast(context),
-                  onEmoji: canSendMessages
-                      ? _toggleEmoji
-                      : () => _showGroupCannotSendToast(context),
-                  plusActive: _showPlusPanel,
-                  emojiActive: _showEmojiPanel,
-                  enabled: canSendMessages,
-                  textEnabled: canSendMessages || canQueueChannelTextFailure,
-                  sendEnabled: canSendMessages || canQueueChannelTextFailure,
-                  onVoiceRecordStart: _startVoiceRecording,
-                  onVoiceRecordStop: _stopVoiceRecording,
-                  onVoiceRecordCancel: _cancelVoiceRecording,
-                ),
-              if (_showPlusPanel && !removedFromGroup)
-                ChatAttachmentPanel(
-                  room: room,
-                  roomId: activeRoomId,
-                  canSend: canSendMedia,
-                  useAsProductMedia: true,
-                  onClose: () => setState(() => _showPlusPanel = false),
-                  onCannotSend: _showGroupCannotSendToast,
-                  onImageUploadStarted: _addPendingImageUpload,
-                  onImageUploadsStarted: _addPendingImageUploads,
-                  onImageUploadDelivered: _recordDeliveredMediaUpload,
-                  onImageUploadFinished: _removePendingMediaUpload,
-                  onImageUploadFailed: _failPendingMediaUpload,
-                  onFileUploadStarted: _addPendingFileUpload,
-                  onFileUploadDelivered: _recordDeliveredMediaUpload,
-                  onFileUploadFinished: _removePendingMediaUpload,
-                  onFileUploadFailed: _failPendingMediaUpload,
-                  onVideoUploadStarted: _addPendingVideoUpload,
-                  onVideoUploadDelivered: _recordDeliveredMediaUpload,
-                  onVideoUploadFinished: _removePendingMediaUpload,
-                  onVideoUploadFailed: _failPendingMediaUpload,
-                  onVoiceCall: null,
-                  onVideoCall: null,
-                  visibleActions: const {
-                    ChatAttachmentAction.album,
-                    ChatAttachmentAction.camera,
-                    ChatAttachmentAction.video,
-                    ChatAttachmentAction.file,
-                  },
-                ),
-              if (showEmojiPanelContent)
-                ChatEmojiPanel(
-                  height: _emojiPanelHeight,
-                  onPick: (emoji) {
-                    final text = _msgCtrl.text;
-                    _msgCtrl.text = text + emoji;
-                    _msgCtrl.selection = TextSelection.collapsed(
-                      offset: _msgCtrl.text.length,
-                    );
-                  },
-                ),
-            ],
+                if (_multiSelect)
+                  ChatRecordSelectionBar(
+                    count: _selected.length,
+                    compact: true,
+                    onExit: () => setState(() {
+                      _multiSelect = false;
+                      _selected.clear();
+                    }),
+                    onFavorite: () =>
+                        unawaited(_favoriteSelectedEvents(events)),
+                    onForward: () =>
+                        unawaited(_forwardSelectedEvents(events, name)),
+                    onDelete: () =>
+                        unawaited(_deleteSelectedEventsForMe(events)),
+                  )
+                else if (removedFromGroup)
+                  const _GroupRemovedComposerBar()
+                else
+                  ChatCapsuleInputBar(
+                    ctrl: _msgCtrl,
+                    onSend: _send,
+                    onPlus: canSendMedia
+                        ? _togglePlus
+                        : () => _showGroupCannotSendToast(context),
+                    onEmoji: canSendMessages
+                        ? _toggleEmoji
+                        : () => _showGroupCannotSendToast(context),
+                    plusActive: _showPlusPanel,
+                    emojiActive: _showEmojiPanel,
+                    enabled: canSendMessages,
+                    textEnabled: canSendMessages || canQueueChannelTextFailure,
+                    sendEnabled: canSendMessages || canQueueChannelTextFailure,
+                    onVoiceRecordStart: _startVoiceRecording,
+                    onVoiceRecordStop: _stopVoiceRecording,
+                    onVoiceRecordCancel: _cancelVoiceRecording,
+                  ),
+                if (_showPlusPanel && !removedFromGroup)
+                  ChatAttachmentPanel(
+                    room: room,
+                    roomId: activeRoomId,
+                    canSend: canSendMedia,
+                    useAsProductMedia: true,
+                    onClose: () => setState(() => _showPlusPanel = false),
+                    onCannotSend: _showGroupCannotSendToast,
+                    onImageUploadStarted: _addPendingImageUpload,
+                    onImageUploadsStarted: _addPendingImageUploads,
+                    onImageUploadDelivered: _recordDeliveredMediaUpload,
+                    onImageUploadFinished: _removePendingMediaUpload,
+                    onImageUploadFailed: _failPendingMediaUpload,
+                    onFileUploadStarted: _addPendingFileUpload,
+                    onFileUploadDelivered: _recordDeliveredMediaUpload,
+                    onFileUploadFinished: _removePendingMediaUpload,
+                    onFileUploadFailed: _failPendingMediaUpload,
+                    onVideoUploadStarted: _addPendingVideoUpload,
+                    onVideoUploadDelivered: _recordDeliveredMediaUpload,
+                    onVideoUploadFinished: _removePendingMediaUpload,
+                    onVideoUploadFailed: _failPendingMediaUpload,
+                    onVoiceCall: null,
+                    onVideoCall: null,
+                    visibleActions: const {
+                      ChatAttachmentAction.album,
+                      ChatAttachmentAction.camera,
+                      ChatAttachmentAction.video,
+                      ChatAttachmentAction.file,
+                    },
+                  ),
+                if (showEmojiPanelContent)
+                  ChatEmojiPanel(
+                    height: _emojiPanelHeight,
+                    onPick: (emoji) {
+                      final text = _msgCtrl.text;
+                      _msgCtrl.text = text + emoji;
+                      _msgCtrl.selection = TextSelection.collapsed(
+                        offset: _msgCtrl.text.length,
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),

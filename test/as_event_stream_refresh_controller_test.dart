@@ -161,6 +161,71 @@ void main() {
     await controller.stop();
   });
 
+  test('handled events acknowledge the persisted sequence', () async {
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    final persisted = <int>[];
+    final acked = <int>[];
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async => _bootstrap(),
+      onBootstrapLoaded: (_) {},
+      applyProductEvent: (_) => AsProductEventHandling.handled,
+      writeLastSeq: (seq) async {
+        persisted.add(seq);
+      },
+      ackEventSeq: (seq) async {
+        acked.add(seq);
+      },
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    await Future<void>.delayed(Duration.zero);
+    streams.single.add(AsEventStreamEvent(
+      seq: 31,
+      type: 'contact.requested',
+      payload: const {'room_id': '!room:example.com'},
+      createdAt: DateTime.utc(2026, 6, 29),
+    ));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(persisted, [31]);
+    expect(acked, [31]);
+
+    await controller.stop();
+  });
+
+  test('lifecycle and focused room changes are forwarded', () async {
+    final lifecycle = <bool>[];
+    final focusedRooms = <String>[];
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) => const Stream.empty(),
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async => _bootstrap(),
+      onBootstrapLoaded: (_) {},
+      reportLifecycle: (foreground) async {
+        lifecycle.add(foreground);
+      },
+      reportFocusedRoom: (roomId) async {
+        focusedRooms.add(roomId);
+      },
+    );
+
+    await controller.reportLifecycle(foreground: true);
+    await controller.reportFocusedRoom(' !room:example.com ');
+    await controller.clearFocusedRoom();
+
+    expect(lifecycle, [true]);
+    expect(focusedRooms, ['!room:example.com', '']);
+  });
+
   test(
       'cursor reset clears cache, bootstraps once, and reconnects from max seq',
       () async {

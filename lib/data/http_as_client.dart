@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import 'api_logger.dart';
 import 'as_client.dart';
+import 'as_realtime_transport.dart';
 import 'local_endpoint_resolver.dart';
 
 /// HTTP implementation for the Direxio P2P backend P2P product API.
@@ -68,6 +69,8 @@ class HttpAsClient implements AsClient {
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
+
+  Uri get realtimeBaseUri => _baseUri;
 
   static Uri defaultProductBaseUri(
     Uri homeserver, {
@@ -292,6 +295,11 @@ class HttpAsClient implements AsClient {
     yield* _decodeSseEvents(
       streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),
     );
+  }
+
+  Future<AsRealtimeWSTicket> createRealtimeWSTicket() async {
+    final body = await _requestJson('POST', 'realtime/ws-ticket');
+    return AsRealtimeWSTicket.fromJson(body);
   }
 
   @override
@@ -2133,6 +2141,9 @@ String _actionFor(String method, String path) {
   }
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
+  if (method == 'POST' && clean == 'realtime/ws-ticket') {
+    return 'realtime.ws_ticket.create';
+  }
   if (method == 'GET' && clean == 'follows') return 'follows.list';
   if (method == 'POST' && clean == 'follows') return 'follows.add';
   if (method == 'DELETE' && segments.first == 'follows') {

@@ -11,13 +11,14 @@ Future<List<String>> startImageOutboxItems({
   required String conversationId,
   required LocalOutboxConversationType conversationType,
   required List<ChatMediaAttachment> attachments,
+  void Function()? onQueued,
 }) async {
   if (attachments.isEmpty) return const [];
   final thumbnails = await Future.wait([
     for (final attachment in attachments)
       localOutboxThumbnailBytes(attachment.bytes),
   ]);
-  return notifier.startItems(
+  final ids = await notifier.startItems(
     conversationId: conversationId,
     conversationType: conversationType,
     drafts: [
@@ -28,6 +29,8 @@ Future<List<String>> startImageOutboxItems({
         ),
     ],
   );
+  if (ids.isNotEmpty) onQueued?.call();
+  return ids;
 }
 
 Future<String> startMediaOutboxItem({
@@ -35,8 +38,9 @@ Future<String> startMediaOutboxItem({
   required String conversationId,
   required LocalOutboxConversationType conversationType,
   required ChatMediaAttachment attachment,
+  void Function()? onQueued,
 }) async {
-  return notifier.startItem(
+  final id = await notifier.startItem(
     conversationId: conversationId,
     conversationType: conversationType,
     draft: mediaOutboxDraftForAttachment(
@@ -46,6 +50,8 @@ Future<String> startMediaOutboxItem({
           : null,
     ),
   );
+  if (id.isNotEmpty) onQueued?.call();
+  return id;
 }
 
 LocalOutboxDraft mediaOutboxDraftForAttachment(

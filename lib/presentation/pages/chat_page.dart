@@ -2469,6 +2469,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachments: attachments,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2478,6 +2479,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2487,6 +2489,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 

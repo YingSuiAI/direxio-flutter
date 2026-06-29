@@ -207,16 +207,48 @@ class AppWarmupService {
   final Duration matrixSyncTimeout;
 
   Future<void> warmup() async {
+    final preloadedAvatarUrls = <String>{};
     final cachedBootstrapFuture = _loadCachedBootstrapMetadata();
     final bootstrapFuture = _loadBootstrapMetadata();
     final profileFuture = _loadProfile();
     final matrixSyncFuture = _syncMatrixConversations();
+    final localWarmupFuture = Future.wait([
+      _preloadMediaThumbnails(_mediaThumbnailEventIds()),
+      _prewarmRecentRoomTimelines(),
+      _prewarmCallSessions(),
+      matrixSyncFuture,
+    ]);
 
     final cachedBootstrap = await cachedBootstrapFuture;
+    final cachedAvatarPreloadFuture = _preloadHomeAvatars(
+      cachedBootstrap,
+      null,
+      preloadedAvatarUrls,
+    );
     final bootstrap = await bootstrapFuture ?? cachedBootstrap;
     final profile = await profileFuture;
-    await matrixSyncFuture;
 
+    await Future.wait([
+      cachedAvatarPreloadFuture,
+      _preloadHomeAvatars(bootstrap, profile, preloadedAvatarUrls),
+      localWarmupFuture,
+      _prewarmChannelPosts(bootstrap),
+    ]);
+  }
+
+  Future<void> _preloadHomeAvatars(
+    AsSyncBootstrap? bootstrap,
+    Profile? profile,
+    Set<String> preloadedUrls,
+  ) async {
+    final urls = <String>[];
+    for (final url in _homeAvatarUrls(bootstrap, profile)) {
+      if (preloadedUrls.add(url)) urls.add(url);
+    }
+    await _preload(urls);
+  }
+
+  List<String> _homeAvatarUrls(AsSyncBootstrap? bootstrap, Profile? profile) {
     final urls = <String>[];
     _addUnique(urls, profileAvatarHttpUrl(profile, client));
     if (bootstrap != null) {
@@ -238,14 +270,7 @@ class AppWarmupService {
     for (final room in _recentJoinedRooms().take(maxRoomAvatars)) {
       _addUnique(urls, roomAvatarHttpUrl(room));
     }
-
-    await Future.wait([
-      _preload(urls),
-      _preloadMediaThumbnails(_mediaThumbnailEventIds()),
-      _prewarmRecentRoomTimelines(),
-      _prewarmCallSessions(),
-      _prewarmChannelPosts(bootstrap),
-    ]);
+    return urls;
   }
 
   Future<AsSyncBootstrap?> _loadCachedBootstrapMetadata() async {

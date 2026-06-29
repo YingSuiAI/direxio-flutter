@@ -2004,6 +2004,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachments: attachments,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2013,6 +2014,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2022,6 +2024,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 

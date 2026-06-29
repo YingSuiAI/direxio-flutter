@@ -90,6 +90,38 @@ void main() {
     expect(fileDraft.mimeType, 'application/pdf');
     expect(outboxFileSizeLabel(_itemFromDraft(fileDraft)), 'PDF · 2 B');
   });
+
+  test('notifies after media outbox item is visible', () async {
+    final store = _MemoryLocalOutboxStore();
+    final notifier = LocalOutboxNotifier(
+      () async => store,
+      runtimeId: 'runtime-a',
+    );
+    await notifier.loaded;
+    final visibleCounts = <int>[];
+
+    final id = await startMediaOutboxItem(
+      notifier: notifier,
+      conversationId: '!room:p2p-im.com',
+      conversationType: LocalOutboxConversationType.direct,
+      attachment: ChatMediaAttachment.video(
+        name: 'clip.mp4',
+        bytes: [1, 2, 3],
+        mimeType: 'video/mp4',
+        thumbnailBytes: [9],
+        width: 640,
+        height: 360,
+      ),
+      onQueued: () {
+        visibleCounts.add(notifier.state.items.length);
+      },
+    );
+
+    expect(id, isNotEmpty);
+    expect(visibleCounts, [1]);
+    expect(notifier.state.items.single.messageKind,
+        LocalOutboxMessageKind.video);
+  });
 }
 
 LocalOutboxItem _itemFromDraft(LocalOutboxDraft draft) {

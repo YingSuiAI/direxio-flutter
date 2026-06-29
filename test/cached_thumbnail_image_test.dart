@@ -69,6 +69,39 @@ void main() {
 
     expect(find.text('bad thumbnail'), findsOneWidget);
   });
+
+  testWidgets('retries transient load failures for the same thumbnail',
+      (tester) async {
+    var attempts = 0;
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$flaky',
+        cacheFuture: null,
+        retryDelays: const [Duration(milliseconds: 10)],
+        loadBytes: () async {
+          attempts += 1;
+          if (attempts == 1) {
+            throw StateError('offline');
+          }
+          return Uint8List.fromList([4]);
+        },
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        failedBuilder: (_) => const Text('temporary failure'),
+      ),
+    ));
+
+    await tester.pump();
+    expect(find.text('temporary failure'), findsOneWidget);
+    expect(attempts, 1);
+
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump();
+
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('temporary failure'), findsNothing);
+    expect(attempts, 2);
+  });
 }
 
 class _App extends StatelessWidget {

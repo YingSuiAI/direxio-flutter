@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/design_tokens.dart';
@@ -181,10 +182,14 @@ class _ChannelPostImageTile extends ConsumerWidget {
 
   Widget _buildImage(WidgetRef ref, PortalTokens t, String url) {
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      return Image.network(
-        url,
+      return CachedThumbnailImage(
+        cacheKey: url,
+        cache: ref.watch(mediaThumbnailCacheProvider).valueOrNull,
+        cacheFuture: ref.read(mediaThumbnailCacheProvider.future),
+        loadBytes: () => _loadHttpImageBytes(url),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(t),
+        loadingBuilder: (_) => _loading(t),
+        failedBuilder: (_) => _fallback(t),
       );
     }
 
@@ -254,6 +259,15 @@ class _ChannelPostImageTile extends ConsumerWidget {
         .read(matrixMediaBytesCacheProvider)
         .read(ref.read(matrixClientProvider), uri);
     return localOutboxThumbnailBytes(bytes);
+  }
+
+  Future<Uint8List> _loadHttpImageBytes(String url) async {
+    final uri = Uri.parse(url);
+    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('Image request failed: ${response.statusCode}');
+    }
+    return response.bodyBytes;
   }
 
   Widget _loading(PortalTokens t) {

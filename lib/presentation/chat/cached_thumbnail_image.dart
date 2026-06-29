@@ -22,6 +22,11 @@ class CachedThumbnailImage extends StatefulWidget {
     this.imageBuilder,
     this.loadingBuilder,
     this.failedBuilder,
+    this.retryDelays = const [
+      Duration(seconds: 1),
+      Duration(seconds: 3),
+      Duration(seconds: 8),
+    ],
   });
 
   final String cacheKey;
@@ -32,6 +37,7 @@ class CachedThumbnailImage extends StatefulWidget {
   final ThumbnailImageBuilder? imageBuilder;
   final WidgetBuilder? loadingBuilder;
   final WidgetBuilder? failedBuilder;
+  final List<Duration> retryDelays;
 
   @override
   State<CachedThumbnailImage> createState() => _CachedThumbnailImageState();
@@ -41,6 +47,8 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage> {
   Uint8List? _bytes;
   bool _failed = false;
   int _loadGeneration = 0;
+  int _retryAttempt = 0;
+  Timer? _retryTimer;
 
   @override
   void initState() {
@@ -53,6 +61,8 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage> {
   void didUpdateWidget(covariant CachedThumbnailImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cacheKey != widget.cacheKey) {
+      _retryTimer?.cancel();
+      _retryAttempt = 0;
       _bytes = null;
       _failed = false;
       _loadMemoryBytes();
@@ -62,6 +72,12 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage> {
     if (_bytes == null && oldWidget.cache != widget.cache) {
       if (_loadMemoryBytes()) setState(() {});
     }
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
   }
 
   bool _loadMemoryBytes() {
@@ -83,14 +99,32 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage> {
     try {
       final bytes = await widget.loadBytes();
       if (!mounted || generation != _loadGeneration) return;
-      setState(() => _bytes = bytes);
+      _retryTimer?.cancel();
+      _retryAttempt = 0;
+      setState(() {
+        _bytes = bytes;
+        _failed = false;
+      });
       if (cacheKey.isNotEmpty && cache != null) {
         unawaited(_writeCache(cache, cacheKey, bytes));
       }
     } on Object {
       if (!mounted || generation != _loadGeneration) return;
       setState(() => _failed = true);
+      _scheduleRetry();
     }
+  }
+
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    if (_retryAttempt >= widget.retryDelays.length) return;
+    final delay = widget.retryDelays[_retryAttempt];
+    _retryAttempt += 1;
+    _retryTimer = Timer(delay, () {
+      if (!mounted || _bytes != null) return;
+      setState(() => _failed = false);
+      _load();
+    });
   }
 
   Future<MediaThumbnailCache?> _readCache(

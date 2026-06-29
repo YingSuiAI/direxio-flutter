@@ -139,6 +139,14 @@ control event or `X-Direxio-P2P-Events-Cursor-Reset: true`, clear local product
 projections, call `sync.bootstrap` once, persist the newest handled event `seq`,
 and resume normal delta consumption.
 
+Foreground Matrix refreshes should use filtered `/sync` with a low timeline
+limit and `lazy_load_members=true`. Do not use Product API actions for ordinary
+message send, media history, unread, search, recall, or local delete.
+
+Channel post/comment list methods may keep local progressive-loading arguments,
+but `HttpAsClient` must not send uncontracted `limit`, `before_ts`, `page`, or
+`page_size` params until the backend documents a stable pagination contract.
+
 Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation
 cards; receivers open the public channel detail by Matrix `room_id` and apply

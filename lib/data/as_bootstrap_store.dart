@@ -77,6 +77,10 @@ class AsBootstrapRepository {
 
   Future<AsSyncBootstrap?> readCached() => _store.read();
 
+  Future<void> clear() => _store.clear();
+
+  Future<void> persist(AsSyncBootstrap bootstrap) => _persist(bootstrap);
+
   Future<AsSyncBootstrap> refresh() {
     final current = _inFlight;
     if (current != null) return current;

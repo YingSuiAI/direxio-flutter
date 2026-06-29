@@ -158,6 +158,11 @@ class _MemoryChannelPostStore implements ChannelPostStore {
     });
   }
 
+  @override
+  Future<void> clear() async {
+    _posts.clear();
+  }
+
   String _postKey(AsChannelPost post) {
     final postId = post.postId.trim();
     if (postId.isNotEmpty) return 'post:$postId';

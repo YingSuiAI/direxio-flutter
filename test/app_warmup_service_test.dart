@@ -504,6 +504,11 @@ class _MemoryAsCallSessionStore implements AsCallSessionStore {
       calls[session.callId.trim()] = session;
     }
   }
+
+  @override
+  Future<void> clear() async {
+    calls.clear();
+  }
 }
 
 class _MemoryChannelPostStore implements ChannelPostStore {
@@ -541,6 +546,11 @@ class _MemoryChannelPostStore implements ChannelPostStore {
       if (id.isNotEmpty) return id == postId.trim();
       return post.eventId.trim() == postId.trim();
     });
+  }
+
+  @override
+  Future<void> clear() async {
+    posts.clear();
   }
 }
 

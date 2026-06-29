@@ -29,6 +29,7 @@ void main() {
     );
 
     controller.start();
+    await Future<void>.delayed(Duration.zero);
     streams.single.add(AsEventStreamEvent(
       seq: 10,
       type: 'contact.request.created',
@@ -73,6 +74,7 @@ void main() {
     );
 
     controller.start();
+    await Future<void>.delayed(Duration.zero);
     streams.single.add(AsEventStreamEvent(
       seq: 12,
       type: 'call.changed',
@@ -107,6 +109,123 @@ void main() {
     await controller.stop();
   });
 
+  test('handled product events use local reducer and persist sequence',
+      () async {
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    var matrixSyncCalls = 0;
+    var bootstrapCalls = 0;
+    final handledTypes = <String>[];
+    final persisted = <int>[];
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () async {
+        matrixSyncCalls++;
+      },
+      loadBootstrap: () async {
+        bootstrapCalls++;
+        return _bootstrap();
+      },
+      onBootstrapLoaded: (_) {},
+      applyProductEvent: (event) {
+        handledTypes.add(event.type);
+        return AsProductEventHandling.handled;
+      },
+      writeLastSeq: (seq) async {
+        persisted.add(seq);
+      },
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    await Future<void>.delayed(Duration.zero);
+    streams.single.add(AsEventStreamEvent(
+      seq: 21,
+      type: 'contact.requested',
+      payload: const {'room_id': '!room:example.com'},
+      createdAt: DateTime.utc(2026, 6, 29),
+    ));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(handledTypes, ['contact.requested']);
+    expect(matrixSyncCalls, 1);
+    expect(bootstrapCalls, 0);
+    expect(persisted, [21]);
+    expect(controller.lastSeq, 21);
+
+    await controller.stop();
+  });
+
+  test(
+      'cursor reset clears cache, bootstraps once, and reconnects from max seq',
+      () async {
+    final requests = <({int? since, String? lastEventId})>[];
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    var clearCursorCalls = 0;
+    var clearCacheCalls = 0;
+    var bootstrapCalls = 0;
+    final persisted = <int>[];
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        requests.add((since: since, lastEventId: lastEventId));
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async {
+        bootstrapCalls++;
+        return _bootstrap();
+      },
+      onBootstrapLoaded: (_) {},
+      readLastSeq: () async => 8,
+      clearLastSeq: () async {
+        clearCursorCalls++;
+      },
+      clearProductCache: () async {
+        clearCacheCalls++;
+      },
+      writeLastSeq: (seq) async {
+        persisted.add(seq);
+      },
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    streams.single.add(const AsEventStreamEvent(
+      seq: 0,
+      type: 'p2p.cursor_reset',
+      payload: {
+        'since': 8,
+        'min_seq': 12,
+        'max_seq': 19,
+        'count': 8,
+        'recovery': 'bootstrap_required',
+      },
+      createdAt: null,
+    ));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(clearCursorCalls, 1);
+    expect(clearCacheCalls, 1);
+    expect(bootstrapCalls, 1);
+    expect(persisted, [19]);
+    expect(requests.first.since, 8);
+    expect(requests.last.since, 19);
+    expect(requests.last.lastEventId, '19');
+
+    await controller.stop();
+  });
+
   test('events queued during refresh run one follow-up refresh', () async {
     final streams = <StreamController<AsEventStreamEvent>>[];
     final syncCompleter = Completer<void>();
@@ -132,6 +251,7 @@ void main() {
     );
 
     controller.start();
+    await Future<void>.delayed(Duration.zero);
     streams.single.add(AsEventStreamEvent(
       seq: 10,
       type: 'contact.request.created',
@@ -177,6 +297,7 @@ void main() {
     );
 
     controller.start();
+    await Future<void>.delayed(Duration.zero);
     streams.single.add(AsEventStreamEvent(
       seq: 42,
       type: 'contact.request.created',

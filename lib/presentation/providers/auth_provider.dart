@@ -13,6 +13,7 @@ import 'package:sqflite/sqflite.dart' as sqlite;
 import '../../data/as_client.dart';
 import '../../data/http_as_client.dart';
 import '../../data/local_endpoint_resolver.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_push_registration.dart';
 import '../../data/matrix_sync_timeouts.dart';
@@ -896,7 +897,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> _syncMatrixRoomsAfterLogin(Client client) async {
     try {
-      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
+      await syncMatrixForegroundLight(
+        client,
+        timeout: matrixForegroundSyncTimeout,
+      );
     } catch (e) {
       debugPrint('post-login Matrix room sync failed: $e');
     }

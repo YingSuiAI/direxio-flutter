@@ -91,6 +91,11 @@ is joined, the channel type is `post`, the resolved role is `owner`, and the
 ProductCore `postCreate` capability allows it. Ordinary `member` roles must not
 see the create entry even if stale capabilities report `postCreate: true`.
 
+Post/comment history must not assume that one list response is a complete
+history forever. Until the backend exposes a documented cursor/page contract,
+keep progressive loading client-side and do not send invented `limit`,
+`before_ts`, `page`, or `page_size` params from `HttpAsClient`.
+
 Public channel join requests expose `pending`, `rejected`, `approved`,
 `joining`, `joined`, or `join_failed`. Channel join-request review actions
 return a top-level status from that lifecycle. Preserve that status in the

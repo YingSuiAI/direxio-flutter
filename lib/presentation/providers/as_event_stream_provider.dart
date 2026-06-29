@@ -4,11 +4,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
+import '../../data/as_event_cursor_store.dart';
+import '../../data/matrix_foreground_sync.dart';
 import '../call/voice_call_controller.dart';
+import 'as_event_cursor_store_provider.dart';
 import 'as_bootstrap_store_provider.dart';
 import 'as_call_session_store_provider.dart';
 import 'as_client_provider.dart';
 import 'as_sync_cache_provider.dart';
+import 'channel_provider.dart';
 import 'auth_provider.dart';
 import 'product_conversations_provider.dart';
 import 'voice_call_provider.dart';
@@ -21,6 +25,14 @@ typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
 typedef AsBootstrapRefresh = Future<AsSyncBootstrap> Function();
 typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
+typedef AsEventSeqRead = Future<int> Function();
+typedef AsEventSeqWrite = Future<void> Function(int seq);
+typedef ProductCacheClear = Future<void> Function();
+typedef AsProductEventApply = FutureOr<AsProductEventHandling> Function(
+  AsEventStreamEvent event,
+);
+
+enum AsProductEventHandling { handled, bootstrapRequired }
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
@@ -29,13 +41,34 @@ final asEventStreamRefreshProvider =
 
   final asClient = ref.watch(asClientProvider);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);
+  final cursorStore = DeferredAsEventCursorStore(
+    () => ref.read(asEventCursorStoreProvider.future),
+  );
   final matrixClient = ref.watch(matrixClientProvider);
   final callSessionStore = ref.watch(asCallSessionStoreProvider.future);
   final voiceCallController = ref.watch(voiceCallControllerProvider);
   final controller = AsEventStreamRefreshController(
     openEvents: asClient.streamEvents,
-    syncMatrixConversations: matrixClient.oneShotSync,
+    syncMatrixConversations: () => syncMatrixForegroundLight(matrixClient),
     loadBootstrap: bootstrapRepository.refresh,
+    readLastSeq: cursorStore.readLastSeq,
+    writeLastSeq: cursorStore.writeLastSeq,
+    clearLastSeq: cursorStore.clear,
+    clearProductCache: () async {
+      await bootstrapRepository.clear();
+      await cursorStore.clear();
+      try {
+        await (await ref.read(channelPostStoreProvider.future)).clear();
+      } catch (_) {}
+      try {
+        await (await callSessionStore).clear();
+      } catch (_) {}
+      ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();
+      ref.invalidate(productConversationsProvider);
+    },
+    applyProductEvent: (event) {
+      return _applyProductEvent(ref, event);
+    },
     onCallChanged: (call) async {
       final store = await callSessionStore;
       await store.upsert(call);
@@ -67,6 +100,11 @@ class AsEventStreamRefreshController {
     required MatrixConversationRefresh syncMatrixConversations,
     required AsBootstrapRefresh loadBootstrap,
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
+    AsEventSeqRead? readLastSeq,
+    AsEventSeqWrite? writeLastSeq,
+    Future<void> Function()? clearLastSeq,
+    ProductCacheClear? clearProductCache,
+    AsProductEventApply? applyProductEvent,
     AsCallChanged? onCallChanged,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
@@ -74,6 +112,11 @@ class AsEventStreamRefreshController {
         _syncMatrixConversations = syncMatrixConversations,
         _loadBootstrap = loadBootstrap,
         _onBootstrapLoaded = onBootstrapLoaded,
+        _readLastSeq = readLastSeq ?? (() async => 0),
+        _writeLastSeq = writeLastSeq ?? ((_) async {}),
+        _clearLastSeq = clearLastSeq ?? (() async {}),
+        _clearProductCache = clearProductCache ?? (() async {}),
+        _applyProductEvent = applyProductEvent,
         _onCallChanged = onCallChanged,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
@@ -82,6 +125,11 @@ class AsEventStreamRefreshController {
   final MatrixConversationRefresh _syncMatrixConversations;
   final AsBootstrapRefresh _loadBootstrap;
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
+  final AsEventSeqRead _readLastSeq;
+  final AsEventSeqWrite _writeLastSeq;
+  final Future<void> Function() _clearLastSeq;
+  final ProductCacheClear _clearProductCache;
+  final AsProductEventApply? _applyProductEvent;
   final AsCallChanged? _onCallChanged;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
@@ -91,14 +139,16 @@ class AsEventStreamRefreshController {
   var _started = false;
   var _refreshInFlight = false;
   var _refreshQueued = false;
+  var _cursorResetInFlight = false;
   int _lastSeq = 0;
+  int _refreshTargetSeq = 0;
 
   int get lastSeq => _lastSeq;
 
   void start() {
     if (_started) return;
     _started = true;
-    _connect();
+    unawaited(_startFromStoredCursor());
   }
 
   Future<void> stop() async {
@@ -127,6 +177,17 @@ class AsEventStreamRefreshController {
     );
   }
 
+  Future<void> _startFromStoredCursor() async {
+    try {
+      _lastSeq = await _readLastSeq();
+    } catch (error, stackTrace) {
+      _onError?.call(error, stackTrace);
+      _lastSeq = 0;
+    }
+    if (!_started) return;
+    _connect();
+  }
+
   void _scheduleReconnect() {
     if (!_started) return;
     _reconnectTimer?.cancel();
@@ -134,12 +195,36 @@ class AsEventStreamRefreshController {
   }
 
   void _handleEvent(AsEventStreamEvent event) {
-    if (event.seq > _lastSeq) _lastSeq = event.seq;
-    final call = asCallSessionFromEvent(event);
-    if (call != null) {
-      unawaited(_handleCallChanged(call));
+    unawaited(_handleEventAsync(event));
+  }
+
+  Future<void> _handleEventAsync(AsEventStreamEvent event) async {
+    if (_isCursorResetEvent(event)) {
+      await _handleCursorReset(event);
       return;
     }
+    if (event.seq > 0 && event.seq <= _lastSeq) return;
+    final call = asCallSessionFromEvent(event);
+    if (call != null) {
+      await _handleCallChanged(call);
+      await _persistSeq(event.seq);
+      return;
+    }
+    final handler = _applyProductEvent;
+    final result = handler == null
+        ? AsProductEventHandling.bootstrapRequired
+        : await handler(event);
+    if (result == AsProductEventHandling.handled) {
+      try {
+        await _syncMatrixConversations();
+        await _persistSeq(event.seq);
+      } catch (error, stackTrace) {
+        _onError?.call(error, stackTrace);
+      }
+      return;
+    }
+    _refreshTargetSeq =
+        event.seq > _refreshTargetSeq ? event.seq : _refreshTargetSeq;
     if (_refreshInFlight) {
       _refreshQueued = true;
       return;
@@ -155,6 +240,7 @@ class AsEventStreamRefreshController {
         await _syncMatrixConversations();
         final bootstrap = await _loadBootstrap();
         _onBootstrapLoaded(bootstrap);
+        await _persistSeq(_refreshTargetSeq);
       } while (_refreshQueued);
     } catch (error, stackTrace) {
       _onError?.call(error, stackTrace);
@@ -170,6 +256,33 @@ class AsEventStreamRefreshController {
       _onError?.call(error, stackTrace);
     }
   }
+
+  Future<void> _handleCursorReset(AsEventStreamEvent event) async {
+    if (_cursorResetInFlight) return;
+    _cursorResetInFlight = true;
+    try {
+      final subscription = _subscription;
+      _subscription = null;
+      await subscription?.cancel();
+      await _clearLastSeq();
+      await _clearProductCache();
+      final bootstrap = await _loadBootstrap();
+      _onBootstrapLoaded(bootstrap);
+      await _persistSeq(_eventMaxSeq(event));
+      _connect();
+    } catch (error, stackTrace) {
+      _onError?.call(error, stackTrace);
+      _scheduleReconnect();
+    } finally {
+      _cursorResetInFlight = false;
+    }
+  }
+
+  Future<void> _persistSeq(int seq) async {
+    if (seq <= 0) return;
+    if (seq > _lastSeq) _lastSeq = seq;
+    await _writeLastSeq(_lastSeq);
+  }
 }
 
 AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
@@ -179,4 +292,54 @@ AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
     return AsCallSession.fromJson(rawCall.cast<String, dynamic>());
   }
   return AsCallSession.fromJson(event.payload);
+}
+
+bool _isCursorResetEvent(AsEventStreamEvent event) {
+  return event.type == 'p2p.cursor_reset' ||
+      event.payload['recovery'] == 'bootstrap_required';
+}
+
+int _eventMaxSeq(AsEventStreamEvent event) {
+  final raw = event.payload['max_seq'];
+  if (raw is int) return raw;
+  if (raw is num) return raw.toInt();
+  return int.tryParse(raw?.toString() ?? '') ?? 0;
+}
+
+Future<AsProductEventHandling> _applyProductEvent(
+  Ref ref,
+  AsEventStreamEvent event,
+) async {
+  switch (event.type) {
+    case 'contact.requested':
+      final contact = ContactEntry.fromJson(event.payload);
+      ref
+          .read(asSyncCacheProvider.notifier)
+          .update((state) => state.withContactEntry(contact));
+      ref.invalidate(productConversationsProvider);
+      return AsProductEventHandling.handled;
+    case 'profile.changed':
+      final roomType = event.payload['room_type']?.toString().trim() ?? '';
+      final dissolved = event.payload['dissolved'] == true;
+      if (dissolved && roomType.endsWith('.group')) {
+        ref
+            .read(asSyncCacheProvider.notifier)
+            .update((state) => state.withoutGroup(event.roomId));
+      } else if (dissolved && roomType.endsWith('.channel')) {
+        final channelId =
+            event.payload['channel_id']?.toString().trim() ?? event.roomId;
+        ref
+            .read(asSyncCacheProvider.notifier)
+            .update((state) => state.withoutChannel(channelId));
+      }
+      ref.invalidate(productConversationsProvider);
+      return AsProductEventHandling.handled;
+    case 'room.member_policy.projected':
+    case 'channel.join_request.changed':
+    case 'agent_room.message':
+      ref.invalidate(productConversationsProvider);
+      return AsProductEventHandling.handled;
+    default:
+      return AsProductEventHandling.bootstrapRequired;
+  }
 }

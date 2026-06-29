@@ -1331,6 +1331,60 @@ void main() {
     expect(events.single.payload['body'], 'hi');
   });
 
+  test('streamEvents emits cursor reset from response headers', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '',
+          200,
+          headers: {
+            'content-type': 'text/event-stream; charset=utf-8',
+            'X-Direxio-P2P-Events-Cursor-Reset': 'true',
+            'X-Direxio-P2P-Events-Min-Seq': '12',
+            'X-Direxio-P2P-Events-Max-Seq': '19',
+            'X-Direxio-P2P-Events-Count': '8',
+          },
+        );
+      }),
+    );
+
+    final events = await client.streamEvents(since: 8).toList();
+
+    expect(events.single.type, 'p2p.cursor_reset');
+    expect(events.single.seq, 0);
+    expect(events.single.payload['since'], 8);
+    expect(events.single.payload['min_seq'], 12);
+    expect(events.single.payload['max_seq'], 19);
+    expect(events.single.payload['count'], 8);
+    expect(events.single.payload['recovery'], 'bootstrap_required');
+  });
+
+  test('streamEvents decodes cursor reset control payload', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          [
+            'event: p2p.cursor_reset',
+            r'data: {"type":"p2p.cursor_reset","since":8,"min_seq":12,"max_seq":19,"count":8,"recovery":"bootstrap_required"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents(since: 8).toList();
+
+    expect(events.single.type, 'p2p.cursor_reset');
+    expect(events.single.seq, 0);
+    expect(events.single.payload['max_seq'], 19);
+  });
+
   test('streamEvents bypasses Matrix response stream timeout wrapper',
       () async {
     final client = HttpAsClient(
@@ -2034,7 +2088,7 @@ void main() {
       }),
     );
 
-    final posts = await client.getChannelPosts('ch1');
+    final posts = await client.getChannelPosts('ch1', limit: 10, beforeTs: 1);
 
     expect(posts.single.authorAvatarUrl, 'mxc://example.com/owner-avatar');
   });

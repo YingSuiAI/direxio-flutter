@@ -62,6 +62,19 @@ This document records the current P2P product API / Matrix boundary used by the 
   updates should persist the last handled SSE `seq` and apply typed local
   reducers from `GET /_p2p/events?since=<last_seq>` instead of full bootstrap
   refreshes.
+- If `GET /_p2p/events` emits `event: p2p.cursor_reset` or returns
+  `X-Direxio-P2P-Events-Cursor-Reset: true`, the client clears local product
+  projection caches, runs one `sync.bootstrap`, persists the response
+  `max_seq` as the recovered cursor when present, and resumes deltas from that
+  sequence. The cursor-reset control event itself must not advance `last_seq`.
+- Foreground Matrix refreshes use `/sync` filters with a low timeline limit and
+  `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
+  delete, and redaction remain Matrix Client-Server responsibilities.
+- Channel post/comment list actions currently do not have a documented
+  cursor/page contract. Client method signatures may keep local progressive
+  loading parameters, but the HTTP client must not send uncontracted
+  `limit`, `before_ts`, `page`, or `page_size` params until the backend
+  contract is added.
 
 ## Matrix Responsibilities
 

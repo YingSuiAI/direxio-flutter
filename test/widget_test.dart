@@ -2245,6 +2245,11 @@ class _MemoryChannelPostStore implements ChannelPostStore {
       return post.eventId.trim() == trimmedPost;
     });
   }
+
+  @override
+  Future<void> clear() async {
+    posts.clear();
+  }
 }
 
 class _MemoryLocalOutboxStore implements LocalOutboxStore {
@@ -2602,6 +2607,7 @@ Room _addNamedGroupRoom(
     id: roomId,
     client: client,
     membership: membership,
+    prev_batch: 'test-prev-batch',
   );
   client.rooms.add(room);
   room.setState(

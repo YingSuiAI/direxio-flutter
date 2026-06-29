@@ -22773,7 +22773,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -22801,6 +22802,47 @@ void main() {
     expect(find.text('请设置头像'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1200));
     expect(find.byKey(const ValueKey('init_center_weak_hint')), findsNothing);
+  });
+
+  testWidgets('init page never shows portal domain input while auth loads',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_LoadingAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Portal 域名'), findsNothing);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_LoadingAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Portal domain'), findsNothing);
   });
 
   testWidgets('login page does not default to a real node', (tester) async {
@@ -22935,7 +22977,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
         ],
         child: MaterialApp(
           locale: const Locale('en'),
@@ -22950,7 +22993,8 @@ void main() {
 
     expect(find.text('Confirm'), findsOneWidget);
     expect(find.text('Display name'), findsOneWidget);
-    expect(find.text('Already have an account? Log in'), findsOneWidget);
+    expect(find.text('Long-term login passphrase'), findsOneWidget);
+    expect(find.text('Already have an account? Log in'), findsNothing);
 
     await tester.tap(find.text('Confirm'));
     await tester.pump();

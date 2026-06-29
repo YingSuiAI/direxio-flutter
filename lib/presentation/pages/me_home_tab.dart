@@ -17,7 +17,7 @@ import '../widgets/portal_avatar.dart';
 const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
-const _feedbackBackgroundAsset = 'assets/images/fankui.png';
+const _feedbackBackgroundAsset = 'assets/images/ic_help_feedback2.png';
 const _feedbackEmail = 'liyananinsh@outlook.com';
 
 class MePage extends ConsumerWidget {

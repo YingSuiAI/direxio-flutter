@@ -31,6 +31,10 @@ void main() {
     final background = tester.widget<Image>(
       find.byKey(const ValueKey('help_feedback_background')),
     );
+    expect(
+      (background.image as AssetImage).assetName,
+      'assets/images/ic_help_feedback2.png',
+    );
     expect(background.color, PortalTokens.dark.surface);
     expect(background.colorBlendMode, BlendMode.modulate);
 
@@ -66,6 +70,13 @@ void main() {
     await tester.tap(find.text('Help & Feedback'));
     await tester.pumpAndSettle();
 
+    final background = tester.widget<Image>(
+      find.byKey(const ValueKey('help_feedback_background')),
+    );
+    expect(
+      (background.image as AssetImage).assetName,
+      'assets/images/ic_help_feedback2.png',
+    );
     expect(find.text('Got it'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

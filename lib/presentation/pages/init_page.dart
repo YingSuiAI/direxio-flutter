@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../../core/theme/design_tokens.dart';
@@ -22,7 +21,6 @@ class InitPage extends ConsumerStatefulWidget {
 }
 
 class _InitPageState extends ConsumerState<InitPage> {
-  final _domainCtrl = TextEditingController();
   final _displayNameCtrl = TextEditingController();
   final _portalTokenCtrl = TextEditingController();
   final _confirmPortalTokenCtrl = TextEditingController();
@@ -34,7 +32,6 @@ class _InitPageState extends ConsumerState<InitPage> {
 
   @override
   void dispose() {
-    _domainCtrl.dispose();
     _displayNameCtrl.dispose();
     _portalTokenCtrl.dispose();
     _confirmPortalTokenCtrl.dispose();
@@ -79,30 +76,23 @@ class _InitPageState extends ConsumerState<InitPage> {
     return uploaded.toString();
   }
 
-  Future<void> _register() async {
+  Future<void> _completeInitialization() async {
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
     );
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
     final isLoggedIn = auth?.isLoggedIn == true;
-    final domain = _domainCtrl.text.trim();
     final displayName = _displayNameCtrl.text.trim();
     final portalToken = _portalTokenCtrl.text.trim();
     final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
+    if (!isLoggedIn) return;
     if (_avatarBytes == null) {
       setState(() {
         _weakHint = null;
         _error = null;
       });
       _showCenterWeakHint(context, l10n?.initAvatarRequired ?? '请设置头像');
-      return;
-    }
-    if (!isLoggedIn && domain.isEmpty) {
-      setState(() {
-        _weakHint = l10n?.initPortalDomainRequired ?? '请填写 Portal 域名';
-        _error = null;
-      });
       return;
     }
     if (displayName.isEmpty) {
@@ -146,46 +136,22 @@ class _InitPageState extends ConsumerState<InitPage> {
       _weakHint = null;
     });
     try {
-      if (isLoggedIn) {
-        final avatarUrl = await _uploadSelectedAvatar();
-        await ref
-            .read(authStateNotifierProvider.notifier)
-            .completeInitialization(
-              displayName: displayName,
-              newPortalToken: portalToken,
-              avatarUrl: avatarUrl,
-            );
-        final userId = ref.read(matrixClientProvider).userID ?? auth?.userId;
-        if (userId != null && userId.trim().isNotEmpty) {
-          await cacheCurrentUserProfile(
-            ref,
-            userId: userId,
+      final avatarUrl = await _uploadSelectedAvatar();
+      await ref.read(authStateNotifierProvider.notifier).completeInitialization(
             displayName: displayName,
+            newPortalToken: portalToken,
             avatarUrl: avatarUrl,
           );
-        }
-        if (mounted) context.go('/home');
-      } else {
-        await ref.read(authStateNotifierProvider.notifier).register(
-              domain,
-              portalToken,
-              displayName,
-            );
-        final avatarUrl = await _uploadSelectedAvatar();
-        await ref.read(asClientProvider).updateOwnerProfile(
-              displayName: displayName,
-              avatarUrl: avatarUrl,
-            );
-        final userId = ref.read(matrixClientProvider).userID;
-        if (userId != null && userId.trim().isNotEmpty) {
-          await cacheCurrentUserProfile(
-            ref,
-            userId: userId,
-            displayName: displayName,
-            avatarUrl: avatarUrl,
-          );
-        }
+      final userId = ref.read(matrixClientProvider).userID ?? auth?.userId;
+      if (userId != null && userId.trim().isNotEmpty) {
+        await cacheCurrentUserProfile(
+          ref,
+          userId: userId,
+          displayName: displayName,
+          avatarUrl: avatarUrl,
+        );
       }
+      if (mounted) context.go('/home');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -196,7 +162,9 @@ class _InitPageState extends ConsumerState<InitPage> {
   @override
   Widget build(BuildContext context) {
     const pageTokens = PortalTokens.dark;
-    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    final authState = ref.watch(authStateNotifierProvider);
+    final auth = authState.valueOrNull;
+    final isAuthLoading = authState.isLoading && !authState.hasValue;
     final isLoggedIn = auth?.isLoggedIn ?? false;
     final l10n = Localizations.of<AppLocalizations>(
       context,
@@ -258,16 +226,6 @@ class _InitPageState extends ConsumerState<InitPage> {
                           ),
                         ),
                         const SizedBox(height: 44),
-                        if (!isLoggedIn) ...[
-                          _InitPillInputField(
-                            controller: _domainCtrl,
-                            icon: Symbols.link,
-                            hint: l10n?.initPortalDomainHint ?? 'Portal 域名',
-                            keyboardType: TextInputType.url,
-                            tokens: pageTokens,
-                          ),
-                          const SizedBox(height: 15),
-                        ],
                         _InitPillInputField(
                           controller: _displayNameCtrl,
                           icon: Symbols.person,
@@ -279,11 +237,9 @@ class _InitPageState extends ConsumerState<InitPage> {
                         _InitPillInputField(
                           controller: _portalTokenCtrl,
                           icon: Symbols.lock,
-                          hint: isLoggedIn
-                              ? l10n?.initOwnerTokenHint ?? '长期登录口令'
-                              : l10n?.initPasswordHint ?? '登录密码',
+                          hint: l10n?.initOwnerTokenHint ?? '长期登录口令',
                           obscure: _obscure,
-                          onSubmitted: (_) => _register(),
+                          onSubmitted: (_) => _completeInitialization(),
                           onChanged: (_) => _clearWeakHint(),
                           tokens: pageTokens,
                           trailing: IconButton(
@@ -302,11 +258,9 @@ class _InitPageState extends ConsumerState<InitPage> {
                         _InitPillInputField(
                           controller: _confirmPortalTokenCtrl,
                           icon: Symbols.verified_user,
-                          hint: isLoggedIn
-                              ? l10n?.initConfirmOwnerTokenHint ?? '再次输入长期登录口令'
-                              : l10n?.initConfirmPasswordHint ?? '再次输入登录密码',
+                          hint: l10n?.initConfirmOwnerTokenHint ?? '再次输入长期登录口令',
                           obscure: _obscure,
-                          onSubmitted: (_) => _register(),
+                          onSubmitted: (_) => _completeInitialization(),
                           onChanged: (_) => _clearWeakHint(),
                           tokens: pageTokens,
                         ),
@@ -346,7 +300,9 @@ class _InitPageState extends ConsumerState<InitPage> {
                                 color: pageTokens.onAccent,
                               ),
                             ),
-                            onPressed: _loading ? null : _register,
+                            onPressed: (_loading || isAuthLoading)
+                                ? null
+                                : _completeInitialization,
                             child: Text(
                               _loading
                                   ? l10n?.initButtonLoading ?? '初始化中…'
@@ -468,7 +424,6 @@ class _InitPillInputField extends StatelessWidget {
     required this.hint,
     required this.tokens,
     this.obscure = false,
-    this.keyboardType,
     this.trailing,
     this.onSubmitted,
     this.onChanged,
@@ -479,7 +434,6 @@ class _InitPillInputField extends StatelessWidget {
   final String hint;
   final PortalTokens tokens;
   final bool obscure;
-  final TextInputType? keyboardType;
   final Widget? trailing;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
@@ -514,7 +468,6 @@ class _InitPillInputField extends StatelessWidget {
             child: TextField(
               controller: controller,
               obscureText: obscure,
-              keyboardType: keyboardType,
               onSubmitted: onSubmitted,
               onChanged: onChanged,
               style: AppTheme.sans(size: 16, color: tokens.text),

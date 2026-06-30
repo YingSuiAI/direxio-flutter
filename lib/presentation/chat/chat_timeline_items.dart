@@ -96,42 +96,100 @@ List<TOutbox> filterOutboxItemsShadowedByEvents<TEvent, TOutbox>({
   required DateTime Function(TOutbox outbox) outboxTimestamp,
   Duration maxTimeDifference = const Duration(minutes: 5),
 }) {
-  final eventBuckets = <String, List<DateTime>>{};
+  final matches = matchOutboxItemsShadowedByEvents(
+    events: events,
+    outboxItems: outboxItems,
+    eventSignature: eventSignature,
+    eventTimestamp: eventTimestamp,
+    outboxSignature: outboxSignature,
+    outboxTimestamp: outboxTimestamp,
+    maxTimeDifference: maxTimeDifference,
+  );
+  if (matches.isEmpty) return outboxItems;
+  final shadowed = [for (final match in matches) match.outbox];
+  final filtered = <TOutbox>[];
+  for (final outbox in outboxItems) {
+    final index = shadowed.indexWhere(
+      (item) => identical(item, outbox) || item == outbox,
+    );
+    if (index == -1) {
+      filtered.add(outbox);
+    } else {
+      shadowed.removeAt(index);
+    }
+  }
+  return filtered;
+}
+
+class ChatOutboxEventMatch<TEvent, TOutbox> {
+  const ChatOutboxEventMatch({
+    required this.event,
+    required this.outbox,
+  });
+
+  final TEvent event;
+  final TOutbox outbox;
+}
+
+List<ChatOutboxEventMatch<TEvent, TOutbox>>
+    matchOutboxItemsShadowedByEvents<TEvent, TOutbox>({
+  required List<TEvent> events,
+  required List<TOutbox> outboxItems,
+  required String? Function(TEvent event) eventSignature,
+  required DateTime Function(TEvent event) eventTimestamp,
+  required String? Function(TOutbox outbox) outboxSignature,
+  required DateTime Function(TOutbox outbox) outboxTimestamp,
+  Duration maxTimeDifference = const Duration(minutes: 5),
+}) {
+  final eventBuckets = <String, List<_ChatEventMatchCandidate<TEvent>>>{};
   for (final event in events) {
     final signature = eventSignature(event);
     if (signature == null || signature.isEmpty) continue;
-    eventBuckets.putIfAbsent(signature, () => []).add(eventTimestamp(event));
+    eventBuckets.putIfAbsent(signature, () => []).add(
+          _ChatEventMatchCandidate(
+            event: event,
+            timestamp: eventTimestamp(event),
+          ),
+        );
   }
-  if (eventBuckets.isEmpty) return outboxItems;
+  if (eventBuckets.isEmpty) return const [];
 
   for (final bucket in eventBuckets.values) {
-    bucket.sort();
+    bucket.sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
-  final filtered = <TOutbox>[];
+  final matches = <ChatOutboxEventMatch<TEvent, TOutbox>>[];
   for (final outbox in outboxItems) {
     final signature = outboxSignature(outbox);
     if (signature == null || signature.isEmpty) {
-      filtered.add(outbox);
       continue;
     }
     final bucket = eventBuckets[signature];
     if (bucket == null || bucket.isEmpty) {
-      filtered.add(outbox);
       continue;
     }
     final outboxTime = outboxTimestamp(outbox);
     final matchIndex = bucket.indexWhere(
-      (eventTime) =>
-          eventTime.difference(outboxTime).abs() <= maxTimeDifference,
+      (candidate) =>
+          candidate.timestamp.difference(outboxTime).abs() <= maxTimeDifference,
     );
     if (matchIndex == -1) {
-      filtered.add(outbox);
       continue;
     }
-    bucket.removeAt(matchIndex);
+    final candidate = bucket.removeAt(matchIndex);
+    matches.add(ChatOutboxEventMatch(event: candidate.event, outbox: outbox));
   }
-  return filtered;
+  return matches;
+}
+
+class _ChatEventMatchCandidate<TEvent> {
+  const _ChatEventMatchCandidate({
+    required this.event,
+    required this.timestamp,
+  });
+
+  final TEvent event;
+  final DateTime timestamp;
 }
 
 List<TEvent> filterRecoveredUnreadEventsShadowedByTimeline<TEvent>({

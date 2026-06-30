@@ -56,6 +56,28 @@ void main() {
     expect(find.text('loading'), findsNothing);
   });
 
+  testWidgets('renders initial bytes before async load completes',
+      (tester) async {
+    final cache = _MemoryThumbnailCache();
+    final pendingLoad = Completer<Uint8List>();
+
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$initial',
+        cache: cache,
+        cacheFuture: Future.value(cache),
+        initialBytes: Uint8List.fromList([4]),
+        loadBytes: () => pendingLoad.future,
+        imageBuilder: (_, bytes) => Text(bytes.join(',')),
+        loadingBuilder: (_) => const Text('loading'),
+      ),
+    ));
+
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('loading'), findsNothing);
+    expect(cache.peek(r'$initial'), Uint8List.fromList([4]));
+  });
+
   testWidgets('starts preview load without waiting for pending cache',
       (tester) async {
     final cacheCompleter = Completer<MediaThumbnailCache>();

@@ -114,6 +114,54 @@ void main() {
     expect(items.map((item) => item.id), const ['second']);
   });
 
+  test('returns event to outbox matches for delivered media echoes', () {
+    final outboxTime = DateTime.parse('2026-05-28T14:17:00Z');
+    final matches = matchOutboxItemsShadowedByEvents<_EchoEvent, _OutboxItem>(
+      events: [
+        _EchoEvent(
+          'image:photo.jpg:120',
+          outboxTime.add(const Duration(seconds: 5)),
+          eventId: r'$photo',
+        ),
+        _EchoEvent(
+          'video:clip.mp4:320',
+          outboxTime.add(const Duration(seconds: 6)),
+          eventId: r'$clip',
+        ),
+      ],
+      outboxItems: [
+        _OutboxItem(
+          'pending-photo',
+          outboxTime,
+          signature: 'image:photo.jpg:120',
+        ),
+        _OutboxItem(
+          'pending-other',
+          outboxTime,
+          signature: 'image:other.jpg:120',
+        ),
+        _OutboxItem(
+          'pending-clip',
+          outboxTime,
+          signature: 'video:clip.mp4:320',
+        ),
+      ],
+      eventSignature: (event) => event.signature,
+      eventTimestamp: (event) => event.createdAt,
+      outboxSignature: (item) => item.signature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
+
+    expect(matches.map((match) => match.event.eventId), const [
+      r'$photo',
+      r'$clip',
+    ]);
+    expect(matches.map((match) => match.outbox.id), const [
+      'pending-photo',
+      'pending-clip',
+    ]);
+  });
+
   test('filters recovered unread events already present in Matrix timeline',
       () {
     final recovered = filterRecoveredUnreadEventsShadowedByTimeline<String>(

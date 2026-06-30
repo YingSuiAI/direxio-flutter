@@ -2768,28 +2768,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Set<String> _deliveredOutboxMediaIds(
+  List<ChatOutboxEventMatch<Event, LocalOutboxItem>>
+      _deliveredOutboxMediaMatches(
     List<LocalOutboxItem> outboxItems,
     List<Event> events,
   ) {
-    final deliveredCounts = <String, int>{};
-    for (final event in events) {
-      final signature = _deliveredMediaSignature(event);
-      if (signature == null) continue;
-      deliveredCounts[signature] = (deliveredCounts[signature] ?? 0) + 1;
-    }
-    if (deliveredCounts.isEmpty) return const {};
-
-    final deliveredOutboxIds = <String>{};
-    for (final item in outboxItems) {
-      final signature = _outboxMediaSignature(item);
-      if (signature == null) continue;
-      final count = deliveredCounts[signature] ?? 0;
-      if (count <= 0) continue;
-      deliveredOutboxIds.add(item.id);
-      deliveredCounts[signature] = count - 1;
-    }
-    return deliveredOutboxIds;
+    return matchOutboxItemsShadowedByEvents<Event, LocalOutboxItem>(
+      events: events,
+      outboxItems: outboxItems,
+      eventSignature: _deliveredMediaSignature,
+      eventTimestamp: (event) => event.originServerTs,
+      outboxSignature: _outboxMediaSignature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
   }
 
   String? _deliveredMediaSignature(Event event) {
@@ -3013,10 +3004,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       messageEvents = agentMessageProjection.visibleEvents;
     }
     _scheduleAsCallSessionWarmup(visibleEvents, callRecordContextEvents);
-    final deliveredPendingMediaIds = _deliveredOutboxMediaIds(
+    final deliveredPendingMediaMatches = _deliveredOutboxMediaMatches(
       pendingOutboxItems,
       messageEvents,
     );
+    final deliveredPendingMediaByEventId = <String, LocalOutboxItem>{
+      for (final match in deliveredPendingMediaMatches)
+        if (match.event.eventId.trim().isNotEmpty)
+          match.event.eventId.trim(): match.outbox,
+    };
+    final deliveredPendingMediaIds = {
+      for (final match in deliveredPendingMediaMatches) match.outbox.id,
+    };
     final pendingOutboxWithoutDeliveredMedia = [
       for (final item in pendingOutboxItems)
         if (!deliveredPendingMediaIds.contains(item.id)) item,
@@ -3035,7 +3034,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       events: messageEvents,
       eventTimestamp: (event) => event.originServerTs,
       eventSortTimestamp: (event) =>
-          messageOrder.entryForEvent(event.eventId)?.createdAt,
+          messageOrder.entryForEvent(event.eventId)?.createdAt ??
+          deliveredPendingMediaByEventId[event.eventId.trim()]?.createdAt,
       outboxItems: pendingOutbox,
       outboxTimestamp: (item) => item.createdAt,
       asCallSessions: asCallRecords,
@@ -3060,8 +3060,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final notifier = ref.read(localOutboxProvider.notifier);
-        for (final id in deliveredPendingMediaIds) {
-          unawaited(notifier.completeItem(id));
+        final orderNotifier = ref.read(localMessageOrderProvider.notifier);
+        for (final match in deliveredPendingMediaMatches) {
+          final eventId = match.event.eventId.trim();
+          if (eventId.isNotEmpty &&
+              messageOrder.entryForEvent(eventId) == null) {
+            unawaited(
+              orderNotifier.recordDeliveredOutbox(
+                outbox: match.outbox,
+                eventId: eventId,
+              ),
+            );
+          }
+          unawaited(notifier.completeItem(match.outbox.id));
         }
       });
     }
@@ -3965,6 +3976,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               // 图片消息 → 缩略图气泡，点击全屏预览
                               if (e.messageType == MessageTypes.Image &&
                                   e.hasAttachment) {
+                                final deliveredOutbox =
+                                    deliveredPendingMediaByEventId[
+                                        e.eventId.trim()];
                                 return enter(
                                   _SChatImageBubble(
                                     isMe: isMe,
@@ -3981,6 +3995,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
                                       ),
                                       event: e,
+                                      initialBytes:
+                                          deliveredOutbox?.thumbnailBytes ??
+                                              deliveredOutbox?.bytes,
                                     ),
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -4007,6 +4024,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               if (e.messageType == MessageTypes.Video &&
                                   e.hasAttachment) {
                                 final eventId = e.eventId.trim();
+                                final deliveredOutbox =
+                                    deliveredPendingMediaByEventId[eventId];
                                 return enter(
                                   _SChatImageBubble(
                                     isMe: isMe,
@@ -4023,6 +4042,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
                                       ),
                                       event: e,
+                                      initialBytes:
+                                          deliveredOutbox?.thumbnailBytes,
                                       fallbackIcon: Symbols.movie,
                                       fit: BoxFit.cover,
                                     ),
@@ -6178,10 +6199,12 @@ class _MatrixThumb extends ConsumerWidget {
   const _MatrixThumb({
     super.key,
     required this.event,
+    this.initialBytes,
     this.fallbackIcon = Symbols.broken_image,
     this.fit = BoxFit.contain,
   });
   final Event event;
+  final Uint8List? initialBytes;
   final IconData fallbackIcon;
   final BoxFit fit;
   @override
@@ -6195,6 +6218,7 @@ class _MatrixThumb extends ConsumerWidget {
       cacheFuture: cacheKey.isEmpty
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
+      initialBytes: initialBytes,
       loadBytes: () async {
         return loadChatEventPreviewThumbnail(event);
       },

@@ -19,6 +19,7 @@ class CachedThumbnailImage extends StatefulWidget {
     this.cache,
     required this.cacheFuture,
     required this.loadBytes,
+    this.initialBytes,
     this.fit = BoxFit.cover,
     this.imageBuilder,
     this.loadingBuilder,
@@ -37,6 +38,7 @@ class CachedThumbnailImage extends StatefulWidget {
   final MediaThumbnailCache? cache;
   final Future<MediaThumbnailCache>? cacheFuture;
   final ThumbnailBytesLoader loadBytes;
+  final Uint8List? initialBytes;
   final BoxFit fit;
   final ThumbnailImageBuilder? imageBuilder;
   final WidgetBuilder? loadingBuilder;
@@ -61,6 +63,7 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadInitialBytes();
     _loadMemoryBytes();
     _load();
   }
@@ -73,9 +76,13 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage>
       _retryAttempt = 0;
       _bytes = null;
       _failed = false;
+      _loadInitialBytes();
       _loadMemoryBytes();
       _load();
       return;
+    }
+    if (_bytes == null && oldWidget.initialBytes != widget.initialBytes) {
+      if (_loadInitialBytes()) setState(() {});
     }
     if (_bytes == null && oldWidget.cache != widget.cache) {
       if (_loadMemoryBytes()) setState(() {});
@@ -118,6 +125,18 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage>
     return true;
   }
 
+  bool _loadInitialBytes() {
+    final bytes = widget.initialBytes;
+    if (bytes == null || !_isUsableBytes(bytes)) return false;
+    _bytes = bytes;
+    _precache(bytes);
+    final cacheKey = widget.cacheKey.trim();
+    if (cacheKey.isNotEmpty) {
+      unawaited(_writeCacheWhenReady(_resolveCache(), cacheKey, bytes));
+    }
+    return true;
+  }
+
   Future<void> _load() async {
     final generation = ++_loadGeneration;
     final cacheKey = widget.cacheKey.trim();
@@ -153,6 +172,14 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage>
     final cache = await cacheFuture;
     if (cache == null) return;
     await _writeCache(cache, cacheKey, bytes);
+  }
+
+  Future<MediaThumbnailCache?> _resolveCache() async {
+    final cache = widget.cache;
+    if (cache != null) return cache;
+    final cacheFuture = widget.cacheFuture;
+    if (cacheFuture == null) return null;
+    return cacheFuture;
   }
 
   void _scheduleRetry() {

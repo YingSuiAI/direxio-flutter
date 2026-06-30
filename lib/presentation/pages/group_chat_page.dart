@@ -1837,11 +1837,43 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     return 'text:$text';
   }
 
+  String? _deliveredMediaSignature(Event event) {
+    if (event.senderId != event.room.client.userID || !event.hasAttachment) {
+      return null;
+    }
+    final kind = switch (event.messageType) {
+      MessageTypes.Image => LocalOutboxMessageKind.image.name,
+      MessageTypes.Video => LocalOutboxMessageKind.video.name,
+      MessageTypes.File ||
+      MessageTypes.Audio =>
+        LocalOutboxMessageKind.file.name,
+      _ => '',
+    };
+    if (kind.isEmpty) return null;
+    final filename = event.body.trim();
+    final size = event.infoMap['size'];
+    if (filename.isEmpty || size is! num || size <= 0) return null;
+    return '$kind:$filename:${size.toInt()}';
+  }
+
   String? _outboxTextSignature(LocalOutboxItem item) {
     if (item.messageKind != LocalOutboxMessageKind.text) return null;
     final text = item.text.trim();
     if (text.isEmpty) return null;
     return 'text:$text';
+  }
+
+  String? _outboxMediaSignature(LocalOutboxItem item) {
+    if ((item.messageKind != LocalOutboxMessageKind.image &&
+            item.messageKind != LocalOutboxMessageKind.video &&
+            item.messageKind != LocalOutboxMessageKind.file) ||
+        item.status == LocalOutboxItemStatus.failed) {
+      return null;
+    }
+    final filename = item.filename.trim();
+    final size = item.byteLength;
+    if (filename.isEmpty || size <= 0) return null;
+    return '${item.messageKind.name}:$filename:$size';
   }
 
   bool _canSendGroupMessage(Room room, AsSyncCacheState syncCache) {
@@ -2852,10 +2884,31 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
             callRecordContextEvents: callRecordContextEvents,
             asCallSessions: asCallRecords,
           );
+    final deliveredPendingMediaMatches =
+        matchOutboxItemsShadowedByEvents<Event, LocalOutboxItem>(
+      events: visibleEvents,
+      outboxItems: pendingOutbox,
+      eventSignature: _deliveredMediaSignature,
+      eventTimestamp: (event) => event.originServerTs,
+      outboxSignature: _outboxMediaSignature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
+    final deliveredPendingMediaByEventId = <String, LocalOutboxItem>{
+      for (final match in deliveredPendingMediaMatches)
+        if (match.event.eventId.trim().isNotEmpty)
+          match.event.eventId.trim(): match.outbox,
+    };
+    final deliveredPendingMediaIds = {
+      for (final match in deliveredPendingMediaMatches) match.outbox.id,
+    };
+    final pendingOutboxWithoutDeliveredMedia = [
+      for (final item in pendingOutbox)
+        if (!deliveredPendingMediaIds.contains(item.id)) item,
+    ];
     final filteredPendingOutbox =
         filterOutboxItemsShadowedByEvents<Event, LocalOutboxItem>(
       events: visibleEvents,
-      outboxItems: pendingOutbox,
+      outboxItems: pendingOutboxWithoutDeliveredMedia,
       eventSignature: _deliveredTextSignature,
       eventTimestamp: (event) => event.originServerTs,
       outboxSignature: _outboxTextSignature,
@@ -2865,7 +2918,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       events: visibleEvents,
       eventTimestamp: (event) => event.originServerTs,
       eventSortTimestamp: (event) =>
-          messageOrder.entryForEvent(event.eventId)?.createdAt,
+          messageOrder.entryForEvent(event.eventId)?.createdAt ??
+          deliveredPendingMediaByEventId[event.eventId.trim()]?.createdAt,
       outboxItems: filteredPendingOutbox,
       outboxTimestamp: (item) => item.createdAt,
       asCallSessions: asCallRecords,
@@ -2884,6 +2938,26 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
     _scheduleScrollToLatest(newestTimelineItemKey);
+    if (deliveredPendingMediaMatches.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final notifier = ref.read(localOutboxProvider.notifier);
+        final orderNotifier = ref.read(localMessageOrderProvider.notifier);
+        for (final match in deliveredPendingMediaMatches) {
+          final eventId = match.event.eventId.trim();
+          if (eventId.isNotEmpty &&
+              messageOrder.entryForEvent(eventId) == null) {
+            unawaited(
+              orderNotifier.recordDeliveredOutbox(
+                outbox: match.outbox,
+                eventId: eventId,
+              ),
+            );
+          }
+          unawaited(notifier.completeItem(match.outbox.id));
+        }
+      });
+    }
     final productConversations =
         ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
@@ -3309,6 +3383,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                               }
                               if (e.messageType == MessageTypes.Image &&
                                   e.hasAttachment) {
+                                final deliveredOutbox =
+                                    deliveredPendingMediaByEventId[
+                                        e.eventId.trim()];
                                 final senderName = e.senderFromMemoryOrFallback
                                     .calcDisplayname();
                                 final localOrder =
@@ -3327,6 +3404,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     selected: selected,
                                     multiSelect: _multiSelect,
                                     mediaSize: chatMediaBubbleSizeForEvent(e),
+                                    initialThumbBytes:
+                                        deliveredOutbox?.thumbnailBytes ??
+                                            deliveredOutbox?.bytes,
                                     onTap: _multiSelect
                                         ? toggle
                                         : () => unawaited(
@@ -3351,6 +3431,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                               }
                               if (e.messageType == MessageTypes.Video &&
                                   e.hasAttachment) {
+                                final deliveredOutbox =
+                                    deliveredPendingMediaByEventId[
+                                        e.eventId.trim()];
                                 return enter(
                                   _GroupImageMessageBubble(
                                     event: e,
@@ -3363,6 +3446,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     fallbackIcon: Symbols.movie,
                                     fit: BoxFit.cover,
                                     mediaSize: chatMessageDefaultMediaSize,
+                                    initialThumbBytes:
+                                        deliveredOutbox?.thumbnailBytes,
                                     centerOverlay:
                                         const _GroupVideoPlayOverlay(),
                                     onTap: _multiSelect
@@ -3667,6 +3752,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
     this.fallbackIcon = Symbols.broken_image,
     this.fit = BoxFit.contain,
     this.mediaSize = chatMessageDefaultImageMediaSize,
+    this.initialThumbBytes,
     this.centerOverlay,
     this.onAvatarTap,
     this.onAvatarLongPress,
@@ -3682,6 +3768,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
   final IconData fallbackIcon;
   final BoxFit fit;
   final ChatMediaBubbleSize mediaSize;
+  final Uint8List? initialThumbBytes;
   final Widget? centerOverlay;
   final VoidCallback? onAvatarTap;
   final VoidCallback? onAvatarLongPress;
@@ -3738,6 +3825,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
                 'group_matrix_thumb_${event.eventId}_${event.originServerTs.millisecondsSinceEpoch}',
               ),
               event: event,
+              initialBytes: initialThumbBytes,
               fallbackIcon: fallbackIcon,
               fit: fit,
             ),
@@ -4025,11 +4113,13 @@ class _GroupMatrixThumb extends ConsumerWidget {
   const _GroupMatrixThumb({
     super.key,
     required this.event,
+    this.initialBytes,
     this.fallbackIcon = Symbols.broken_image,
     this.fit = BoxFit.contain,
   });
 
   final Event event;
+  final Uint8List? initialBytes;
   final IconData fallbackIcon;
   final BoxFit fit;
 
@@ -4044,6 +4134,7 @@ class _GroupMatrixThumb extends ConsumerWidget {
       cacheFuture: cacheKey.isEmpty
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
+      initialBytes: initialBytes,
       loadBytes: () async {
         return loadChatEventPreviewThumbnail(event);
       },

@@ -2086,6 +2086,7 @@ class WsAsClient extends HttpAsClient {
   }
 
   final AsWSActionRequester _requestAction;
+  final Map<String, Future<Map<String, dynamic>>> _inFlightProductActions = {};
 
   @override
   Future<Map<String, dynamic>> _requestJson(
@@ -2110,6 +2111,38 @@ class WsAsClient extends HttpAsClient {
     if (action == 'favorites.add') {
       params = _favoriteAddParams(params);
     }
+    final inFlightKey = _productActionInFlightKey(action, params);
+    final inFlight = _inFlightProductActions[inFlightKey];
+    if (inFlight != null) return inFlight;
+    late Future<Map<String, dynamic>> request;
+    request = _requestJsonWSFirst(
+      method,
+      path,
+      action: action,
+      params: params,
+      queryParameters: queryParameters,
+      body: body,
+      allowedStatusCodes: allowedStatusCodes,
+    );
+    _inFlightProductActions[inFlightKey] = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_inFlightProductActions[inFlightKey], request)) {
+        _inFlightProductActions.remove(inFlightKey);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _requestJsonWSFirst(
+    String method,
+    String path, {
+    required String action,
+    required Map<String, Object?> params,
+    Map<String, String>? queryParameters,
+    Object? body,
+    Set<int> allowedStatusCodes = const {200},
+  }) async {
     _logChannelShareApiParams(action, params);
     final requestBody = jsonEncode({
       'type': 'client.request',
@@ -2157,9 +2190,78 @@ class WsAsClient extends HttpAsClient {
         error: error,
         stackTrace: stackTrace,
       );
+      if (_shouldHTTPFallbackForWSError(action, error)) {
+        return super._requestJson(
+          method,
+          path,
+          queryParameters: queryParameters,
+          body: body,
+          allowedStatusCodes: allowedStatusCodes,
+        );
+      }
       rethrow;
     }
   }
+}
+
+String _productActionInFlightKey(String action, Map<String, Object?> params) {
+  return jsonEncode({
+    'action': action.trim(),
+    'params': _canonicalJson(params),
+  });
+}
+
+Object? _canonicalJson(Object? value) {
+  if (value is Map) {
+    final keys = value.keys.map((key) => key.toString()).toList()..sort();
+    return {
+      for (final key in keys) key: _canonicalJson(value[key]),
+    };
+  }
+  if (value is Iterable) {
+    return [for (final item in value) _canonicalJson(item)];
+  }
+  return value;
+}
+
+bool _shouldHTTPFallbackForWSError(String action, Object error) {
+  if (error is TimeoutException) return true;
+  if (error is AsClientException && error.statusCode != null) return false;
+  final message = error.toString().toLowerCase();
+  if (message.contains('before request') || message.contains('not ready')) {
+    return true;
+  }
+  if (message.contains('before response') ||
+      message.contains('after request')) {
+    return _canHTTPFallbackAfterWSDispatch(action);
+  }
+  return message.contains('ws ') ||
+      message.contains('websocket') ||
+      message.contains('socket') ||
+      message.contains('connection failed');
+}
+
+bool _canHTTPFallbackAfterWSDispatch(String action) {
+  final normalized = action.trim();
+  if (normalized.endsWith('.get') ||
+      normalized.endsWith('.list') ||
+      normalized.endsWith('.search') ||
+      normalized == 'sync.bootstrap') {
+    return true;
+  }
+  return const {
+    'contacts.requests.accept',
+    'contacts.requests.reject',
+    'contacts.requests.delete',
+    'groups.join',
+    'groups.invite.reject',
+    'channels.join',
+    'channels.join_request.approve',
+    'channels.join_request.reject',
+    'channels.public.join_request',
+    'sync.read_marker',
+    'channels.read_marker',
+  }.contains(normalized);
 }
 
 bool _httpOnlyAction(String action) {

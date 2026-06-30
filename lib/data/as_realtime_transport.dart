@@ -9,6 +9,8 @@ import 'as_realtime_ws_connector.dart';
 typedef AsRealtimeTicketFactory = Future<AsRealtimeWSTicket> Function();
 typedef AsRealtimeWSConnector = FutureOr<WebSocketChannel> Function(Uri uri);
 
+const _wsResponseTimeout = Duration(seconds: 10);
+
 class AsRealtimeWSTicket {
   const AsRealtimeWSTicket({
     required this.ticket,
@@ -82,6 +84,7 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
 
   WebSocketChannel? _channel;
   bool _closed = false;
+  bool _ready = false;
   bool? _foreground;
   String? _appState;
   bool _hidden = false;
@@ -90,6 +93,8 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
   int _latestSeq = 0;
   int _nextRequestId = 0;
   final Map<String, Completer<Map<String, dynamic>>> _pendingRequests = {};
+
+  bool get isReady => !_closed && _ready && _channel != null;
 
   @override
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
@@ -125,11 +130,17 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
           }
           if (identical(_channel, channel)) {
             _channel = null;
+            _markNotReady();
           }
-          _failPendingRequests(AsClientException('WS connection closed'));
+          _failPendingRequests(
+            AsClientException('WS connection closed before response'),
+          );
         } catch (_) {
           if (_closed) return;
-          _failPendingRequests(AsClientException('WS connection failed'));
+          _markNotReady();
+          _failPendingRequests(
+            AsClientException('WS connection failed before response'),
+          );
           final delay = _reconnectDelay(failures++);
           if (delay > Duration.zero) {
             await Future<void>.delayed(delay);
@@ -147,16 +158,12 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     final ticket = await _createTicket();
     final channel = await _connect(_wsUri(ticket.ticket));
     _channel = channel;
+    _beginReadyWait();
     await channel.ready;
-    _sendFrame({
+    _sendFrameToChannel(channel, {
       'type': 'client.hello',
       if (since > 0) 'since': since,
     });
-    _sendFrame(_lifecycleFrame());
-    final focusedRoomId = _focusedRoomId;
-    if (focusedRoomId != null) {
-      _sendFrame(_focusFrame(focusedRoomId));
-    }
     return channel;
   }
 
@@ -185,6 +192,9 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     if (decoded is! Map) return null;
     final frame = decoded.cast<String, dynamic>();
     switch (frame['type']) {
+      case 'server.ready':
+        _markReadyAndReplayState();
+        return null;
       case 'server.event':
         final rawEvent = frame['event'];
         if (rawEvent is! Map) return null;
@@ -273,74 +283,36 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     if (trimmedAction.isEmpty) {
       throw AsClientException('WS action is required');
     }
-    if (_channel == null) {
-      return _requestActionWithEphemeralConnection(
-        trimmedAction,
-        params,
-        allowedStatusCodes: allowedStatusCodes,
-      );
+    final channel = _channel;
+    if (channel == null) {
+      throw AsClientException('WS transport is not ready before request');
+    }
+    if (!isReady || !identical(_channel, channel)) {
+      throw AsClientException('WS transport is not ready before request');
     }
     final requestId = 'req-${++_nextRequestId}';
     final completer = Completer<Map<String, dynamic>>();
     _pendingRequests[requestId] = completer;
-    _sendFrame({
+    final sent = _sendFrameToChannel(channel, {
       'type': 'client.request',
       'id': requestId,
       'action': trimmedAction,
       'params': params,
     });
+    if (!sent) {
+      _pendingRequests.remove(requestId);
+      throw AsClientException('WS transport is not ready before request');
+    }
     try {
-      final frame = await completer.future.timeout(const Duration(seconds: 10));
+      final frame = await completer.future.timeout(_wsResponseTimeout);
       return _resultFromResponseFrame(
         frame,
         allowedStatusCodes: allowedStatusCodes,
       );
+    } on TimeoutException {
+      throw AsClientException('WS response timed out after request');
     } finally {
       _pendingRequests.remove(requestId);
-    }
-  }
-
-  Future<Map<String, dynamic>> _requestActionWithEphemeralConnection(
-    String action,
-    Map<String, Object?> params, {
-    required Set<int> allowedStatusCodes,
-  }) async {
-    final ticket = await _createTicket();
-    final channel = await _connect(_wsUri(ticket.ticket));
-    try {
-      await channel.ready;
-      channel.sink.add(jsonEncode({'type': 'client.hello'}));
-      channel.sink.add(jsonEncode(_lifecycleFrame()));
-      final focusedRoomId = _focusedRoomId;
-      if (focusedRoomId != null) {
-        channel.sink.add(jsonEncode(_focusFrame(focusedRoomId)));
-      }
-      final requestId = 'req-${++_nextRequestId}';
-      channel.sink.add(jsonEncode({
-        'type': 'client.request',
-        'id': requestId,
-        'action': action,
-        'params': params,
-      }));
-      await for (final raw in channel.stream.timeout(
-        const Duration(seconds: 10),
-      )) {
-        final decoded = raw is String ? jsonDecode(raw) : raw;
-        if (decoded is! Map) continue;
-        final frame = decoded.cast<String, dynamic>();
-        if (frame['type'] == 'server.error') {
-          throw AsClientException(frame['error']?.toString() ?? 'WS error');
-        }
-        if (frame['type'] == 'server.response' && frame['id'] == requestId) {
-          return _resultFromResponseFrame(
-            frame,
-            allowedStatusCodes: allowedStatusCodes,
-          );
-        }
-      }
-      throw AsClientException('WS connection closed before response');
-    } finally {
-      await channel.sink.close();
     }
   }
 
@@ -382,12 +354,22 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     }
   }
 
-  void _sendFrame(Map<String, Object?> frame) {
+  bool _sendFrame(Map<String, Object?> frame) {
     final channel = _channel;
-    if (channel == null) return;
+    if (channel == null) return false;
+    return _sendFrameToChannel(channel, frame);
+  }
+
+  bool _sendFrameToChannel(
+    WebSocketChannel channel,
+    Map<String, Object?> frame,
+  ) {
     try {
       channel.sink.add(jsonEncode(frame));
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -395,8 +377,27 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     _closed = true;
     final channel = _channel;
     _channel = null;
+    _markNotReady();
     _failPendingRequests(AsClientException('WS realtime is closed'));
     await channel?.sink.close();
+  }
+
+  void _beginReadyWait() {
+    _ready = false;
+  }
+
+  void _markReadyAndReplayState() {
+    if (_closed) return;
+    _ready = true;
+    _sendFrame(_lifecycleFrame());
+    final focusedRoomId = _focusedRoomId;
+    if (focusedRoomId != null) {
+      _sendFrame(_focusFrame(focusedRoomId));
+    }
+  }
+
+  void _markNotReady() {
+    _ready = false;
   }
 
   Map<String, Object?> _lifecycleFrame() {

@@ -17,9 +17,9 @@ This document records the current P2P product API / Matrix boundary used by the 
 ## Token Boundary
 
 - Backend auth responses expose one `access_token`.
-- Startup/session P2P calls use `access_token` as bearer auth; logged-in product calls use a WS ticket created from that token.
+- Startup/session P2P calls use `access_token` as bearer auth. Logged-in product calls use WS when the realtime transport is already ready; if WS is not ready or disconnected at click time, the current action falls back to owner HTTP immediately while the realtime stream reconnects in the background.
 - Matrix Client-Server API calls use the same `access_token` through the Matrix SDK.
-- P2P product API clients must use a `/_p2p` base URI. After login, non-MCP product methods send WS `client.request` frames to `GET /_p2p/ws`; HTTP `/_p2p/query` and `/_p2p/command` are retained for portal bootstrap/auth/status/password, `realtime.ws_ticket.create`, fixed `mcp.*` actions, and node-to-node public/callback actions.
+- P2P product API clients must use a `/_p2p` base URI. After login, non-MCP product methods send WS `client.request` frames to `GET /_p2p/ws` only after `server.ready`; if realtime is not ready, the same action envelope is sent to HTTP `/_p2p/query` or `/_p2p/command` with the owner bearer token immediately. HTTP is still the primary path for portal bootstrap/auth/status/password, `realtime.ws_ticket.create`, fixed `mcp.*` actions, and node-to-node public/callback actions.
 - Matrix access tokens are never a fallback credential for P2P product API calls.
 - After `portal.password` succeeds, persist the new login password and new P2P bearer token before any Matrix or P2P follow-up request can refresh authentication.
 - When login or password changes rotate the bearer token, delayed Matrix or P2P `M_UNKNOWN_TOKEN` responses from the previous token must not expire a session that has already applied the newer token.
@@ -28,7 +28,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 
 ## P2P Product API Responsibilities
 
-- Logged-in non-MCP product requests use WS `client.request` frames with an `action` and `params` body. HTTP `POST /_p2p/query` or `POST /_p2p/command` are retained for startup/session actions, WS ticket creation, fixed `mcp.*` actions, and node-to-node public/callback actions.
+- Logged-in non-MCP product requests use WS `client.request` frames with an `action` and `params` body when WS is ready. If WS is not ready or disconnected, the client falls back immediately to HTTP `POST /_p2p/query` or `POST /_p2p/command` with the same `action` and `params`; the realtime stream reconnects separately. If a WS request was already sent and the response is lost, HTTP fallback is allowed only for safe repeated actions such as contact request decisions, joins, read markers, and product queries. Business errors returned by WS are not retried over HTTP.
 - Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.password`.
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Conversation actions: `conversations.list`, `conversations.get`.

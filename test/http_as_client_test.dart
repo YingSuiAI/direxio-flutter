@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -1501,6 +1502,231 @@ void main() {
 
     expect(ticket.ticket, 'ws-ticket');
     expect(wsCalls, 0);
+  });
+
+  test('WsAsClient falls back to HTTP when WS transport is unavailable',
+      () async {
+    var wsCalls = 0;
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        throw AsClientException('WS connection failed');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'profile.get',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'user_id': '@owner:example.com',
+          'display_name': 'Owner',
+          'domain': 'example.com',
+        }, 200);
+      }),
+    );
+
+    final profile = await client.getOwnerProfile();
+
+    expect(profile.userId, '@owner:example.com');
+    expect(wsCalls, 1);
+    expect(httpCalls, 1);
+  });
+
+  test('WsAsClient uses HTTP immediately when WS is not ready', () async {
+    var wsCalls = 0;
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        throw AsClientException('WS transport is not ready before request');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(jsonDecode(request.body), {
+          'action': 'profile.get',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'user_id': '@owner:example.com',
+          'display_name': 'Owner',
+          'domain': 'example.com',
+        }, 200);
+      }),
+    );
+
+    final profile = await client.getOwnerProfile();
+
+    expect(profile.userId, '@owner:example.com');
+    expect(wsCalls, 1);
+    expect(httpCalls, 1);
+  });
+
+  test('WsAsClient falls back after sent for safe idempotent actions',
+      () async {
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        expect(action, 'contacts.requests.accept');
+        throw AsClientException('WS connection closed before response');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'contacts.requests.accept',
+          'params': {
+            'room_id': '!room:example.com',
+            'peer_mxid': '@alice:example.com',
+            'display_name': 'Alice',
+          },
+        });
+        return _jsonResponse({
+          'peer_mxid': '@alice:example.com',
+          'display_name': 'Alice',
+          'domain': 'example.com',
+          'room_id': '!room:example.com',
+          'status': 'accepted',
+        }, 200);
+      }),
+    );
+
+    final result = await client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
+
+    expect(result.status, 'accepted');
+    expect(httpCalls, 1);
+  });
+
+  test('WsAsClient does not fall back after sent for create actions', () async {
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        expect(action, 'groups.create');
+        throw AsClientException('WS connection closed before response');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        return _jsonResponse({'error': 'should not be called'}, 500);
+      }),
+    );
+
+    await expectLater(
+      client.createGroup(name: 'Team', invite: const []),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.message,
+          'message',
+          'WS connection closed before response',
+        ),
+      ),
+    );
+    expect(httpCalls, 0);
+  });
+
+  test('WsAsClient does not HTTP fallback for business errors', () async {
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        throw AsClientException('M_FORBIDDEN', statusCode: 403);
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        return _jsonResponse({'error': 'should not be called'}, 500);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(
+        isA<AsClientException>().having((e) => e.statusCode, 'status', 403),
+      ),
+    );
+    expect(httpCalls, 0);
+  });
+
+  test('WsAsClient shares duplicate in-flight product actions', () async {
+    final firstRequest = Completer<Map<String, dynamic>>();
+    var wsCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) {
+        wsCalls++;
+        expect(action, 'contacts.requests.accept');
+        return firstRequest.future;
+      },
+      httpClient: MockClient((request) async {
+        fail('duplicate in-flight WS action should not fall back to HTTP');
+      }),
+    );
+
+    final first = client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
+    final second = client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
+    firstRequest.complete({
+      'peer_mxid': '@alice:example.com',
+      'display_name': 'Alice',
+      'domain': 'example.com',
+      'room_id': '!room:example.com',
+      'status': 'accepted',
+    });
+
+    final results = await Future.wait([first, second]);
+
+    expect(wsCalls, 1);
+    expect(results[0].status, 'accepted');
+    expect(results[1].roomId, '!room:example.com');
   });
 
   test('getPublicChannelByRoomId uses override unified node without auth',

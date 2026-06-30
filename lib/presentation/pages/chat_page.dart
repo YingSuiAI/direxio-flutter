@@ -469,7 +469,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _downloadingImageEventIds = {};
   final Set<String> _downloadedImageEventIds = {};
   final Set<String> _favoritingEventIds = {};
-  final Set<String> _joiningGroupInviteEventIds = {};
+  final Set<String> _joiningGroupInviteKeys = {};
   final Set<String> _joiningChannelShareIds = {};
   final Set<String> _requestedChannelShareIds = {};
   final Set<String> _locallyHiddenEventIds = {};
@@ -2152,13 +2152,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return l10n?.chatJoinGroupFailed('$error') ?? '加入群聊失败: $error';
   }
 
-  Future<void> _joinGroupInvite(GroupInviteContent invite) async {
+  String _groupInviteJoinKey(GroupInviteContent invite) {
     final eventId = invite.inviteEventId.trim();
-    if (eventId.isNotEmpty && _joiningGroupInviteEventIds.contains(eventId)) {
+    if (eventId.isNotEmpty) return eventId;
+    return invite.groupRoomId.trim();
+  }
+
+  Future<void> _joinGroupInvite(GroupInviteContent invite) async {
+    final joinKey = _groupInviteJoinKey(invite);
+    if (joinKey.isNotEmpty && _joiningGroupInviteKeys.contains(joinKey)) {
       return;
     }
-    if (eventId.isNotEmpty && mounted) {
-      setState(() => _joiningGroupInviteEventIds.add(eventId));
+    if (joinKey.isNotEmpty && mounted) {
+      setState(() => _joiningGroupInviteKeys.add(joinKey));
     }
     try {
       final group = await joinGroupInviteThroughAs(
@@ -2188,8 +2194,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         SnackBar(content: Text(_joinGroupInviteFailureMessage(e))),
       );
     } finally {
-      if (eventId.isNotEmpty && mounted) {
-        setState(() => _joiningGroupInviteEventIds.remove(eventId));
+      if (joinKey.isNotEmpty && mounted) {
+        setState(() => _joiningGroupInviteKeys.remove(joinKey));
       }
     }
   }
@@ -3910,8 +3916,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       multiSelect: _multiSelect,
                                       inviterDisplayName:
                                           isMe ? '我' : senderName,
-                                      joining: _joiningGroupInviteEventIds
-                                          .contains(e.eventId),
+                                      joining: _joiningGroupInviteKeys.contains(
+                                        _groupInviteJoinKey(groupInvite),
+                                      ),
                                       alreadyJoined: alreadyJoined,
                                       onJoin: () => unawaited(
                                         _joinGroupInvite(groupInvite),

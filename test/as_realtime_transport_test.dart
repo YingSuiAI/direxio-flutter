@@ -23,6 +23,7 @@ void main() {
         'wss://node.example/_p2p/ws?ticket=ticket-1');
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 8});
+    server.sendReady();
     expect(await server.takeClientFrame(), _lifecycleFrame());
 
     await transport.reportLifecycle(
@@ -83,7 +84,7 @@ void main() {
     await transport.close();
   });
 
-  test('WS transport can send one-shot request before event stream starts',
+  test('WS transport rejects request before realtime stream is ready',
       () async {
     final server = _FakeWebSocketServer();
     final transport = WsAsRealtimeTransport(
@@ -93,30 +94,17 @@ void main() {
       reconnectDelays: const [Duration.zero],
     );
 
-    final request = transport.requestAction(
-      'contacts.list',
-      const {},
+    await expectLater(
+      transport.requestAction('contacts.list', const {}),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.message,
+          'message',
+          'WS transport is not ready before request',
+        ),
+      ),
     );
-    await server.waitForConnection();
-    expect(await server.takeClientFrame(), {'type': 'client.hello'});
-    expect(await server.takeClientFrame(), _lifecycleFrame());
-    expect(await server.takeClientFrame(), {
-      'type': 'client.request',
-      'id': 'req-1',
-      'action': 'contacts.list',
-      'params': {},
-    });
-    server.sendServerFrame({
-      'type': 'server.response',
-      'id': 'req-1',
-      'action': 'contacts.list',
-      'ok': true,
-      'result': {
-        'contacts': [],
-      },
-    });
-    final result = await request;
-    expect(result['contacts'], isEmpty);
+    expect(server.connectedUris, isEmpty);
     await transport.close();
   });
 
@@ -136,6 +124,8 @@ void main() {
     await server.waitForConnection();
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 1});
+    server.sendReady();
+    expect(await server.takeClientFrame(), _lifecycleFrame());
     await transport.reportLifecycle(
       false,
       appState: 'hidden',
@@ -156,6 +146,7 @@ void main() {
         'ws://localhost:8448/_p2p/ws?ticket=ticket-2');
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 2});
+    server.sendReady();
     expect(
       await server.takeClientFrame(),
       _lifecycleFrame(
@@ -185,6 +176,7 @@ void main() {
     final sub = transport.streamEvents().listen(events.add);
     await server.waitForConnection();
     await server.takeClientFrame();
+    server.sendReady();
     await server.takeClientFrame();
 
     final request = transport.requestAction(
@@ -207,6 +199,88 @@ void main() {
     }).toList(growable: false);
     expect(createRequests, hasLength(1));
 
+    await sub.cancel().timeout(const Duration(seconds: 2));
+    await transport.close();
+  });
+
+  test('WS request fails fast while stream has not received ready', () async {
+    final server = _FakeWebSocketServer();
+    var tickets = 0;
+    final transport = WsAsRealtimeTransport(
+      baseUri: Uri.parse('https://node.example/_p2p'),
+      createTicket: () async =>
+          AsRealtimeWSTicket(ticket: 'ticket-${++tickets}'),
+      connect: server.connect,
+      reconnectDelays: const [Duration.zero],
+    );
+
+    final events = <AsEventStreamEvent>[];
+    final sub = transport.streamEvents().listen(events.add);
+    await server.waitForConnection();
+    expect(server.connectedUris.first.toString(),
+        'wss://node.example/_p2p/ws?ticket=ticket-1');
+    expect(await server.takeClientFrame(), {'type': 'client.hello'});
+
+    await expectLater(
+      transport.requestAction('contacts.list', const {}),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.message,
+          'message',
+          'WS transport is not ready before request',
+        ),
+      ),
+    );
+    expect(server.connectedUris, hasLength(1));
+    await sub.cancel().timeout(const Duration(seconds: 2));
+    await transport.close();
+  });
+
+  test('WS request does not retry after request is sent', () async {
+    final server = _FakeWebSocketServer();
+    var tickets = 0;
+    final transport = WsAsRealtimeTransport(
+      baseUri: Uri.parse('https://node.example/_p2p'),
+      createTicket: () async =>
+          AsRealtimeWSTicket(ticket: 'ticket-${++tickets}'),
+      connect: server.connect,
+      reconnectDelays: const [Duration.zero],
+    );
+
+    final events = <AsEventStreamEvent>[];
+    final sub = transport.streamEvents().listen(events.add);
+    await server.waitForConnection();
+    expect(await server.takeClientFrame(), {'type': 'client.hello'});
+    server.sendReady();
+    expect(await server.takeClientFrame(), _lifecycleFrame());
+    final request = transport.requestAction(
+      'groups.create',
+      const {'name': 'No retry'},
+    );
+    expect(await server.takeClientFrame(), {
+      'type': 'client.request',
+      'id': 'req-1',
+      'action': 'groups.create',
+      'params': {'name': 'No retry'},
+    });
+    await server.closeActive();
+
+    await expectLater(
+      request,
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.message,
+          'message',
+          'WS connection closed before response',
+        ),
+      ),
+    );
+    await server.waitForConnection(count: 2);
+    final createRequests = server.allClientFrames.where((frame) {
+      return frame['type'] == 'client.request' &&
+          frame['action'] == 'groups.create';
+    }).toList(growable: false);
+    expect(createRequests, hasLength(1));
     await sub.cancel().timeout(const Duration(seconds: 2));
     await transport.close();
   });
@@ -250,6 +324,14 @@ class _FakeWebSocketServer {
 
   void sendServerFrame(Map<String, Object?> frame) {
     _connections.last.sendServerFrame(frame);
+  }
+
+  void sendReady() {
+    sendServerFrame({
+      'type': 'server.ready',
+      'role': 'owner',
+      'heartbeat_interval_ms': 25000,
+    });
   }
 
   Future<void> closeActive() => _connections.last.close();

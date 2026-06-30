@@ -473,6 +473,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: clear(current.rooms),
         contacts: current.contacts,
         groups: clear(current.groups),
@@ -491,6 +492,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: current.rooms,
         contacts: current.contacts,
         groups: current.groups
@@ -596,6 +598,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: current.rooms,
         contacts: current.contacts,
         groups: current.groups.map((group) {
@@ -619,6 +622,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: current.rooms,
         contacts: current.contacts,
         groups: current.groups.map((group) {
@@ -643,6 +647,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: current.rooms,
         contacts: current.contacts,
         groups: current.groups.map((group) {
@@ -668,6 +673,7 @@ class AsSyncCacheState {
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
         user: current.user,
+        agentRoomId: current.agentRoomId,
         rooms: current.rooms,
         contacts: current.contacts,
         groups: current.groups.map((group) {

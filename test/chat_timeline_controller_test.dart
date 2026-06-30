@@ -3,7 +3,34 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/presentation/chat/chat_timeline_controller.dart';
 
 void main() {
-  test('open initial timeline syncs empty joined room history', () async {
+  test('open initial timeline uses local cache without room history sync',
+      () async {
+    final client = _RecordingRoomHistoryClient()
+      ..setUserId('@me:p2p-im.com')
+      ..accessToken = 'matrix-token'
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final restoredEvent = _messageEvent(room, r'$local');
+    var rebuilds = 0;
+
+    final timeline = await ChatTimelineController(
+      room: room,
+      rebuild: () => rebuilds++,
+      debugLabel: 'test',
+      localHistoryLoader: (timeline, {required start, required limit}) async {
+        if (start > 0) return const <Event>[];
+        return [restoredEvent];
+      },
+    ).openInitialTimeline();
+
+    expect(timeline, isNotNull);
+    await _flushAsyncWork();
+    expect(timeline!.events.map((event) => event.eventId), [r'$local']);
+    expect(client.syncCalls, 0);
+    expect(rebuilds, greaterThan(0));
+  });
+
+  test('open initial timeline does not sync empty room history', () async {
     final client = _RecordingRoomHistoryClient()
       ..setUserId('@me:p2p-im.com')
       ..accessToken = 'matrix-token'
@@ -18,44 +45,38 @@ void main() {
 
     expect(timeline, isNotNull);
     await _flushAsyncWork();
-    expect(client.syncCalls, 1);
-    expect(client.lastSyncFullState, isTrue);
-    expect(client.lastSyncTimeout, 0);
-    expect(client.lastSyncFilter, contains(room.id));
-    expect(client.handledDirection, Direction.b);
+    expect(client.syncCalls, 0);
   });
 
-  test('backfills timeline again after empty room history sync', () async {
+  test('user load older backfills local cache only', () async {
     final client = _RecordingRoomHistoryClient()
       ..setUserId('@me:p2p-im.com')
       ..accessToken = 'matrix-token'
       ..homeserver = Uri.parse('https://p2p-im.com');
     final room = Room(id: '!room:p2p-im.com', client: client);
-    final restoredEvent = _messageEvent(room, r'$restored');
-    var synced = false;
+    final restoredEvent = _messageEvent(room, r'$older');
     var rebuilds = 0;
+    var localLoads = 0;
 
-    final timeline = await ChatTimelineController(
+    final controller = ChatTimelineController(
       room: room,
       rebuild: () => rebuilds++,
       debugLabel: 'test',
       localHistoryLoader: (timeline, {required start, required limit}) async {
-        if (!synced || start > 0) return const <Event>[];
-        return [restoredEvent];
+        localLoads++;
+        if (localLoads == 2) return [restoredEvent];
+        return const <Event>[];
       },
-      roomHistorySyncer: (_, {required roomId, required timelineLimit}) async {
-        expect(roomId, room.id);
-        synced = true;
-      },
-    ).openInitialTimeline();
+    );
+    final timeline = await controller.openInitialTimeline();
 
     expect(timeline, isNotNull);
-    expect(timeline!.events, isEmpty);
 
     await _flushAsyncWork();
+    await controller.requestOlderMessages(timeline!);
 
-    expect(synced, isTrue);
-    expect(timeline.events.map((event) => event.eventId), [r'$restored']);
+    expect(timeline.events.map((event) => event.eventId), [r'$older']);
+    expect(client.syncCalls, 0);
     expect(rebuilds, greaterThan(0));
   });
 }

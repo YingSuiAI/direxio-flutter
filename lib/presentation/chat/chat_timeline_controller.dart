@@ -4,10 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
-import '../../data/matrix_room_history_sync.dart';
 import 'chat_history_backfill_policy.dart';
 import '../utils/read_marker_sync.dart';
-import '../utils/message_history_policy.dart';
 import '../utils/room_read_state.dart';
 
 typedef ChatReadMarkerSync = Future<void> Function({
@@ -21,31 +19,18 @@ typedef ChatTimelineLocalHistoryLoader = Future<List<Event>> Function(
   required int limit,
 });
 
-typedef ChatTimelineRoomHistorySyncer = Future<void> Function(
-  Client client, {
-  required String roomId,
-  required int timelineLimit,
-});
-
 class ChatTimelineController {
   const ChatTimelineController({
     required this.room,
     required this.rebuild,
     required this.debugLabel,
-    this.initialTargetMessages = chatOpenLocalHistoryTargetMessages,
     this.localHistoryLoader,
-    this.roomHistorySyncer = syncMatrixRoomHistory,
   });
 
   final Room room;
   final VoidCallback rebuild;
   final String debugLabel;
-  final int initialTargetMessages;
   final ChatTimelineLocalHistoryLoader? localHistoryLoader;
-  final ChatTimelineRoomHistorySyncer roomHistorySyncer;
-
-  bool get _canUseMatrixNetwork =>
-      room.client.isLogged() && room.client.homeserver != null;
 
   Future<Timeline?> openInitialTimeline() async {
     final timeline = await _openTimeline();
@@ -79,32 +64,6 @@ class ChatTimelineController {
 
   Future<void> hydrateInitialTimeline(Timeline timeline) async {
     await backfillLocalStoredHistory(timeline);
-    final syncedEmptyHistory = await syncEmptyRoomHistoryIfNeeded(timeline);
-    if (syncedEmptyHistory) {
-      await backfillLocalStoredHistory(timeline);
-    }
-    await requestInitialRemoteHistory(timeline);
-  }
-
-  Future<bool> syncEmptyRoomHistoryIfNeeded(Timeline timeline) async {
-    if (!_canUseMatrixNetwork) return false;
-    if (!shouldSyncEmptyRoomHistoryOnOpen(
-      timelineEvents: timeline.events,
-      prevBatch: timeline.room.prev_batch,
-    )) {
-      return false;
-    }
-    try {
-      await roomHistorySyncer(
-        timeline.room.client,
-        roomId: timeline.room.id,
-        timelineLimit: chatOpenLocalHistoryPageSize,
-      );
-      return true;
-    } on Object catch (e) {
-      debugPrint('$debugLabel empty room history sync failed: $e');
-      return false;
-    }
   }
 
   Future<void> backfillLocalStoredHistory(Timeline timeline) async {
@@ -153,42 +112,8 @@ class ChatTimelineController {
     );
   }
 
-  Future<void> requestInitialRemoteHistory(Timeline timeline) async {
-    if (!_canUseMatrixNetwork) return;
-    if (!shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen)) {
-      return;
-    }
-    var attempts = 0;
-    while (attempts < chatOpenLocalHistoryMaxAttempts &&
-        timeline.canRequestHistory &&
-        visibleMessageCountForChatOpenHistory(timeline.events) <
-            initialTargetMessages) {
-      try {
-        await timeline.requestHistory(
-            historyCount: chatOpenLocalHistoryPageSize);
-      } on Object catch (e) {
-        debugPrint('$debugLabel timeline.requestHistory failed: $e');
-        break;
-      }
-      attempts++;
-    }
-    rebuild();
-  }
-
   Future<void> requestOlderMessages(Timeline timeline) async {
-    if (!_canUseMatrixNetwork) return;
-    if (!shouldRequestHistoricalMessages(
-      MessageHistoryLoadTrigger.userLoadOlder,
-    )) {
-      return;
-    }
-    if (!timeline.canRequestHistory) return;
-    try {
-      await timeline.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
-      rebuild();
-    } on Object catch (e) {
-      debugPrint('$debugLabel timeline.requestHistory failed: $e');
-    }
+    await backfillLocalStoredHistory(timeline);
   }
 
   Future<bool> markCurrentTimelineRead({

@@ -518,6 +518,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   AppLocalizations? get _l10n =>
       Localizations.of<AppLocalizations>(context, AppLocalizations);
 
+  bool _isCurrentAgentRoom() {
+    final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final room = _room;
+    if (room != null) {
+      return _isAgentRoomForChat(room, syncCache, productConversations);
+    }
+    final roomId = widget.roomId.trim();
+    if (roomId.isEmpty) return false;
+    if ((syncCache.bootstrap?.agentRoomId.trim() ?? '') == roomId) return true;
+    return productConversationForRoom(
+          productConversations,
+          roomId,
+          kinds: const {asConversationKindAgent},
+        ) !=
+        null;
+  }
+
   void _debugMissingRoomState(String phase, {Object? error}) {
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.read(asSyncCacheProvider);
@@ -841,7 +861,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .read(voiceCallControllerProvider)
         .stateStream
         .listen(_handleVoiceCallHistoryState);
-    unawaited(_loadLocalAsCallHistory());
+    if (!_isCurrentAgentRoom()) {
+      unawaited(_loadLocalAsCallHistory());
+    }
     _initTimeline();
   }
 
@@ -872,18 +894,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _debugMissingRoomState('init-timeline-room-missing');
       return;
     }
+    final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
     void rebuild() {
       if (!mounted) return;
       setState(() {});
       _scheduleTimelineThumbnailWarmup();
-      _scheduleAsCallHistoryReloadForTimeline();
+      if (!isAgent) {
+        _scheduleAsCallHistoryReloadForTimeline();
+      }
       unawaited(_markCurrentTimelineRead());
     }
 
     _timeline = await ChatTimelineController(
       room: room,
       rebuild: rebuild,
-      debugLabel: 'private',
+      debugLabel: isAgent ? 'agent' : 'private',
     ).openInitialTimeline();
     if (mounted) setState(() {});
     _scheduleTimelineThumbnailWarmup();
@@ -1066,6 +1095,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _loadLocalAsCallHistory() async {
+    if (!mounted || _isCurrentAgentRoom()) return;
     try {
       final store = await ref.read(asCallSessionStoreProvider.future);
       final sessions = await store.readRoomStable(widget.roomId);
@@ -1082,6 +1112,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _scheduleAsCallHistoryReloadForTimeline() {
+    if (_isCurrentAgentRoom()) return;
     final room = _room;
     if (room == null) return;
     final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
@@ -1107,6 +1138,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _refreshAsCallHistoryFromAs() async {
+    if (!mounted || _isCurrentAgentRoom()) return;
     if (_roomAsCallHistoryRefreshing) return;
     _roomAsCallHistoryRefreshing = true;
     try {
@@ -1132,7 +1164,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _handleVoiceCallHistoryState(VoiceCallUiState state) {
-    if (!mounted || state.roomId != widget.roomId) return;
+    if (!mounted || state.roomId != widget.roomId || _isCurrentAgentRoom()) {
+      return;
+    }
     if (state.status != VoiceCallStatus.ended &&
         state.status != VoiceCallStatus.failed) {
       return;
@@ -1162,11 +1196,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _asCallSessionCache[callId] = session;
     }
     if (!mounted) return;
-    debugPrint(
-      'chat direct call history replace room=${widget.roomId} '
-      'terminal=${next.values.where(asCallSessionSnapshotIsTerminal).length} '
-      'total=${next.length}',
-    );
+    if (next.isEmpty && _roomAsCallHistory.isEmpty) return;
     setState(() {
       _roomAsCallHistory
         ..clear()
@@ -3038,11 +3068,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       roomId: widget.roomId,
       rawTimelineEvents: rawTimelineEvents,
       callRecordContextEvents: callRecordContextEvents,
-    );
-    debugPrint(
-      'chat direct call history merge room=${widget.roomId} '
-      'as_records=${asCallRecords.length} '
-      'ids=${asCallRecords.map((session) => session.callId).join(",")}',
     );
     final visibleEvents = groupTimelineEventsReplacingAsCallSnapshots(
       visibleEvents: filteredEvents,

@@ -440,7 +440,6 @@ AsConversation _fallbackAgentConversationForRoomId(
     lifecycle: 'active',
     title: trimmedTitle.isNotEmpty ? trimmedTitle : defaultAgentDisplayName,
     avatarUrl: '',
-    lastMessage: defaultAgentConversationPreview,
     lastActivityAt: lastActivityAt,
     memberCount: 2,
     membership: 'join',
@@ -905,18 +904,23 @@ String _conversationPreviewTextForConversation(
   if (cleared) return '';
   final resolvedAgentEmptyPreview =
       _resolvedAgentEmptyPreview(agentEmptyPreview);
-  final text = conversationPreviewText(
-    lastEvent: lastEvent,
-    latestFailedOutbox: latestFailedOutbox,
-    lastEventSortTime: lastEventSortTime,
-    isAgent: conversation.isAgent,
-    agentFallback: resolvedAgentEmptyPreview,
-    l10n: l10n,
-  );
+  final canPreviewLastEvent = lastEvent != null &&
+      (!conversation.isAgent ||
+          lastEvent.type == EventTypes.Message ||
+          lastEvent.text.trim().isNotEmpty);
+  final text = latestFailedOutbox != null || canPreviewLastEvent
+      ? conversationPreviewText(
+          lastEvent: canPreviewLastEvent ? lastEvent : null,
+          latestFailedOutbox: latestFailedOutbox,
+          lastEventSortTime: lastEventSortTime,
+          isAgent: conversation.isAgent,
+          agentFallback: resolvedAgentEmptyPreview,
+          l10n: l10n,
+        )
+      : '';
   if (text.isNotEmpty) return text;
   final productLastMessage = conversation.product?.lastMessage.trim() ?? '';
   if (productLastMessage.isNotEmpty) return productLastMessage;
-  if (conversation.isAgent) return resolvedAgentEmptyPreview;
   return '';
 }
 

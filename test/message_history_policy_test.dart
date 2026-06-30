@@ -2,14 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/utils/message_history_policy.dart';
 
 void main() {
-  test('message history policy allows concrete chat-open history recovery', () {
+  test('message history policy only allows unread recovery bodies', () {
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.userLoadOlder),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.unreadRecovery),

@@ -252,7 +252,7 @@ void main() {
     expect(presence.bridgeConnected, isFalse);
   });
 
-  test('prints Agent online and offline status from Matrix state', () {
+  test('does not print Agent status during provider evaluation', () {
     final messages = _collectAgentStatusPrints(() {
       final onlineContainer = _containerFor(
         _matrixClientWithAgentRoom(online: true),
@@ -267,37 +267,20 @@ void main() {
       offlineContainer.read(agentBridgePresenceProvider);
     });
 
-    expect(
-      messages,
-      contains(
-        '[AgentStatus] room_id=!agent-room:example.com '
-        'event=io.direxio.agent.status online=true state=online label=在线 '
-        'source=matrix.room_state.io.direxio.agent.status',
-      ),
-    );
-    expect(
-      messages,
-      contains(
-        '[AgentStatus] room_id=!agent-room:example.com '
-        'event=io.direxio.agent.status online=false state=offline label=离线 '
-        'source=matrix.room_state.io.direxio.agent.status',
-      ),
-    );
+    expect(messages, isEmpty);
   });
 
-  test('prints effective offline status when Matrix state is missing', () {
-    final messages = _collectAgentStatusPrints(() {
-      final missingContainer = _containerFor(_matrixClientWithAgentRoom());
-      addTearDown(missingContainer.dispose);
-      missingContainer.read(agentBridgePresenceProvider);
-    });
-
+  test('compares equivalent Agent presence states by value', () {
     expect(
-      messages,
-      contains(
-        '[AgentStatus] room_id=!agent-room:example.com '
-        'event=io.direxio.agent.status online=null state=unknown label=离线 '
-        'source=matrix_agent_status_state_missing',
+      const AgentBridgePresence(
+        state: AgentBridgePresenceState.online,
+        online: true,
+        source: 'matrix.room_state.io.direxio.agent.status',
+      ),
+      const AgentBridgePresence(
+        state: AgentBridgePresenceState.online,
+        online: true,
+        source: 'matrix.room_state.io.direxio.agent.status',
       ),
     );
   });

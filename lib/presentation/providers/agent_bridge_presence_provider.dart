@@ -1,5 +1,3 @@
-import 'dart:developer' as developer;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -48,6 +46,18 @@ class AgentBridgePresence {
       AgentBridgePresenceState.unknown => '离线',
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AgentBridgePresence &&
+        state == other.state &&
+        online == other.online &&
+        error == other.error &&
+        source == other.source;
+  }
+
+  @override
+  int get hashCode => Object.hash(state, online, error, source);
 }
 
 final _matrixAgentStateTickProvider = StreamProvider<int>((ref) {
@@ -99,13 +109,13 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
     final presence = syncCache.bootstrap == null
         ? const AgentBridgePresence.connecting()
         : const AgentBridgePresence.unknown(source: 'missing_agent_room_id');
-    return _logAgentStatus('<missing>', presence);
+    return _agentStatus(presence);
   }
   ref.watch(_matrixAgentStateTickProvider);
   final client = ref.watch(matrixClientProvider);
   final room = client.getRoomById(agentRoomId);
   if (room == null) {
-    return _logAgentStatus(agentRoomId, const AgentBridgePresence.connecting());
+    return _agentStatus(const AgentBridgePresence.connecting());
   }
   final online = agentRoomStatusOnline(room, agentRoomId: agentRoomId);
   if (online == null) {
@@ -116,8 +126,7 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
         homeserver == null ||
         accessToken == null ||
         accessToken.trim().isEmpty) {
-      return _logAgentStatus(
-        agentRoomId,
+      return _agentStatus(
         const AgentBridgePresence.unknown(
           source: 'matrix_agent_status_state_missing',
         ),
@@ -131,8 +140,7 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
       _matrixAgentStatusSnapshotProvider(stateIdentity),
     );
     if (cachedOnline != null) {
-      return _logAgentStatus(
-        agentRoomId,
+      return _agentStatus(
         AgentBridgePresence(
           state: cachedOnline
               ? AgentBridgePresenceState.online
@@ -153,8 +161,7 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
       ),
     );
     return switch (stateFetch) {
-      AsyncData(value: final fetchedOnline?) => _logAgentStatus(
-          agentRoomId,
+      AsyncData(value: final fetchedOnline?) => _agentStatus(
           AgentBridgePresence(
             state: fetchedOnline
                 ? AgentBridgePresenceState.online
@@ -163,28 +170,24 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
             source: 'matrix.room_state.io.direxio.agent.status.fetch',
           ),
         ),
-      AsyncError(:final error) => _logAgentStatus(
-          agentRoomId,
+      AsyncError(:final error) => _agentStatus(
           AgentBridgePresence(
             state: AgentBridgePresenceState.error,
             error: error,
             source: 'matrix_agent_status_state_fetch_failed',
           ),
         ),
-      AsyncData() => _logAgentStatus(
-          agentRoomId,
+      AsyncData() => _agentStatus(
           const AgentBridgePresence.unknown(
             source: 'matrix_agent_status_state_fetch_missing',
           ),
         ),
-      _ => _logAgentStatus(
-          agentRoomId,
+      _ => _agentStatus(
           const AgentBridgePresence.connecting(),
         ),
     };
   }
-  return _logAgentStatus(
-    agentRoomId,
+  return _agentStatus(
     AgentBridgePresence(
       state: online
           ? AgentBridgePresenceState.online
@@ -195,20 +198,7 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
   );
 });
 
-AgentBridgePresence _logAgentStatus(
-  String agentRoomId,
-  AgentBridgePresence presence,
-) {
-  final state = presence.state.name;
-  final message = '[AgentStatus] room_id=$agentRoomId '
-      'event=$direxioAgentStatusEventType '
-      'online=${presence.online} state=$state label=${presence.label} '
-      'source=${presence.source}';
-  developer.log(message, name: 'AgentStatus');
-  // ignore: avoid_print
-  print(message);
-  return presence;
-}
+AgentBridgePresence _agentStatus(AgentBridgePresence presence) => presence;
 
 class _MatrixAgentStatusStateRequest {
   const _MatrixAgentStatusStateRequest({

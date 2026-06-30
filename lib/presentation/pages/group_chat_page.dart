@@ -18,6 +18,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
+import '../../data/media_thumbnail_cache.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -42,6 +43,8 @@ import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_capsule_chrome.dart';
+import '../chat/chat_event_open_guard.dart';
+import '../chat/chat_event_preview_thumbnail.dart';
 import '../chat/chat_glass_background.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
@@ -329,6 +332,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Set<String> _favoritingEventIds = {};
   final Set<String> _retryingOutboxIds = {};
   final Set<String> _openingFileEventIds = {};
+  final ChatEventOpenGuard _videoOpenGuard = ChatEventOpenGuard();
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _joiningChannelShareIds = {};
@@ -926,10 +930,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Future<void> _openImageEvent(Event event, String meta) {
     final cacheKey = event.eventId.trim();
+    final cache = cacheKey.isEmpty
+        ? null
+        : ref.read(mediaThumbnailCacheProvider).valueOrNull;
+    final initialPreviewBytes = cacheKey.isEmpty ? null : cache?.peek(cacheKey);
     final cacheFuture =
         cacheKey.isEmpty ? null : ref.read(mediaThumbnailCacheProvider.future);
     return showAsyncImagePreview(
       context,
+      initialPreviewProvider:
+          initialPreviewBytes == null ? null : MemoryImage(initialPreviewBytes),
       loadPreviewProvider: cacheFuture == null
           ? null
           : () async {
@@ -940,11 +950,32 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
             },
       loadProvider: () async {
         final file = await event.downloadAndDecryptAttachment();
+        if (cacheKey.isNotEmpty && cacheFuture != null) {
+          unawaited(_rememberImagePreviewBytes(
+            cacheFuture,
+            cacheKey,
+            file.bytes,
+          ));
+        }
         return MemoryImage(file.bytes);
       },
       meta: meta,
       onDownload: () => _saveImageEventToAlbum(event),
     );
+  }
+
+  Future<void> _rememberImagePreviewBytes(
+    Future<MediaThumbnailCache> cacheFuture,
+    String cacheKey,
+    Uint8List bytes,
+  ) async {
+    await writeSentMediaThumbnail(
+      cacheFuture,
+      cacheKey,
+      bytes,
+      resizeImage: true,
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _saveImageEventToAlbum(Event event) async {
@@ -988,6 +1019,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     String? fileName,
   }) async {
     final matrixFile = await downloadChatEventAttachment(event);
+    final resolvedFileName = chatEventAttachmentFileName(
+      event,
+      matrixFile,
+      fallbackName: fileName ?? event.body,
+    );
     final baseDir = persistent
         ? Directory(
             '${(await getApplicationDocumentsDirectory()).path}/P2P IM Downloads',
@@ -995,7 +1031,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         : Directory('${(await getTemporaryDirectory()).path}/p2p-im-open');
     return writeChatActionFile(
       directory: baseDir,
-      fileName: fileName ?? event.body,
+      fileName: resolvedFileName,
       bytes: matrixFile.bytes,
     );
   }
@@ -1024,6 +1060,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _openVideoEvent(Event event) async {
+    final openKey = _groupFileActionKey(event);
+    await _videoOpenGuard.runOnce(openKey, () => _openVideoEventOnce(event));
+  }
+
+  Future<void> _openVideoEventOnce(Event event) async {
     try {
       final file = await _materializeFileEvent(event, persistent: false);
       if (!mounted) return;
@@ -2032,6 +2073,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachments: attachments,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2041,6 +2083,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2050,6 +2093,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -3630,12 +3674,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     onVideoUploadFailed: _failPendingMediaUpload,
                     onVoiceCall: null,
                     onVideoCall: null,
-                    visibleActions: const {
-                      ChatAttachmentAction.album,
-                      ChatAttachmentAction.camera,
-                      ChatAttachmentAction.video,
-                      ChatAttachmentAction.file,
-                    },
                   ),
                 if (showEmojiPanelContent)
                   ChatEmojiPanel(
@@ -4046,9 +4084,9 @@ class _GroupMatrixThumb extends ConsumerWidget {
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
       loadBytes: () async {
-        final file = await downloadChatEventThumbnail(event);
-        return file.bytes;
+        return loadChatEventPreviewThumbnail(event);
       },
+      validateBytes: isSupportedChatPreviewImageBytes,
       loadingBuilder: (_) => Container(
         color: t.surfaceHigh,
         alignment: Alignment.center,

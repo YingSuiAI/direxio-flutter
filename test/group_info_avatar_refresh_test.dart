@@ -4,78 +4,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
-import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 import 'support/mock_as_client.dart';
 
 void main() {
-  testWidgets(
-      'contact-list avatar page keeps accepted friend state before room hydrates',
+  testWidgets('group info member avatar uses refreshed contact avatar',
       (tester) async {
+    const roomId = '!group:p2p-im.com';
     const peerMxid = '@alice:p2p-im.com';
-    final client = Client('ContactAvatarFriendHydrationTest')
+    final client = Client('GroupInfoFreshContactAvatarTest')
       ..setUserId('@owner:p2p-im.com');
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 27),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: peerMxid,
-          displayName: 'Alice',
-          avatarUrl: '',
-          roomId: '!alice:p2p-im.com',
-          domain: 'p2p-im.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          asClientProvider
-              .overrideWithValue(_ImmediatePublicChannelsAsClient()),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const ContactDetailPage(
-            userId: peerMxid,
-            fromChatAvatar: true,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Alice'), findsOneWidget);
-    expect(find.text('把他推荐给朋友'), findsOneWidget);
-    expect(find.text('添加好友'), findsNothing);
-  });
-
-  testWidgets('contact detail prefers refreshed friend avatar over room member',
-      (tester) async {
-    const peerMxid = '@alice:p2p-im.com';
-    final client = Client('ContactDetailFreshAvatarTest')
-      ..setUserId('@owner:p2p-im.com');
-    final room = Room(
-      id: '!alice:p2p-im.com',
+    final groupRoom = Room(
+      id: roomId,
       client: client,
       membership: Membership.join,
     );
-    client.rooms.add(room);
-    room.setState(
+    client.rooms.add(groupRoom);
+    groupRoom.setState(
       StrippedStateEvent(
         type: EventTypes.RoomMember,
         senderId: '@owner:p2p-im.com',
@@ -83,7 +34,7 @@ void main() {
         content: const {'membership': 'join'},
       ),
     );
-    room.setState(
+    groupRoom.setState(
       StrippedStateEvent(
         type: EventTypes.RoomMember,
         senderId: peerMxid,
@@ -93,6 +44,14 @@ void main() {
           'displayname': 'Alice',
           'avatar_url': 'https://cdn.example.com/alice-old.png',
         },
+      ),
+    );
+    groupRoom.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomName,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {'name': 'Avatar Group'},
       ),
     );
     final bootstrap = AsSyncBootstrap(
@@ -109,7 +68,15 @@ void main() {
           status: 'accepted',
         ),
       ],
-      groups: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'Avatar Group',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
@@ -118,36 +85,34 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          asClientProvider
-              .overrideWithValue(_ImmediatePublicChannelsAsClient()),
+          asClientProvider.overrideWithValue(_ImmediateGroupMembersAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          currentUserProfileProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ContactDetailPage(
-            userId: peerMxid,
-            fromChatAvatar: true,
-          ),
+          home: const GroupInfoPage(roomId: roomId),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    final aliceChip = find.byKey(const ValueKey('group_info_member_$peerMxid'));
+    expect(aliceChip, findsOneWidget);
     final avatar = tester.widget<PortalAvatar>(
-      find.byType(PortalAvatar).first,
+      find.descendant(of: aliceChip, matching: find.byType(PortalAvatar)),
     );
     expect(avatar.imageUrl, 'https://cdn.example.com/alice-new.png');
   });
 }
 
-class _ImmediatePublicChannelsAsClient extends MockAsClient {
+class _ImmediateGroupMembersAsClient extends MockAsClient {
   @override
-  Future<List<AsChannel>> getUserPublicChannels(
-    String userId, {
-    Uri? baseUri,
-    Uri? remoteNodeBaseUri,
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
   }) async {
     return const [];
   }

@@ -38,7 +38,9 @@ import '../chat/agent_slash_commands.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
+import '../chat/chat_event_preview_thumbnail.dart';
 import '../chat/chat_glass_background.dart';
+import '../chat/chat_event_open_guard.dart';
 import '../chat/chat_avatar_snapshot_cache.dart';
 import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_room_recovery_sync.dart';
@@ -86,6 +88,7 @@ import '../../data/as_call_session_store.dart';
 import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
+import '../../data/media_thumbnail_cache.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -460,6 +463,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _retryingOutboxIds = {};
   final Set<String> _openingFileEventIds = {};
+  final ChatEventOpenGuard _videoOpenGuard = ChatEventOpenGuard();
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _downloadingImageEventIds = {};
@@ -2030,21 +2034,54 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _deleteEventForMe(Event event) async {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty) return;
+    await _deleteEventIdsForMe([eventId]);
+  }
+
+  Future<void> _deleteSelectedEventsForMe(List<Event> events) async {
+    final eventIds = events
+        .where((event) => _selected.contains(event.eventId))
+        .map((event) => event.eventId.trim())
+        .where((eventId) => eventId.isNotEmpty)
+        .toList(growable: false);
+    if (eventIds.isEmpty) return;
+    await _deleteEventIdsForMe(eventIds, closeSelection: true);
+  }
+
+  Future<void> _deleteEventIdsForMe(
+    Iterable<String> eventIds, {
+    bool closeSelection = false,
+  }) async {
+    final ids = <String>[];
+    final seen = <String>{};
+    for (final rawId in eventIds) {
+      final eventId = rawId.trim();
+      if (eventId.isEmpty || !seen.add(eventId)) continue;
+      ids.add(eventId);
+    }
+    if (ids.isEmpty) return;
     try {
       await ref
           .read(matrixMessageVisibilityClientProvider)
-          .hideEvents(roomId: widget.roomId, eventIds: [eventId]);
+          .hideEvents(roomId: widget.roomId, eventIds: ids);
       await ref.read(chatClearStateStoreProvider.future).then(
-            (store) => store.writeDeletedEventIds(widget.roomId, [eventId]),
+            (store) => store.writeDeletedEventIds(widget.roomId, ids),
           );
       if (!mounted) return;
-      ref
-          .read(asSyncCacheProvider.notifier)
-          .update((state) => state.withDeletedMessage(widget.roomId, eventId));
+      ref.read(asSyncCacheProvider.notifier).update((state) {
+        var next = state;
+        for (final eventId in ids) {
+          next = next.withDeletedMessage(widget.roomId, eventId);
+        }
+        return next;
+      });
       unawaited(_refreshBootstrapAfterVisibilityMutation());
       setState(() {
-        _locallyHiddenEventIds.add(eventId);
-        _selected.remove(eventId);
+        _locallyHiddenEventIds.addAll(ids);
+        _selected.removeWhere(ids.contains);
+        if (closeSelection) {
+          _multiSelect = false;
+          _selected.clear();
+        }
       });
     } on Object catch (err) {
       debugPrint('delete message for me failed: $err');
@@ -2212,10 +2249,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 点击图片进入临时预览；长期保存由预览页底部下载按钮触发。
   Future<void> _openImageEvent(Event e, String meta) async {
     final cacheKey = e.eventId.trim();
+    final cache = cacheKey.isEmpty
+        ? null
+        : ref.read(mediaThumbnailCacheProvider).valueOrNull;
+    final initialPreviewBytes = cacheKey.isEmpty ? null : cache?.peek(cacheKey);
     final cacheFuture =
         cacheKey.isEmpty ? null : ref.read(mediaThumbnailCacheProvider.future);
     await showAsyncImagePreview(
       context,
+      initialPreviewProvider:
+          initialPreviewBytes == null ? null : MemoryImage(initialPreviewBytes),
       loadPreviewProvider: cacheFuture == null
           ? null
           : () async {
@@ -2226,11 +2269,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             },
       loadProvider: () async {
         final file = await e.downloadAndDecryptAttachment();
+        if (cacheKey.isNotEmpty && cacheFuture != null) {
+          unawaited(_rememberImagePreviewBytes(
+            cacheFuture,
+            cacheKey,
+            file.bytes,
+          ));
+        }
         return MemoryImage(file.bytes);
       },
       meta: meta,
       onDownload: () => _downloadImageEvent(e),
     );
+  }
+
+  Future<void> _rememberImagePreviewBytes(
+    Future<MediaThumbnailCache> cacheFuture,
+    String cacheKey,
+    Uint8List bytes,
+  ) async {
+    await writeSentMediaThumbnail(
+      cacheFuture,
+      cacheKey,
+      bytes,
+      resizeImage: true,
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _downloadImageEvent(Event e) async {
@@ -2294,6 +2358,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String? fileName,
   }) async {
     final matrixFile = await downloadChatEventAttachment(e);
+    final resolvedFileName = chatEventAttachmentFileName(
+      e,
+      matrixFile,
+      fallbackName: fileName ?? e.body,
+    );
     final baseDir = persistent
         ? Directory(
             '${(await getApplicationDocumentsDirectory()).path}/P2P IM Downloads',
@@ -2301,7 +2370,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         : Directory('${(await getTemporaryDirectory()).path}/p2p-im-open');
     return writeChatActionFile(
       directory: baseDir,
-      fileName: fileName ?? e.body,
+      fileName: resolvedFileName,
       bytes: matrixFile.bytes,
     );
   }
@@ -2332,6 +2401,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _openVideoEvent(Event e) async {
+    final openKey = _fileActionKey(e);
+    await _videoOpenGuard.runOnce(openKey, () => _openVideoEventOnce(e));
+  }
+
+  Future<void> _openVideoEventOnce(Event e) async {
     try {
       final file = await _materializeFileEvent(e, persistent: false);
       if (!mounted) return;
@@ -2536,6 +2610,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachments: attachments,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2545,6 +2620,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -2554,6 +2630,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationId: widget.roomId,
       conversationType: LocalOutboxConversationType.direct,
       attachment: attachment,
+      onQueued: _scheduleViewportScrollToBottom,
     );
   }
 
@@ -4233,23 +4310,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         sourceRoomType: _favoriteRoomType(room),
                       ),
                     ),
-                    onDelete: () async {
-                      for (final id in _selected.toList()) {
-                        Event? ev;
-                        for (final e in visibleEvents) {
-                          if (e.eventId == id) {
-                            ev = e;
-                            break;
-                          }
-                        }
-                        if (ev == null) continue;
-                        await _deleteEventForMe(ev);
-                      }
-                      setState(() {
-                        _multiSelect = false;
-                        _selected.clear();
-                      });
-                    },
+                    onDelete: () =>
+                        unawaited(_deleteSelectedEventsForMe(visibleEvents)),
                   )
                 else
                   ChatCapsuleInputBar(
@@ -4328,14 +4390,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               ),
                             );
                           },
-                    visibleActions: isAgent
-                        ? const {
-                            ChatAttachmentAction.album,
-                            ChatAttachmentAction.camera,
-                            ChatAttachmentAction.video,
-                            ChatAttachmentAction.file,
-                          }
-                        : null,
                   ),
                 if (showEmojiPanelContent)
                   ChatEmojiPanel(
@@ -6230,9 +6284,9 @@ class _MatrixThumb extends ConsumerWidget {
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
       loadBytes: () async {
-        final file = await downloadChatEventThumbnail(event);
-        return file.bytes;
+        return loadChatEventPreviewThumbnail(event);
       },
+      validateBytes: isSupportedChatPreviewImageBytes,
       fit: fit,
       loadingBuilder: (_) => Container(
         color: t.surfaceHigh,

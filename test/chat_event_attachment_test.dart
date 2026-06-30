@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -5,6 +7,63 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/presentation/utils/chat_event_attachment.dart';
 
 void main() {
+  test('adds video extension from mimetype when event body has no extension',
+      () {
+    final client = Client('ChatEventAttachmentFileNameTest')
+      ..setUserId('@me:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final event = Event(
+      room: room,
+      eventId: r'$video-no-extension',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 29),
+      content: {
+        'msgtype': MessageTypes.Video,
+        'body': 'video',
+        'url': 'mxc://p2p-im.com/video',
+        'info': {'mimetype': 'video/mp4'},
+      },
+    );
+
+    final name = chatEventAttachmentFileName(
+      event,
+      MatrixFile(bytes: Uint8List.fromList([1, 2, 3]), name: ''),
+      fallbackName: event.body,
+    );
+
+    expect(name, 'video.mp4');
+  });
+
+  test('keeps existing media extension when Matrix file name has one', () {
+    final client = Client('ChatEventAttachmentExistingFileNameTest')
+      ..setUserId('@me:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final event = Event(
+      room: room,
+      eventId: r'$video-extension',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 29),
+      content: {
+        'msgtype': MessageTypes.Video,
+        'body': 'video',
+        'url': 'mxc://p2p-im.com/video',
+        'info': {'mimetype': 'video/mp4'},
+      },
+    );
+
+    final name = chatEventAttachmentFileName(
+      event,
+      MatrixFile(bytes: Uint8List.fromList([1, 2, 3]), name: 'clip.mov'),
+      fallbackName: event.body,
+    );
+
+    expect(name, 'clip.mov');
+  });
+
   test('downloads attachment when AS puts media url in info map', () async {
     final requests = <Uri>[];
     final client = Client(

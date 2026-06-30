@@ -642,12 +642,37 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
       let generator = AVAssetImageGenerator(asset: asset)
       generator.appliesPreferredTrackTransform = true
       generator.maximumSize = CGSize(width: 720, height: 720)
+      generator.requestedTimeToleranceBefore = .positiveInfinity
+      generator.requestedTimeToleranceAfter = .positiveInfinity
 
       do {
-        let cgImage = try generator.copyCGImage(
-          at: CMTime(seconds: 0, preferredTimescale: 600),
-          actualTime: nil
-        )
+        let durationSeconds = asset.duration.seconds
+        let maxTime = durationSeconds.isFinite && durationSeconds > 0 ? durationSeconds : 1
+        let rawCandidateSeconds = [0.0, 0.1, 0.5, 1.0]
+        let filteredCandidateSeconds = rawCandidateSeconds.filter { $0 <= maxTime }
+        let candidateSeconds = filteredCandidateSeconds.isEmpty
+          ? [0.0]
+          : filteredCandidateSeconds
+        var lastError: Error?
+        var cgImage: CGImage?
+        for seconds in candidateSeconds {
+          do {
+            cgImage = try generator.copyCGImage(
+              at: CMTime(seconds: seconds, preferredTimescale: 600),
+              actualTime: nil
+            )
+            break
+          } catch {
+            lastError = error
+          }
+        }
+        guard let cgImage = cgImage else {
+          throw lastError ?? NSError(
+            domain: "p2p_im.video_tools",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Failed to decode video thumbnail."]
+          )
+        }
         let image = UIImage(cgImage: cgImage)
         guard let data = image.jpegData(compressionQuality: 0.78) else {
           fail("video_thumbnail_encode_failed", "Failed to encode video thumbnail.")

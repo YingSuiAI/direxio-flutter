@@ -136,6 +136,7 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     ),
     loadChannelPosts: (channelId, {int limit = 50}) =>
         asClient.getChannelPosts(channelId, limit: limit),
+    deferChannelPostPrewarm: true,
     onBootstrapLoaded: (bootstrap) {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
@@ -177,6 +178,8 @@ class AppWarmupService {
     this.channelPostsPerChannel = 50,
     this.callContextEventsPerRoom = 80,
     this.preloadConcurrency = 3,
+    this.deferChannelPostPrewarm = false,
+    this.deferredChannelPostPrewarmDelay = const Duration(seconds: 2),
     this.profileTimeout = const Duration(seconds: 6),
     this.syncTimeout = const Duration(seconds: 10),
     this.matrixSyncTimeout = matrixForegroundSyncTimeout,
@@ -204,21 +207,67 @@ class AppWarmupService {
   final int channelPostsPerChannel;
   final int callContextEventsPerRoom;
   final int preloadConcurrency;
+  final bool deferChannelPostPrewarm;
+  final Duration deferredChannelPostPrewarmDelay;
   final Duration profileTimeout;
   final Duration syncTimeout;
   final Duration matrixSyncTimeout;
 
   Future<void> warmup() async {
+    final preloadedAvatarUrls = <String>{};
     final cachedBootstrapFuture = _loadCachedBootstrapMetadata();
     final bootstrapFuture = _loadBootstrapMetadata();
     final profileFuture = _loadProfile();
     final matrixSyncFuture = _syncMatrixConversations();
+    final localWarmupFuture = Future.wait([
+      _preloadMediaThumbnails(_mediaThumbnailEventIds()),
+      _prewarmRecentRoomTimelines(),
+      _prewarmCallSessions(),
+      matrixSyncFuture,
+    ]);
 
     final cachedBootstrap = await cachedBootstrapFuture;
+    final cachedAvatarPreloadFuture = _preloadHomeAvatars(
+      cachedBootstrap,
+      null,
+      preloadedAvatarUrls,
+    );
     final bootstrap = await bootstrapFuture ?? cachedBootstrap;
     final profile = await profileFuture;
-    await matrixSyncFuture;
 
+    await Future.wait([
+      cachedAvatarPreloadFuture,
+      _preloadHomeAvatars(bootstrap, profile, preloadedAvatarUrls),
+      localWarmupFuture,
+      if (!deferChannelPostPrewarm) _prewarmChannelPosts(bootstrap),
+    ]);
+    if (deferChannelPostPrewarm) {
+      _scheduleDeferredChannelPostPrewarm(bootstrap);
+    }
+  }
+
+  void _scheduleDeferredChannelPostPrewarm(AsSyncBootstrap? bootstrap) {
+    unawaited(Future<void>(() async {
+      if (deferredChannelPostPrewarmDelay > Duration.zero) {
+        await Future<void>.delayed(deferredChannelPostPrewarmDelay);
+      }
+      await _prewarmChannelPosts(bootstrap);
+    }));
+  }
+
+  Future<void> _preloadHomeAvatars(
+    AsSyncBootstrap? bootstrap,
+    Profile? profile,
+    Set<String> preloadedUrls,
+  ) async {
+    final urls = <String>[];
+    for (final url in _homeAvatarUrls(bootstrap, profile)) {
+      if (preloadedUrls.add(url)) urls.add(url);
+    }
+    await _preload(urls);
+  }
+
+  List<String> _homeAvatarUrls(AsSyncBootstrap? bootstrap, Profile? profile) {
     final urls = <String>[];
     _addUnique(urls, profileAvatarHttpUrl(profile, client));
     if (bootstrap != null) {
@@ -240,14 +289,7 @@ class AppWarmupService {
     for (final room in _recentJoinedRooms().take(maxRoomAvatars)) {
       _addUnique(urls, roomAvatarHttpUrl(room));
     }
-
-    await Future.wait([
-      _preload(urls),
-      _preloadMediaThumbnails(_mediaThumbnailEventIds()),
-      _prewarmRecentRoomTimelines(),
-      _prewarmCallSessions(),
-      _prewarmChannelPosts(bootstrap),
-    ]);
+    return urls;
   }
 
   Future<AsSyncBootstrap?> _loadCachedBootstrapMetadata() async {

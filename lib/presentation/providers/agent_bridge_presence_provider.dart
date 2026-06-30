@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -94,15 +96,16 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
   final syncCache = ref.watch(asSyncCacheProvider);
   final agentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
   if (agentRoomId.isEmpty) {
-    return syncCache.bootstrap == null
+    final presence = syncCache.bootstrap == null
         ? const AgentBridgePresence.connecting()
         : const AgentBridgePresence.unknown(source: 'missing_agent_room_id');
+    return _logAgentStatus('<missing>', presence);
   }
   ref.watch(_matrixAgentStateTickProvider);
   final client = ref.watch(matrixClientProvider);
   final room = client.getRoomById(agentRoomId);
   if (room == null) {
-    return const AgentBridgePresence.connecting();
+    return _logAgentStatus(agentRoomId, const AgentBridgePresence.connecting());
   }
   final online = agentRoomStatusOnline(room, agentRoomId: agentRoomId);
   if (online == null) {
@@ -113,8 +116,11 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
         homeserver == null ||
         accessToken == null ||
         accessToken.trim().isEmpty) {
-      return const AgentBridgePresence.unknown(
-        source: 'matrix_agent_status_state_missing',
+      return _logAgentStatus(
+        agentRoomId,
+        const AgentBridgePresence.unknown(
+          source: 'matrix_agent_status_state_missing',
+        ),
       );
     }
     final stateIdentity = _MatrixAgentStatusStateIdentity(
@@ -125,12 +131,15 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
       _matrixAgentStatusSnapshotProvider(stateIdentity),
     );
     if (cachedOnline != null) {
-      return AgentBridgePresence(
-        state: cachedOnline
-            ? AgentBridgePresenceState.online
-            : AgentBridgePresenceState.offline,
-        online: cachedOnline,
-        source: 'matrix.room_state.io.direxio.agent.status.fetch',
+      return _logAgentStatus(
+        agentRoomId,
+        AgentBridgePresence(
+          state: cachedOnline
+              ? AgentBridgePresenceState.online
+              : AgentBridgePresenceState.offline,
+          online: cachedOnline,
+          source: 'matrix.room_state.io.direxio.agent.status.fetch',
+        ),
       );
     }
     final refreshTick =
@@ -144,32 +153,62 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
       ),
     );
     return switch (stateFetch) {
-      AsyncData(value: final fetchedOnline?) => AgentBridgePresence(
-          state: fetchedOnline
-              ? AgentBridgePresenceState.online
-              : AgentBridgePresenceState.offline,
-          online: fetchedOnline,
-          source: 'matrix.room_state.io.direxio.agent.status.fetch',
+      AsyncData(value: final fetchedOnline?) => _logAgentStatus(
+          agentRoomId,
+          AgentBridgePresence(
+            state: fetchedOnline
+                ? AgentBridgePresenceState.online
+                : AgentBridgePresenceState.offline,
+            online: fetchedOnline,
+            source: 'matrix.room_state.io.direxio.agent.status.fetch',
+          ),
         ),
-      AsyncError(:final error) => AgentBridgePresence(
-          state: AgentBridgePresenceState.error,
-          error: error,
-          source: 'matrix_agent_status_state_fetch_failed',
+      AsyncError(:final error) => _logAgentStatus(
+          agentRoomId,
+          AgentBridgePresence(
+            state: AgentBridgePresenceState.error,
+            error: error,
+            source: 'matrix_agent_status_state_fetch_failed',
+          ),
         ),
-      AsyncData() => const AgentBridgePresence.unknown(
-          source: 'matrix_agent_status_state_fetch_missing',
+      AsyncData() => _logAgentStatus(
+          agentRoomId,
+          const AgentBridgePresence.unknown(
+            source: 'matrix_agent_status_state_fetch_missing',
+          ),
         ),
-      _ => const AgentBridgePresence.connecting(),
+      _ => _logAgentStatus(
+          agentRoomId,
+          const AgentBridgePresence.connecting(),
+        ),
     };
   }
-  return AgentBridgePresence(
-    state: online
-        ? AgentBridgePresenceState.online
-        : AgentBridgePresenceState.offline,
-    online: online,
-    source: 'matrix.room_state.io.direxio.agent.status',
+  return _logAgentStatus(
+    agentRoomId,
+    AgentBridgePresence(
+      state: online
+          ? AgentBridgePresenceState.online
+          : AgentBridgePresenceState.offline,
+      online: online,
+      source: 'matrix.room_state.io.direxio.agent.status',
+    ),
   );
 });
+
+AgentBridgePresence _logAgentStatus(
+  String agentRoomId,
+  AgentBridgePresence presence,
+) {
+  final state = presence.state.name;
+  final message = '[AgentStatus] room_id=$agentRoomId '
+      'event=$direxioAgentStatusEventType '
+      'online=${presence.online} state=$state label=${presence.label} '
+      'source=${presence.source}';
+  developer.log(message, name: 'AgentStatus');
+  // ignore: avoid_print
+  print(message);
+  return presence;
+}
 
 class _MatrixAgentStatusStateRequest {
   const _MatrixAgentStatusStateRequest({

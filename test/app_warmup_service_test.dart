@@ -21,6 +21,17 @@ class _RecordingAvatarPreloader implements AvatarPreloader {
   }
 }
 
+class _EventAvatarPreloader implements AvatarPreloader {
+  _EventAvatarPreloader(this.events);
+
+  final List<String> events;
+
+  @override
+  Future<void> preload(String url) async {
+    events.add('avatar-preload:$url');
+  }
+}
+
 class _RecordingMediaThumbnailPreloader implements MediaThumbnailPreloader {
   final eventIds = <String>[];
 
@@ -249,6 +260,99 @@ void main() {
       'bootstrap-apply:!cached:p2p-im.com',
       'bootstrap-apply:!fresh:p2p-im.com',
     ]);
+  });
+
+  test('warmup preloads cached bootstrap avatars before network refresh',
+      () async {
+    final events = <String>[];
+    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final service = AppWarmupService(
+      client: Client('DirexioWarmupCachedAvatarFastPathTest'),
+      avatarPreloader: _EventAvatarPreloader(events),
+      loadCurrentUserProfile: () async => null,
+      loadCachedBootstrap: () async {
+        events.add('bootstrap-cache-read');
+        return _bootstrapWithAvatar(
+          roomId: '!cached:p2p-im.com',
+          avatarUrl: 'https://cdn.example.com/cached.png',
+        );
+      },
+      loadBootstrap: () {
+        events.add('bootstrap-network-start');
+        return bootstrapCompleter.future;
+      },
+      onBootstrapLoaded: (bootstrap) {
+        events.add('bootstrap-apply:${bootstrap.contacts.single.roomId}');
+      },
+    );
+
+    final warmup = service.warmup();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [
+      'bootstrap-cache-read',
+      'bootstrap-network-start',
+      'bootstrap-apply:!cached:p2p-im.com',
+      'avatar-preload:https://cdn.example.com/cached.png',
+    ]);
+
+    bootstrapCompleter.complete(_bootstrapWithAvatar(
+      roomId: '!fresh:p2p-im.com',
+      avatarUrl: 'https://cdn.example.com/fresh.png',
+    ));
+    await warmup;
+
+    expect(events, [
+      'bootstrap-cache-read',
+      'bootstrap-network-start',
+      'bootstrap-apply:!cached:p2p-im.com',
+      'avatar-preload:https://cdn.example.com/cached.png',
+      'bootstrap-apply:!fresh:p2p-im.com',
+      'avatar-preload:https://cdn.example.com/fresh.png',
+    ]);
+  });
+
+  test('warmup prewarms local timelines before network bootstrap completes',
+      () async {
+    final events = <String>[];
+    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final client = Client('DirexioWarmupLocalTimelineFastPathTest')
+      ..setUserId('@owner:p2p-im.com');
+    final recent = Room(
+      id: '!recent:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    recent.lastEvent = _messageEvent(
+      recent,
+      eventId: r'$recent',
+      at: DateTime.utc(2026, 6, 1, 10),
+    );
+    client.rooms.add(recent);
+
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      loadBootstrap: () {
+        events.add('bootstrap-network-start');
+        return bootstrapCompleter.future;
+      },
+      prewarmRecentRoomTimeline: (room, _) async {
+        events.add('timeline-prewarm:${room.id}');
+      },
+    );
+
+    final warmup = service.warmup();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [
+      'bootstrap-network-start',
+      'timeline-prewarm:!recent:p2p-im.com',
+    ]);
+
+    bootstrapCompleter.complete(_bootstrap('!fresh:p2p-im.com'));
+    await warmup;
   });
 
   test('warmup preloads local thumbnails for recent image rooms', () async {
@@ -582,6 +686,30 @@ AsSyncBootstrap _bootstrap(String roomId) {
         userId: '@peer:p2p-liyanan.com',
         displayName: 'Peer',
         avatarUrl: '',
+        roomId: roomId,
+        domain: 'p2p-liyanan.com',
+        status: 'accepted',
+      ),
+    ],
+    groups: const [],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
+}
+
+AsSyncBootstrap _bootstrapWithAvatar({
+  required String roomId,
+  required String avatarUrl,
+}) {
+  return AsSyncBootstrap(
+    syncedAt: DateTime.parse('2026-05-28T08:00:00Z'),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    rooms: const [],
+    contacts: [
+      AsSyncContact(
+        userId: '@peer:p2p-liyanan.com',
+        displayName: 'Peer',
+        avatarUrl: avatarUrl,
         roomId: roomId,
         domain: 'p2p-liyanan.com',
         status: 'accepted',

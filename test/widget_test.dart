@@ -19372,7 +19372,7 @@ void main() {
       find.byKey(const ValueKey('help_feedback_background')),
       findsOneWidget,
     );
-    expect(find.textContaining('liyananinsh@outlook.com'), findsOneWidget);
+    expect(find.textContaining('liyananinsh@outlook.com'), findsNothing);
     await tester.tap(find.text('知道了'));
     await tester.pumpAndSettle();
     expect(
@@ -19393,7 +19393,8 @@ void main() {
     expect(find.text('退出登录'), findsNothing);
   });
 
-  testWidgets('help feedback dialog localizes copy in English', (tester) async {
+  testWidgets('help feedback dialog keeps only action in English',
+      (tester) async {
     final client = Client('DirexioTest');
 
     await tester.pumpWidget(
@@ -19414,15 +19415,15 @@ void main() {
     await tester.tap(find.text('Help & Feedback'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Build a Better\nDirexio Together'), findsOneWidget);
+    expect(find.text('Build a Better\nDirexio Together'), findsNothing);
     expect(
       find.text('Found an issue or have a great idea?'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('Contact Us : liyananinsh@outlook.com'), findsOneWidget);
+    expect(find.text('Contact Us : liyananinsh@outlook.com'), findsNothing);
     expect(
       find.text('We will keep optimizing based on your feedback.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Got it'), findsOneWidget);
   });
@@ -22763,7 +22764,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -22791,6 +22793,47 @@ void main() {
     expect(find.text('请设置头像'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1200));
     expect(find.byKey(const ValueKey('init_center_weak_hint')), findsNothing);
+  });
+
+  testWidgets('init page never shows portal domain input while auth loads',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_LoadingAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Portal 域名'), findsNothing);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_LoadingAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Portal domain'), findsNothing);
   });
 
   testWidgets('login page does not default to a real node', (tester) async {
@@ -22925,7 +22968,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
         ],
         child: MaterialApp(
           locale: const Locale('en'),
@@ -22940,7 +22984,8 @@ void main() {
 
     expect(find.text('Confirm'), findsOneWidget);
     expect(find.text('Display name'), findsOneWidget);
-    expect(find.text('Already have an account? Log in'), findsOneWidget);
+    expect(find.text('Long-term login passphrase'), findsOneWidget);
+    expect(find.text('Already have an account? Log in'), findsNothing);
 
     await tester.tap(find.text('Confirm'));
     await tester.pump();

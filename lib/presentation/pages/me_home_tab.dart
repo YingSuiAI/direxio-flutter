@@ -17,8 +17,8 @@ import '../widgets/portal_avatar.dart';
 const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
-const _feedbackBackgroundAsset = 'assets/images/fankui.png';
-const _feedbackEmail = 'liyananinsh@outlook.com';
+const _feedbackBackgroundZhAsset = 'assets/images/ic_help_feedback1.png';
+const _feedbackBackgroundDefaultAsset = 'assets/images/ic_help_feedback2.png';
 
 class MePage extends ConsumerWidget {
   const MePage({super.key, required this.client});
@@ -336,11 +336,6 @@ Future<void> _showHelpFeedback(BuildContext context) {
         AppLocalizations,
       );
       return _HelpFeedbackDialog(
-        headline: l10n?.meHelpFeedbackHeadline ?? '一起打造更好的\nDirexio',
-        prompt: l10n?.meHelpFeedbackPrompt ?? '发现问题或有好想法？',
-        contactLine: l10n?.meHelpFeedbackContactLine(_feedbackEmail) ??
-            '联系我们：$_feedbackEmail',
-        note: l10n?.meHelpFeedbackNote ?? '我们会持续根据你的反馈优化产品。',
         okLabel: l10n?.meHelpFeedbackOk ?? '知道了',
       );
     },
@@ -349,138 +344,95 @@ Future<void> _showHelpFeedback(BuildContext context) {
 
 class _HelpFeedbackDialog extends StatelessWidget {
   const _HelpFeedbackDialog({
-    required this.headline,
-    required this.prompt,
-    required this.contactLine,
-    required this.note,
     required this.okLabel,
   });
 
-  final String headline;
-  final String prompt;
-  final String contactLine;
-  final String note;
   final String okLabel;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundAsset = Localizations.localeOf(context).languageCode == 'zh'
+        ? _feedbackBackgroundZhAsset
+        : _feedbackBackgroundDefaultAsset;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 18),
       backgroundColor: Colors.transparent,
       elevation: 0,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: AspectRatio(
-          aspectRatio: 1052 / 1161,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: Image.asset(
-                  _feedbackBackgroundAsset,
-                  key: const ValueKey('help_feedback_background'),
-                  fit: BoxFit.contain,
-                  color: isDark ? t.surface : null,
-                  colorBlendMode: isDark ? BlendMode.modulate : null,
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Material(
-                  color: t.surface.withValues(alpha: 0.55),
-                  shape: CircleBorder(
-                    side: BorderSide(color: t.surface.withValues(alpha: 0.85)),
+      child: Transform.translate(
+        offset: const Offset(3, 0),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: AspectRatio(
+            aspectRatio: 1052 / 1161,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: Image.asset(
+                    backgroundAsset,
+                    key: const ValueKey('help_feedback_background'),
+                    fit: BoxFit.contain,
+                    color: isDark ? t.surface : null,
+                    colorBlendMode: isDark ? BlendMode.modulate : null,
                   ),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () => Navigator.of(context).pop(),
-                    child: SizedBox.square(
-                      dimension: 28,
-                      child: Icon(
-                        Symbols.close,
-                        size: 22,
-                        color: t.textMute,
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Material(
+                    color: t.surface.withValues(alpha: 0.55),
+                    shape: CircleBorder(
+                      side:
+                          BorderSide(color: t.surface.withValues(alpha: 0.85)),
+                    ),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => Navigator.of(context).pop(),
+                      child: SizedBox.square(
+                        dimension: 28,
+                        child: Icon(
+                          Symbols.close,
+                          size: 22,
+                          color: t.textMute,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(46, 76, 44, 48),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          physics: const ClampingScrollPhysics(),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                headline,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 26,
-                                  weight: FontWeight.w800,
-                                  color: t.text,
-                                ),
-                              ),
-                              const SizedBox(height: 22),
-                              Text(
-                                prompt,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(size: 15, color: t.text),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                contactLine,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(size: 15, color: t.text),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                note,
-                                style: AppTheme.sans(size: 15, color: t.text),
-                              ),
-                            ],
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 48,
+                  child: Transform.translate(
+                    offset: const Offset(-10, 0),
+                    child: Center(
+                      child: SizedBox(
+                        width: 148,
+                        height: 45,
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: t.accent,
+                            foregroundColor: t.onAccent,
+                            shape: const StadiumBorder(),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Center(
-                        child: SizedBox(
-                          width: 148,
-                          height: 45,
-                          child: FilledButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: t.accent,
-                              foregroundColor: t.onAccent,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: Text(
-                              okLabel,
-                              style: AppTheme.sans(
-                                size: 15,
-                                weight: FontWeight.w700,
-                                color: t.onAccent,
-                              ),
+                          child: Text(
+                            okLabel,
+                            style: AppTheme.sans(
+                              size: 15,
+                              weight: FontWeight.w700,
+                              color: t.onAccent,
                             ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

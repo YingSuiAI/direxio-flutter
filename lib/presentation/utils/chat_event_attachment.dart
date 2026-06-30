@@ -40,6 +40,37 @@ Future<MatrixFile> downloadChatEventAttachment(Event event) async {
   return normalized.downloadAndDecryptAttachment();
 }
 
+String chatEventAttachmentFileName(
+  Event event,
+  MatrixFile file, {
+  String fallbackName = 'file',
+}) {
+  final name = _firstString([
+        file.name,
+        event.content['filename'],
+        event.content['body'],
+        fallbackName,
+      ]) ??
+      fallbackName;
+  if (_hasFileExtension(name)) return name;
+
+  final extension = _firstExtensionForMimeTypes([
+    file.mimeType,
+    event.attachmentMimetype,
+    event.content['mimetype'],
+    event.content['mime_type'],
+    event.content['mimeType'],
+    if (event.content['info'] is Map)
+      (event.content['info'] as Map)['mimetype'],
+    if (event.content['info'] is Map)
+      (event.content['info'] as Map)['mime_type'],
+    if (event.content['info'] is Map)
+      (event.content['info'] as Map)['mimeType'],
+  ]);
+  if (extension == null) return name;
+  return '$name$extension';
+}
+
 Event? _normalizedThumbnailEvent(Event event) {
   final content = Map<String, dynamic>.from(event.content);
   final info = Map<String, dynamic>.from(
@@ -157,6 +188,36 @@ bool _isVideoMessage(Event event) {
 
 bool _isImageMessage(Event event) {
   return _firstString([event.content['msgtype']]) == MessageTypes.Image;
+}
+
+bool _hasFileExtension(String filename) {
+  final dot = filename.lastIndexOf('.');
+  return dot > 0 && dot < filename.length - 1;
+}
+
+String? _extensionForMimeType(String? mimeType) {
+  return switch (mimeType?.trim().toLowerCase()) {
+    'video/mp4' => '.mp4',
+    'video/mpeg' => '.mpeg',
+    'video/quicktime' => '.mov',
+    'video/webm' => '.webm',
+    'video/x-matroska' => '.mkv',
+    'image/jpeg' => '.jpg',
+    'image/jpg' => '.jpg',
+    'image/png' => '.png',
+    'image/gif' => '.gif',
+    'image/webp' => '.webp',
+    _ => null,
+  };
+}
+
+String? _firstExtensionForMimeTypes(List<Object?> values) {
+  for (final value in values) {
+    if (value is! String) continue;
+    final extension = _extensionForMimeType(value);
+    if (extension != null) return extension;
+  }
+  return null;
 }
 
 Event? _normalizedAttachmentEvent(Event event) {

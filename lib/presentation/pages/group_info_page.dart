@@ -168,6 +168,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             member.id,
           ),
           currentUserProfile: currentUserProfile,
+          syncCache: syncCache,
         ),
     ];
     final memberCount = _groupInfoMemberCount(
@@ -941,6 +942,7 @@ _GroupMemberPresentation _groupMemberPresentation({
   required User member,
   required AsGroupMember? authoritativeMember,
   required Profile? currentUserProfile,
+  required AsSyncCacheState syncCache,
 }) {
   final userId = member.id.trim();
   final isSelf = userId.isNotEmpty && userId == client.userID?.trim();
@@ -964,6 +966,8 @@ _GroupMemberPresentation _groupMemberPresentation({
   ]);
   final profileAvatar =
       isSelf ? profileAvatarHttpUrl(currentUserProfile, client) : null;
+  final contactAvatar =
+      isSelf ? null : strictGroupContactAvatarUrl(client, syncCache, userId);
   final authoritativeAvatar = avatarHttpUrl(
     client,
     authoritativeMember?.avatarUrl,
@@ -976,8 +980,11 @@ _GroupMemberPresentation _groupMemberPresentation({
   return _GroupMemberPresentation(
     userId: userId,
     name: name,
-    avatarUrl:
-        profileAvatar ?? authoritativeAvatar ?? stateAvatar ?? userAvatar,
+    avatarUrl: profileAvatar ??
+        contactAvatar ??
+        authoritativeAvatar ??
+        stateAvatar ??
+        userAvatar,
   );
 }
 

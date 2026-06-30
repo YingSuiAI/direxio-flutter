@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -423,6 +424,12 @@ class ChatRecordSelectionBar extends StatelessWidget {
       AppLocalizations,
     );
     if (compact) {
+      final media = MediaQuery.of(context);
+      final bottomSystemInset = math.max(
+        media.padding.bottom,
+        media.viewPadding.bottom,
+      );
+      final bottomPadding = math.max(24.0, bottomSystemInset + 12.0);
       final actions = <Widget>[
         if (onDelete != null)
           _CompactSelectionAction(
@@ -442,15 +449,12 @@ class ChatRecordSelectionBar extends StatelessWidget {
           onTap: count > 0 ? onForward : null,
         ),
       ];
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Row(
-            children: [
-              for (final action in actions) Expanded(child: action),
-            ],
-          ),
+      return Padding(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, bottomPadding),
+        child: Row(
+          children: [
+            for (final action in actions) Expanded(child: action),
+          ],
         ),
       );
     }

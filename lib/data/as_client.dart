@@ -2352,7 +2352,7 @@ abstract class AsClient {
     throw AsClientException('getConversation is not supported by this client');
   }
 
-  /// GET /_p2p/events?since= SSE refresh stream.
+  /// Legacy event stream hook. Runtime realtime sync uses AsRealtimeTransport WS.
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
     throw AsClientException('streamEvents is not supported by this client');
   }

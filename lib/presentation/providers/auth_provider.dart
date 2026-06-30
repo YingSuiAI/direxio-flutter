@@ -859,7 +859,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
   }) async {
     try {
-      final ownerProfile = await HttpAsClient.fromPortalSession(
+      final ownerProfile = await WsAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
@@ -914,7 +914,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String portalToken,
   ) async {
     try {
-      final bootstrap = await HttpAsClient.fromPortalSession(
+      final bootstrap = await WsAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
@@ -1024,7 +1024,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId = recovered.userId;
       deviceId = recovered.deviceId;
     }
-    final profileClient = HttpAsClient.fromPortalSession(
+    final profileClient = WsAsClient.fromPortalSession(
       client,
       portalToken: session.accessToken,
       baseUri: HttpAsClient.defaultProductBaseUri(matrixUri),

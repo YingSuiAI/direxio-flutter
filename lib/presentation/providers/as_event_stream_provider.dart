@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
 import '../../data/as_event_cursor_store.dart';
-import '../../data/as_realtime_transport.dart';
-import '../../data/http_as_client.dart';
 import '../../data/matrix_foreground_sync.dart';
 import '../call/voice_call_controller.dart';
 import 'as_event_cursor_store_provider.dart';
@@ -62,8 +60,7 @@ final asEventStreamRefreshProvider =
       (matrixClient.accessToken?.trim().isNotEmpty ?? false);
   if (auth?.hasUsablePortalSession != true && !hasMatrixSession) return null;
 
-  final asClient = ref.watch(asClientProvider);
-  final realtimeTransport = _realtimeTransportFor(asClient);
+  final realtimeTransport = ref.watch(asRealtimeTransportProvider);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);
   final cursorStore = DeferredAsEventCursorStore(
     () => ref.read(asEventCursorStoreProvider.future),
@@ -129,16 +126,6 @@ final asEventStreamRefreshProvider =
   });
   return controller;
 });
-
-AsRealtimeTransport _realtimeTransportFor(AsClient asClient) {
-  final sse = SseAsRealtimeTransport(asClient.streamEvents);
-  if (asClient is! HttpAsClient) return sse;
-  final ws = WsAsRealtimeTransport(
-    baseUri: asClient.realtimeBaseUri,
-    createTicket: asClient.createRealtimeWSTicket,
-  );
-  return FallbackAsRealtimeTransport(primary: ws, fallback: sse);
-}
 
 class AsEventStreamRefreshController {
   AsEventStreamRefreshController({

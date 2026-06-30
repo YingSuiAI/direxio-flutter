@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/local_endpoint_resolver.dart';
@@ -1224,182 +1222,68 @@ void main() {
     expect(status.allHealthy, isFalse);
   });
 
-  test('streamEvents uses P2P SSE endpoint with replay cursor', () async {
-    final client = HttpAsClient(
+  test('WsAsClient sends logged-in product actions through WS requestAction',
+      () async {
+    final calls = <Map<String, Object?>>[];
+    final client = WsAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/_p2p/events');
-        expect(request.url.queryParameters, {'since': '41'});
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(request.headers['Accept'], 'text/event-stream');
-        expect(request.headers['Last-Event-ID'], '40');
-        return http.Response(
-          [
-            'id: 42',
-            'event: sync.bootstrap.changed',
-            r'data: {"seq":42,"type":"sync.bootstrap.changed","room_id":"!room:example.com","event_id":"$event","payload":{"reason":"contacts"},"created_at":"2026-06-20T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
-      }),
-    );
-
-    final events = await client
-        .streamEvents(
-          since: 41,
-          lastEventId: '40',
-        )
-        .toList();
-
-    expect(events, hasLength(1));
-    expect(events.single.seq, 42);
-    expect(events.single.type, 'sync.bootstrap.changed');
-    expect(events.single.roomId, '!room:example.com');
-    expect(events.single.eventId, r'$event');
-    expect(events.single.payload['reason'], 'contacts');
-  });
-
-  test('streamEvents refreshes token and retries once on M_UNKNOWN_TOKEN',
-      () async {
-    final authorizations = <String>[];
-    var refreshCalls = 0;
-    var expired = false;
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'stale-token',
-      onAuthenticationRefresh: () {
-        refreshCalls++;
-        return 'fresh-token';
-      },
-      onAuthenticationFailed: () {
-        expired = true;
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        calls.add({
+          'action': action,
+          'params': params,
+          'allowed': allowedStatusCodes,
+        });
+        return {'follows': []};
       },
       httpClient: MockClient((request) async {
-        authorizations.add(request.headers['Authorization'] ?? '');
-        if (authorizations.length == 1) {
-          return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
-        }
-        return http.Response(
-          [
-            'id: 43',
-            'event: sync.bootstrap.changed',
-            r'data: {"seq":43,"type":"sync.bootstrap.changed","payload":{"reason":"call"},"created_at":"2026-06-20T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
+        fail('product action should not use HTTP');
       }),
     );
 
-    final events = await client.streamEvents().toList();
+    final follows = await client.getFollows();
 
-    expect(authorizations, ['Bearer stale-token', 'Bearer fresh-token']);
-    expect(refreshCalls, 1);
-    expect(expired, isFalse);
-    expect(events.single.seq, 43);
-    expect(events.single.payload['reason'], 'call');
+    expect(follows, isEmpty);
+    expect(calls, hasLength(1));
+    expect(calls.single['action'], 'follows.list');
+    expect(calls.single['params'], isEmpty);
   });
 
-  test('streamEvents decodes agent room message events', () async {
-    final client = HttpAsClient(
+  test('WsAsClient keeps realtime ticket creation on HTTP', () async {
+    var wsCalls = 0;
+    final client = WsAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        return const {};
+      },
       httpClient: MockClient((request) async {
-        return http.Response(
-          [
-            'id: 45',
-            'event: agent_room.message',
-            r'data: {"seq":45,"type":"agent_room.message","room_id":"!real:server","payload":{"body":"hi"},"created_at":"2026-06-26T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'realtime.ws_ticket.create',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'ticket': 'ws-ticket',
+          'expires_in_ms': 60000,
+        }, 200);
       }),
     );
 
-    final events = await client.streamEvents().toList();
+    final ticket = await client.createRealtimeWSTicket();
 
-    expect(events.single.seq, 45);
-    expect(events.single.type, 'agent_room.message');
-    expect(events.single.roomId, '!real:server');
-    expect(events.single.payload['body'], 'hi');
-  });
-
-  test('streamEvents emits cursor reset from response headers', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        return http.Response(
-          '',
-          200,
-          headers: {
-            'content-type': 'text/event-stream; charset=utf-8',
-            'X-Direxio-P2P-Events-Cursor-Reset': 'true',
-            'X-Direxio-P2P-Events-Min-Seq': '12',
-            'X-Direxio-P2P-Events-Max-Seq': '19',
-            'X-Direxio-P2P-Events-Count': '8',
-          },
-        );
-      }),
-    );
-
-    final events = await client.streamEvents(since: 8).toList();
-
-    expect(events.single.type, 'p2p.cursor_reset');
-    expect(events.single.seq, 0);
-    expect(events.single.payload['since'], 8);
-    expect(events.single.payload['min_seq'], 12);
-    expect(events.single.payload['max_seq'], 19);
-    expect(events.single.payload['count'], 8);
-    expect(events.single.payload['recovery'], 'bootstrap_required');
-  });
-
-  test('streamEvents decodes cursor reset control payload', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        return http.Response(
-          [
-            'event: p2p.cursor_reset',
-            r'data: {"type":"p2p.cursor_reset","since":8,"min_seq":12,"max_seq":19,"count":8,"recovery":"bootstrap_required"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
-      }),
-    );
-
-    final events = await client.streamEvents(since: 8).toList();
-
-    expect(events.single.type, 'p2p.cursor_reset');
-    expect(events.single.seq, 0);
-    expect(events.single.payload['max_seq'], 19);
-  });
-
-  test('streamEvents bypasses Matrix response stream timeout wrapper',
-      () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: FixedTimeoutHttpClient(
-        _DelayedSseClient(const Duration(milliseconds: 20)),
-        const Duration(milliseconds: 1),
-      ),
-    );
-
-    final events = await client.streamEvents().toList();
-
-    expect(events.single.seq, 44);
-    expect(events.single.type, 'sync.bootstrap.changed');
+    expect(ticket.ticket, 'ws-ticket');
+    expect(wsCalls, 0);
   });
 
   test('getPublicChannelByRoomId uses override unified node without auth',
@@ -2281,32 +2165,4 @@ void main() {
     expect(reactions.single.postId, 'post1');
     expect(reactions.single.channelId, 'ch1');
   });
-}
-
-class _DelayedSseClient extends http.BaseClient {
-  _DelayedSseClient(this.delay);
-
-  final Duration delay;
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    return http.StreamedResponse(
-      http.ByteStream(_delayedSse()),
-      200,
-      headers: {'content-type': 'text/event-stream; charset=utf-8'},
-      request: request,
-    );
-  }
-
-  Stream<List<int>> _delayedSse() async* {
-    await Future<void>.delayed(delay);
-    yield utf8.encode(
-      [
-        'id: 44',
-        'event: sync.bootstrap.changed',
-        'data: {"seq":44,"type":"sync.bootstrap.changed","payload":{"reason":"keepalive"},"created_at":"2026-06-20T00:00:00Z"}',
-        '',
-      ].join('\n'),
-    );
-  }
 }

@@ -42,8 +42,8 @@ void main() {
       originServerTs: 1710000000000,
     );
     expect(await server.takeClientFrame(), {
-      'type': 'client.command',
-      'id': 'cmd-1',
+      'type': 'client.request',
+      'id': 'req-1',
       'action': 'sync.read_marker',
       'params': {
         'room_id': '!room:example.com',
@@ -52,8 +52,10 @@ void main() {
       },
     });
     server.sendServerFrame({
-      'type': 'server.command_result',
-      'id': 'cmd-1',
+      'type': 'server.response',
+      'id': 'req-1',
+      'action': 'sync.read_marker',
+      'ok': true,
       'result': {'status': 'ok'},
     });
     await readMarkerFuture;
@@ -113,21 +115,42 @@ void main() {
     await transport.close();
   });
 
-  test('WS transport fails read marker command when not connected', () async {
+  test('WS transport can send one-shot request before event stream starts',
+      () async {
+    final server = _FakeWebSocketServer();
     final transport = WsAsRealtimeTransport(
       baseUri: Uri.parse('https://node.example/_p2p'),
       createTicket: () async => const AsRealtimeWSTicket(ticket: 'ticket-1'),
+      connect: server.connect,
       reconnectDelays: const [Duration.zero],
     );
 
-    await expectLater(
-      transport.updateReadMarker(
-        roomId: '!room:example.com',
-        eventId: r'$event',
-        originServerTs: 1710000000000,
-      ),
-      throwsA(isA<AsClientException>()),
+    final request = transport.requestAction(
+      'contacts.list',
+      const {},
     );
+    await server.waitForConnection();
+    expect(await server.takeClientFrame(), {'type': 'client.hello'});
+    expect(await server.takeClientFrame(),
+        {'type': 'client.lifecycle', 'foreground': true});
+    expect(await server.takeClientFrame(), {
+      'type': 'client.request',
+      'id': 'req-1',
+      'action': 'contacts.list',
+      'params': {},
+    });
+    server.sendServerFrame({
+      'type': 'server.response',
+      'id': 'req-1',
+      'action': 'contacts.list',
+      'ok': true,
+      'result': {
+        'contacts': [],
+      },
+    });
+    final result = await request;
+    expect(result['contacts'], isEmpty);
+    await transport.close();
   });
 
   test('WS transport reconnects with latest seq and replays state', () async {
@@ -170,37 +193,44 @@ void main() {
     await transport.close();
   });
 
-  test('fallback transport uses SSE when WS fails before yielding events',
+  test('WS request does not retry non-idempotent action after disconnect',
       () async {
-    final fallbackEvent = AsEventStreamEvent(
-      seq: 5,
-      type: 'contact.requested',
-      createdAt: DateTime.utc(2026, 6, 29),
-    );
-    final transport = FallbackAsRealtimeTransport(
-      primary: _FailingTransport(),
-      fallback: _StaticTransport(Stream.value(fallbackEvent)),
+    final server = _FakeWebSocketServer();
+    final transport = WsAsRealtimeTransport(
+      baseUri: Uri.parse('https://node.example/_p2p'),
+      createTicket: () async => const AsRealtimeWSTicket(ticket: 'ticket-1'),
+      connect: server.connect,
+      reconnectDelays: const [Duration.zero],
     );
 
-    final events = await transport.streamEvents(since: 4).toList();
+    final events = <AsEventStreamEvent>[];
+    final sub = transport.streamEvents().listen(events.add);
+    await server.waitForConnection();
+    await server.takeClientFrame();
+    await server.takeClientFrame();
 
-    expect(events.single.seq, 5);
-  });
-
-  test('fallback transport propagates read marker command failures', () async {
-    final transport = FallbackAsRealtimeTransport(
-      primary: _FailingTransport(),
-      fallback: _StaticTransport(const Stream.empty()),
+    final request = transport.requestAction(
+      'groups.create',
+      const {'name': 'No retry'},
     );
+    expect(await server.takeClientFrame(), {
+      'type': 'client.request',
+      'id': 'req-1',
+      'action': 'groups.create',
+      'params': {'name': 'No retry'},
+    });
+    await server.closeActive();
+    await expectLater(request, throwsA(isA<AsClientException>()));
+    await Future<void>.delayed(Duration.zero);
+    await server.waitForConnection(count: 2);
+    final createRequests = server.allClientFrames.where((frame) {
+      return frame['type'] == 'client.request' &&
+          frame['action'] == 'groups.create';
+    }).toList(growable: false);
+    expect(createRequests, hasLength(1));
 
-    await expectLater(
-      transport.updateReadMarker(
-        roomId: '!room:example.com',
-        eventId: r'$event',
-        originServerTs: 1710000000000,
-      ),
-      throwsStateError,
-    );
+    await sub.cancel().timeout(const Duration(seconds: 2));
+    await transport.close();
   });
 }
 
@@ -230,6 +260,14 @@ class _FakeWebSocketServer {
   Future<Map<String, Object?>> takeClientFrame() async {
     final raw = await _connections.last.takeClientFrame();
     return jsonDecode(raw) as Map<String, Object?>;
+  }
+
+  List<Map<String, Object?>> get allClientFrames {
+    return [
+      for (final connection in _connections)
+        for (final raw in connection.allClientFrames)
+          jsonDecode(raw) as Map<String, Object?>,
+    ];
   }
 
   void sendServerFrame(Map<String, Object?> frame) {
@@ -272,6 +310,8 @@ class _FakeWebSocketChannel implements WebSocketChannel {
 
   Future<String> takeClientFrame() => _sink.take();
 
+  List<String> get allClientFrames => _sink.allFrames;
+
   void sendServerFrame(Map<String, Object?> frame) {
     _stream.add(jsonEncode(frame));
   }
@@ -285,11 +325,14 @@ class _FakeWebSocketChannel implements WebSocketChannel {
 
 class _RecordingSink implements WebSocketSink {
   final frames = <String>[];
+  final allFrames = <String>[];
   Future<void> Function()? onClose;
 
   @override
   void add(event) {
-    frames.add(event as String);
+    final value = event as String;
+    frames.add(value);
+    allFrames.add(value);
   }
 
   Future<String> take() async {
@@ -320,66 +363,4 @@ class _RecordingSink implements WebSocketSink {
 
   @override
   Future get done async {}
-}
-
-class _FailingTransport implements AsRealtimeTransport {
-  @override
-  Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
-    return Stream<AsEventStreamEvent>.error(StateError('ws failed'));
-  }
-
-  @override
-  Future<void> ackEventSeq(int seq) async {}
-
-  @override
-  Future<void> close() async {}
-
-  @override
-  Future<void> reportFocusedRoom(String roomId) async {}
-
-  @override
-  Future<void> reportLifecycle(bool foreground) async {}
-
-  @override
-  Future<void> updateReadMarker({
-    required String roomId,
-    required String eventId,
-    required int originServerTs,
-    String action = 'sync.read_marker',
-    String channelId = '',
-  }) async {
-    throw StateError('ws command failed');
-  }
-}
-
-class _StaticTransport implements AsRealtimeTransport {
-  _StaticTransport(this._stream);
-
-  final Stream<AsEventStreamEvent> _stream;
-
-  @override
-  Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
-    return _stream;
-  }
-
-  @override
-  Future<void> ackEventSeq(int seq) async {}
-
-  @override
-  Future<void> close() async {}
-
-  @override
-  Future<void> reportFocusedRoom(String roomId) async {}
-
-  @override
-  Future<void> reportLifecycle(bool foreground) async {}
-
-  @override
-  Future<void> updateReadMarker({
-    required String roomId,
-    required String eventId,
-    required int originServerTs,
-    String action = 'sync.read_marker',
-    String channelId = '',
-  }) async {}
 }

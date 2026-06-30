@@ -29,6 +29,12 @@ class AsRealtimeWSTicket {
 abstract class AsRealtimeTransport {
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId});
 
+  Future<Map<String, dynamic>> requestAction(
+    String action,
+    Map<String, Object?> params, {
+    Set<int> allowedStatusCodes = const {200},
+  });
+
   Future<void> updateReadMarker({
     required String roomId,
     required String eventId,
@@ -44,111 +50,6 @@ abstract class AsRealtimeTransport {
   Future<void> ackEventSeq(int seq);
 
   Future<void> close();
-}
-
-class SseAsRealtimeTransport implements AsRealtimeTransport {
-  SseAsRealtimeTransport(this._openEvents);
-
-  final Stream<AsEventStreamEvent> Function({
-    int? since,
-    String? lastEventId,
-  }) _openEvents;
-
-  @override
-  Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
-    return _openEvents(since: since, lastEventId: lastEventId);
-  }
-
-  @override
-  Future<void> ackEventSeq(int seq) async {}
-
-  @override
-  Future<void> close() async {}
-
-  @override
-  Future<void> reportFocusedRoom(String roomId) async {}
-
-  @override
-  Future<void> reportLifecycle(bool foreground) async {}
-
-  @override
-  Future<void> updateReadMarker({
-    required String roomId,
-    required String eventId,
-    required int originServerTs,
-    String action = 'sync.read_marker',
-    String channelId = '',
-  }) async {}
-}
-
-class FallbackAsRealtimeTransport implements AsRealtimeTransport {
-  FallbackAsRealtimeTransport({
-    required AsRealtimeTransport primary,
-    required AsRealtimeTransport fallback,
-  })  : _primary = primary,
-        _fallback = fallback;
-
-  final AsRealtimeTransport _primary;
-  final AsRealtimeTransport _fallback;
-
-  @override
-  Stream<AsEventStreamEvent> streamEvents(
-      {int? since, String? lastEventId}) async* {
-    var cursor = _cursorFrom(since, lastEventId);
-    try {
-      await for (final event
-          in _primary.streamEvents(since: since, lastEventId: lastEventId)) {
-        if (event.seq > cursor) cursor = event.seq;
-        yield event;
-      }
-    } catch (_) {
-      yield* _fallback.streamEvents(
-        since: cursor > 0 ? cursor : since,
-        lastEventId: cursor > 0 ? cursor.toString() : lastEventId,
-      );
-    }
-  }
-
-  @override
-  Future<void> ackEventSeq(int seq) async {
-    await _primary.ackEventSeq(seq);
-    await _fallback.ackEventSeq(seq);
-  }
-
-  @override
-  Future<void> close() async {
-    await _primary.close();
-    await _fallback.close();
-  }
-
-  @override
-  Future<void> reportFocusedRoom(String roomId) async {
-    await _primary.reportFocusedRoom(roomId);
-    await _fallback.reportFocusedRoom(roomId);
-  }
-
-  @override
-  Future<void> reportLifecycle(bool foreground) async {
-    await _primary.reportLifecycle(foreground);
-    await _fallback.reportLifecycle(foreground);
-  }
-
-  @override
-  Future<void> updateReadMarker({
-    required String roomId,
-    required String eventId,
-    required int originServerTs,
-    String action = 'sync.read_marker',
-    String channelId = '',
-  }) async {
-    await _primary.updateReadMarker(
-      roomId: roomId,
-      eventId: eventId,
-      originServerTs: originServerTs,
-      action: action,
-      channelId: channelId,
-    );
-  }
 }
 
 class WsAsRealtimeTransport implements AsRealtimeTransport {
@@ -179,8 +80,8 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
   bool? _foreground;
   String? _focusedRoomId;
   int _latestSeq = 0;
-  int _nextCommandId = 0;
-  final Map<String, Completer<Map<String, dynamic>>> _pendingCommands = {};
+  int _nextRequestId = 0;
+  final Map<String, Completer<Map<String, dynamic>>> _pendingRequests = {};
 
   @override
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
@@ -217,10 +118,10 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
           if (identical(_channel, channel)) {
             _channel = null;
           }
-          _failPendingCommands(AsClientException('WS connection closed'));
+          _failPendingRequests(AsClientException('WS connection closed'));
         } catch (_) {
           if (_closed) return;
-          _failPendingCommands(AsClientException('WS connection failed'));
+          _failPendingRequests(AsClientException('WS connection failed'));
           final delay = _reconnectDelay(failures++);
           if (delay > Duration.zero) {
             await Future<void>.delayed(delay);
@@ -291,9 +192,12 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
           payload: Map<String, dynamic>.from(frame),
           createdAt: DateTime.tryParse(frame['created_at']?.toString() ?? ''),
         );
+      case 'server.response':
+        _completeRequest(frame);
+        return null;
       case 'server.command_result':
       case 'server.command_error':
-        _completeCommand(frame);
+        _completeRequest(frame);
         return null;
       case 'server.cursor_reset':
         return AsEventStreamEvent(
@@ -338,49 +242,135 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     final trimmedRoomId = roomId.trim();
     final trimmedEventId = eventId.trim();
     if (trimmedRoomId.isEmpty || trimmedEventId.isEmpty) return;
-    if (_channel == null) {
-      throw AsClientException('WS realtime is not connected');
-    }
-    final commandId = 'cmd-${++_nextCommandId}';
-    final completer = Completer<Map<String, dynamic>>();
-    _pendingCommands[commandId] = completer;
-    _sendFrame({
-      'type': 'client.command',
-      'id': commandId,
-      'action': action,
-      'params': {
+    await requestAction(
+      action,
+      {
         'room_id': trimmedRoomId,
         'event_id': trimmedEventId,
         'origin_server_ts': originServerTs,
         if (channelId.trim().isNotEmpty) 'channel_id': channelId.trim(),
       },
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> requestAction(
+    String action,
+    Map<String, Object?> params, {
+    Set<int> allowedStatusCodes = const {200},
+  }) async {
+    final trimmedAction = action.trim();
+    if (trimmedAction.isEmpty) {
+      throw AsClientException('WS action is required');
+    }
+    if (_channel == null) {
+      return _requestActionWithEphemeralConnection(
+        trimmedAction,
+        params,
+        allowedStatusCodes: allowedStatusCodes,
+      );
+    }
+    final requestId = 'req-${++_nextRequestId}';
+    final completer = Completer<Map<String, dynamic>>();
+    _pendingRequests[requestId] = completer;
+    _sendFrame({
+      'type': 'client.request',
+      'id': requestId,
+      'action': trimmedAction,
+      'params': params,
     });
     try {
-      final frame = await completer.future.timeout(const Duration(seconds: 5));
-      if (frame['type'] == 'server.command_error') {
-        throw AsClientException(
-          frame['error']?.toString() ?? 'WS command error',
-          statusCode: _parseInt(frame['status']),
-        );
-      }
+      final frame = await completer.future.timeout(const Duration(seconds: 10));
+      return _resultFromResponseFrame(
+        frame,
+        allowedStatusCodes: allowedStatusCodes,
+      );
     } finally {
-      _pendingCommands.remove(commandId);
+      _pendingRequests.remove(requestId);
     }
   }
 
-  void _completeCommand(Map<String, dynamic> frame) {
+  Future<Map<String, dynamic>> _requestActionWithEphemeralConnection(
+    String action,
+    Map<String, Object?> params, {
+    required Set<int> allowedStatusCodes,
+  }) async {
+    final ticket = await _createTicket();
+    final channel = await _connect(_wsUri(ticket.ticket));
+    try {
+      await channel.ready;
+      channel.sink.add(jsonEncode({'type': 'client.hello'}));
+      channel.sink.add(jsonEncode({
+        'type': 'client.lifecycle',
+        'foreground': _foreground ?? true,
+      }));
+      final focusedRoomId = _focusedRoomId;
+      if (focusedRoomId != null) {
+        channel.sink.add(jsonEncode({
+          'type': 'client.focus',
+          'room_id': focusedRoomId,
+        }));
+      }
+      final requestId = 'req-${++_nextRequestId}';
+      channel.sink.add(jsonEncode({
+        'type': 'client.request',
+        'id': requestId,
+        'action': action,
+        'params': params,
+      }));
+      await for (final raw in channel.stream.timeout(
+        const Duration(seconds: 10),
+      )) {
+        final decoded = raw is String ? jsonDecode(raw) : raw;
+        if (decoded is! Map) continue;
+        final frame = decoded.cast<String, dynamic>();
+        if (frame['type'] == 'server.error') {
+          throw AsClientException(frame['error']?.toString() ?? 'WS error');
+        }
+        if (frame['type'] == 'server.response' && frame['id'] == requestId) {
+          return _resultFromResponseFrame(
+            frame,
+            allowedStatusCodes: allowedStatusCodes,
+          );
+        }
+      }
+      throw AsClientException('WS connection closed before response');
+    } finally {
+      await channel.sink.close();
+    }
+  }
+
+  Map<String, dynamic> _resultFromResponseFrame(
+    Map<String, dynamic> frame, {
+    required Set<int> allowedStatusCodes,
+  }) {
+    if (frame['ok'] == false || frame['type'] == 'server.command_error') {
+      final status = _parseInt(frame['status']);
+      final error = frame['error']?.toString() ?? 'WS request failed';
+      if (allowedStatusCodes.contains(status)) {
+        return {'error': error, 'status': status};
+      }
+      throw AsClientException(error, statusCode: status);
+    }
+    final result = frame['result'];
+    if (result == null) return const {};
+    if (result is Map) return result.cast<String, dynamic>();
+    throw AsClientException('WS response result is not an object');
+  }
+
+  void _completeRequest(Map<String, dynamic> frame) {
     final id = frame['id']?.toString() ?? '';
-    final completer = _pendingCommands[id];
+    final completer = _pendingRequests[id];
     if (completer == null || completer.isCompleted) return;
     completer.complete(frame);
   }
 
-  void _failPendingCommands(Object error) {
-    if (_pendingCommands.isEmpty) return;
+  void _failPendingRequests(Object error) {
+    if (_pendingRequests.isEmpty) return;
     final pending = List<Completer<Map<String, dynamic>>>.from(
-      _pendingCommands.values,
+      _pendingRequests.values,
     );
-    _pendingCommands.clear();
+    _pendingRequests.clear();
     for (final completer in pending) {
       if (!completer.isCompleted) {
         completer.completeError(error);
@@ -401,7 +391,7 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     _closed = true;
     final channel = _channel;
     _channel = null;
-    _failPendingCommands(AsClientException('WS realtime is closed'));
+    _failPendingRequests(AsClientException('WS realtime is closed'));
     await channel?.sink.close();
   }
 }

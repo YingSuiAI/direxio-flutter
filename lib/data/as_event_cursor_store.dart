@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 abstract class AsEventCursorStore {
   Future<int> readLastSeq();
 
@@ -66,4 +68,31 @@ class FileAsEventCursorStore implements AsEventCursorStore {
       await file.delete();
     }
   }
+}
+
+class SharedPreferencesAsEventCursorStore implements AsEventCursorStore {
+  const SharedPreferencesAsEventCursorStore(
+    this.preferences, {
+    this.key = 'direxio_p2p_event_cursor.last_seq',
+  });
+
+  final SharedPreferences preferences;
+  final String key;
+
+  @override
+  Future<int> readLastSeq() async {
+    final raw = preferences.get(key);
+    if (raw is int) return raw < 0 ? 0 : raw;
+    if (raw is num) return raw < 0 ? 0 : raw.toInt();
+    final parsed = int.tryParse(raw?.toString() ?? '');
+    return parsed == null || parsed < 0 ? 0 : parsed;
+  }
+
+  @override
+  Future<void> writeLastSeq(int seq) {
+    return preferences.setInt(key, seq < 0 ? 0 : seq);
+  }
+
+  @override
+  Future<void> clear() => preferences.remove(key);
 }

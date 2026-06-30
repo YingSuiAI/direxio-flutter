@@ -21,6 +21,7 @@ class RealtimeRoomFocus extends ConsumerStatefulWidget {
 
 class _RealtimeRoomFocusState extends ConsumerState<RealtimeRoomFocus> {
   String _reportedRoomId = '';
+  AsEventStreamRefreshController? _refreshController;
 
   @override
   void initState() {
@@ -40,7 +41,7 @@ class _RealtimeRoomFocusState extends ConsumerState<RealtimeRoomFocus> {
   void dispose() {
     final roomId = _reportedRoomId;
     if (roomId.isNotEmpty) {
-      unawaited(ref.read(asEventStreamRefreshProvider)?.clearFocusedRoom());
+      unawaited(_refreshController?.clearFocusedRoom());
     }
     super.dispose();
   }
@@ -50,14 +51,18 @@ class _RealtimeRoomFocusState extends ConsumerState<RealtimeRoomFocus> {
     final roomId = widget.roomId.trim();
     if (roomId == _reportedRoomId) return;
     _reportedRoomId = roomId;
+    final refreshController =
+        _refreshController ?? ref.read(asEventStreamRefreshProvider);
     if (roomId.isEmpty) {
-      unawaited(ref.read(asEventStreamRefreshProvider)?.clearFocusedRoom());
+      unawaited(refreshController?.clearFocusedRoom());
       return;
     }
-    unawaited(
-        ref.read(asEventStreamRefreshProvider)?.reportFocusedRoom(roomId));
+    unawaited(refreshController?.reportFocusedRoom(roomId));
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    _refreshController = ref.watch(asEventStreamRefreshProvider);
+    return widget.child;
+  }
 }

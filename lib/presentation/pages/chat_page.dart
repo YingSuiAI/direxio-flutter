@@ -200,14 +200,46 @@ bool _hasAgentReplyAfter(
   Iterable<Event> events,
   String? agentMxid,
   DateTime since,
+  Set<String> knownEventIds,
 ) {
   final agent = agentMxid?.trim() ?? '';
   if (agent.isEmpty) return false;
   for (final event in events) {
     if (event.senderId.trim() != agent) continue;
-    if (event.originServerTs.isAfter(since)) return true;
+    final eventId = event.eventId.trim();
+    if (eventId.isNotEmpty && !knownEventIds.contains(eventId)) return true;
+    if (eventId.isEmpty && event.originServerTs.isAfter(since)) return true;
   }
   return false;
+}
+
+Set<String> _agentReplyEventIds(
+  Iterable<Event> events,
+  String? agentMxid,
+) {
+  final agent = agentMxid?.trim() ?? '';
+  if (agent.isEmpty) return const <String>{};
+  final ids = <String>{};
+  for (final event in events) {
+    if (event.senderId.trim() != agent) continue;
+    final eventId = event.eventId.trim();
+    if (eventId.isNotEmpty) ids.add(eventId);
+  }
+  return ids;
+}
+
+String _agentMxidForChatRoom(Room room, String fallbackMxid) {
+  final agentMxid = portalAgentMxidForClient(room.client)?.trim() ?? '';
+  return agentMxid.isNotEmpty ? agentMxid : fallbackMxid.trim();
+}
+
+Set<String> _knownAgentReplyEventIdsForRoom(Room room, Timeline? timeline) {
+  final agentMxid = portalAgentMxidForClient(room.client);
+  if ((agentMxid ?? '').trim().isEmpty) return const <String>{};
+  return _agentReplyEventIds(
+    timelineEventsIncludingRoomLastEvent(room, timeline),
+    agentMxid,
+  );
 }
 
 bool _conversationSummaryHasCachedMessage(
@@ -476,6 +508,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Timer? _callHistoryFastReloadTimer;
   Timer? _callHistorySlowReloadTimer;
   DateTime? _agentThinkingSince;
+  Set<String> _agentThinkingKnownReplyEventIds = const <String>{};
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
   AppLocalizations? get _l10n =>
@@ -1300,7 +1333,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       if (isAgent) {
         if (!agentIsOffline && mounted) {
-          setState(() => _agentThinkingSince = DateTime.now());
+          final knownReplyEventIds =
+              _knownAgentReplyEventIdsForRoom(room, _timeline);
+          setState(() {
+            _agentThinkingSince = DateTime.now();
+            _agentThinkingKnownReplyEventIds = knownReplyEventIds;
+          });
           _scheduleViewportScrollToBottom();
         } else {
           ref
@@ -1327,6 +1365,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (isAgent && mounted) {
         setState(() {
           _agentThinkingSince = null;
+          _agentThinkingKnownReplyEventIds = const <String>{};
         });
         if (agentIsOffline) {
           ref
@@ -3018,11 +3057,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     final agentThinkingSince = _agentThinkingSince;
+    final agentReplyMxid = isAgent ? _agentMxidForChatRoom(room, mxid) : mxid;
     final hasAgentReply = agentThinkingSince != null &&
-        _hasAgentReplyAfter(messageEvents, mxid, agentThinkingSince);
+        _hasAgentReplyAfter(
+          messageEvents,
+          agentReplyMxid,
+          agentThinkingSince,
+          _agentThinkingKnownReplyEventIds,
+        );
     if (isAgent && hasAgentReply) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _agentThinkingSince = null);
+        if (mounted) {
+          setState(() {
+            _agentThinkingSince = null;
+            _agentThinkingKnownReplyEventIds = const <String>{};
+          });
+        }
       });
     }
     final agentPresence =

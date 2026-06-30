@@ -282,6 +282,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             l10n?.channelSearchPrivateHint ?? '私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入',
       );
     }
+    final localChannels = ref.watch(asSyncCacheProvider).bootstrap?.channels ??
+        const <AsSyncRoomSummary>[];
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       itemCount: _results.length,
@@ -311,11 +313,37 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             ),
           ),
           onJoin: () => _join(channel),
+          hideJoinAction: _shouldHideJoinAction(channel, localChannels),
           l10n: l10n,
         );
       },
     );
   }
+}
+
+bool _shouldHideJoinAction(
+  AsChannel channel,
+  List<AsSyncRoomSummary> localChannels,
+) {
+  if (isAsChannelMemberJoined(channel.memberStatus)) return true;
+  if (channel.role.trim().toLowerCase() == asChannelRoleOwner) return true;
+  final channelId = channel.channelId.trim();
+  final roomId = channel.roomId.trim();
+  for (final localChannel in localChannels) {
+    final sameChannelId = channelId.isNotEmpty &&
+        localChannel.channelId.trim().isNotEmpty &&
+        localChannel.channelId.trim() == channelId;
+    final sameRoomId = roomId.isNotEmpty &&
+        localChannel.roomId.trim().isNotEmpty &&
+        localChannel.roomId.trim() == roomId;
+    if (!sameChannelId && !sameRoomId) continue;
+    if (localChannel.isOwned ||
+        localChannel.role.trim().toLowerCase() == asChannelRoleOwner ||
+        isAsChannelMemberJoined(localChannel.memberStatus)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 String _channelJoinWaitingText(BuildContext context, String status) {
@@ -435,12 +463,14 @@ class _ChannelSearchResultTile extends StatelessWidget {
     required this.channel,
     required this.onTap,
     required this.onJoin,
+    required this.hideJoinAction,
     required this.l10n,
   });
 
   final AsChannel channel;
   final VoidCallback onTap;
   final VoidCallback onJoin;
+  final bool hideJoinAction;
   final AppLocalizations? l10n;
 
   @override
@@ -495,18 +525,20 @@ class _ChannelSearchResultTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 34,
-                child: FilledButton.tonal(
-                  onPressed: joined || pending || approved ? null : onJoin,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: Size.zero,
+              if (!hideJoinAction) ...[
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 34,
+                  child: FilledButton.tonal(
+                    onPressed: joined || pending || approved ? null : onJoin,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: Size.zero,
+                    ),
+                    child: Text(buttonLabel),
                   ),
-                  child: Text(buttonLabel),
                 ),
-              ),
+              ],
             ],
           ),
         ),

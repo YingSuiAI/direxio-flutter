@@ -11,6 +11,7 @@ import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 
@@ -82,6 +83,197 @@ void main() {
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsWidgets);
+  });
+
+  testWidgets('channel search hides join action for owned public channels',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_owned',
+          roomId: '!ch_owned:p2p-im.com',
+          name: '我的公告',
+          description: '自己的频道',
+          role: asChannelRoleOwner,
+        ),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '我的公告');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(imPublicClient.lastName, '我的公告');
+    expect(find.text('p2p-im.com · 自己的频道'), findsOneWidget);
+    expect(find.text('申请加入'), findsNothing);
+    expect(find.text('加入'), findsNothing);
+  });
+
+  testWidgets('channel search hides join action for locally owned results',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_cached_owner',
+          roomId: '!ch_cached_owner:p2p-im.com',
+          name: '本地已有频道',
+          description: '目录未带角色',
+        ),
+      ];
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_cached_owner',
+          roomId: '!ch_cached_owner:p2p-im.com',
+          name: '本地已有频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '本地已有频道');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(imPublicClient.lastName, '本地已有频道');
+    expect(find.text('p2p-im.com · 目录未带角色'), findsOneWidget);
+    expect(find.text('申请加入'), findsNothing);
+    expect(find.text('加入'), findsNothing);
+  });
+
+  testWidgets('channel search hides join action for joined public channels',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_joined',
+          roomId: '!ch_joined:p2p-im.com',
+          name: '已加入频道',
+          description: '已经加入',
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '已加入频道');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(imPublicClient.lastName, '已加入频道');
+    expect(find.text('p2p-im.com · 已经加入'), findsOneWidget);
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('申请加入'), findsNothing);
+    expect(find.text('加入'), findsNothing);
+  });
+
+  testWidgets('channel search hides join action for locally joined results',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_cached_joined',
+          roomId: '!ch_cached_joined:p2p-im.com',
+          name: '本地加入频道',
+          description: '本地已经加入',
+        ),
+      ];
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_cached_joined',
+          roomId: '!ch_cached_joined:p2p-im.com',
+          name: '本地加入频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '本地加入频道');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(imPublicClient.lastName, '本地加入频道');
+    expect(find.text('p2p-im.com · 本地已经加入'), findsOneWidget);
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('申请加入'), findsNothing);
+    expect(find.text('加入'), findsNothing);
   });
 
   testWidgets('channel search result sits close to search field',
@@ -372,6 +564,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
     await tester.tap(find.text('申请加入'));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
@@ -628,6 +821,14 @@ class _ChannelSearchImPublicClient extends ImPublicClient {
 
   String? lastName;
   int callCount = 0;
+  List<ImPublicChannelListing> items = [
+    _publicChannelListing(
+      channelId: 'ch_product',
+      roomId: '!ch_product:p2p-im.com',
+      name: '产品公告',
+      description: '只发布重要产品更新',
+    ),
+  ];
 
   @override
   Future<ImPublicChannelPage> listChannels({
@@ -639,37 +840,48 @@ class _ChannelSearchImPublicClient extends ImPublicClient {
   }) async {
     callCount += 1;
     lastName = name;
-    return const ImPublicChannelPage(
-      items: [
-        ImPublicChannelListing(
-          id: 1,
-          channelDomain: 'https://p2p-im.com',
-          roomId: '!ch_product:p2p-im.com',
-          ownerDomain: 'p2p-im.com',
-          intro: '只发布重要产品更新',
-          channel: AsChannel(
-            channelId: 'ch_product',
-            roomId: '!ch_product:p2p-im.com',
-            homeDomain: 'p2p-im.com',
-            name: '产品公告',
-            description: '只发布重要产品更新',
-            visibility: asChannelVisibilityPublic,
-            joinPolicy: asChannelJoinPolicyApproval,
-            commentsEnabled: true,
-          ),
-          tagId: 0,
-          tag: null,
-          status: 1,
-          syncStatus: 0,
-          failureCount: 0,
-          reportCount: 0,
-          joinCount: 0,
-          lastJoinTime: null,
-        ),
-      ],
+    return ImPublicChannelPage(
+      items: items,
       total: 1,
       page: 1,
       pageSize: 10,
     );
   }
+}
+
+ImPublicChannelListing _publicChannelListing({
+  required String channelId,
+  required String roomId,
+  required String name,
+  required String description,
+  String role = '',
+  String memberStatus = '',
+}) {
+  return ImPublicChannelListing(
+    id: 1,
+    channelDomain: 'https://p2p-im.com',
+    roomId: roomId,
+    ownerDomain: 'p2p-im.com',
+    intro: description,
+    channel: AsChannel(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: 'p2p-im.com',
+      name: name,
+      description: description,
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyApproval,
+      commentsEnabled: true,
+      role: role,
+      memberStatus: memberStatus,
+    ),
+    tagId: 0,
+    tag: null,
+    status: 1,
+    syncStatus: 0,
+    failureCount: 0,
+    reportCount: 0,
+    joinCount: 0,
+    lastJoinTime: null,
+  );
 }

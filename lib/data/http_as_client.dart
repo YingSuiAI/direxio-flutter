@@ -2163,6 +2163,7 @@ class WsAsClient extends HttpAsClient {
 }
 
 bool _httpOnlyAction(String action) {
+  if (action.trim().startsWith('mcp.')) return true;
   return switch (action) {
     'portal.status' => true,
     'portal.password' => true,

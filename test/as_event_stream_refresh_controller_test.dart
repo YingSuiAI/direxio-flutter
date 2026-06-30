@@ -203,26 +203,48 @@ void main() {
   });
 
   test('lifecycle and focused room changes are forwarded', () async {
-    final lifecycle = <bool>[];
+    final lifecycle = <Map<String, Object?>>[];
     final focusedRooms = <String>[];
     final controller = AsEventStreamRefreshController(
       openEvents: ({int? since, String? lastEventId}) => const Stream.empty(),
       syncMatrixConversations: () async {},
       loadBootstrap: () async => _bootstrap(),
       onBootstrapLoaded: (_) {},
-      reportLifecycle: (foreground) async {
-        lifecycle.add(foreground);
+      reportLifecycle: (
+        foreground, {
+        String? appState,
+        bool hidden = false,
+        Map<String, bool> flags = const {},
+      }) async {
+        lifecycle.add({
+          'foreground': foreground,
+          'state': appState,
+          'hidden': hidden,
+          'flags': flags,
+        });
       },
       reportFocusedRoom: (roomId) async {
         focusedRooms.add(roomId);
       },
     );
 
-    await controller.reportLifecycle(foreground: true);
+    await controller.reportLifecycle(
+      foreground: false,
+      appState: 'hidden',
+      hidden: true,
+      flags: const {'hidden': true},
+    );
     await controller.reportFocusedRoom(' !room:example.com ');
     await controller.clearFocusedRoom();
 
-    expect(lifecycle, [true]);
+    expect(lifecycle, [
+      {
+        'foreground': false,
+        'state': 'hidden',
+        'hidden': true,
+        'flags': {'hidden': true},
+      }
+    ]);
     expect(focusedRooms, ['!room:example.com', '']);
   });
 

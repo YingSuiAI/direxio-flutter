@@ -19,7 +19,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Backend auth responses expose one `access_token`.
 - Startup/session P2P calls use `access_token` as bearer auth; logged-in product calls use a WS ticket created from that token.
 - Matrix Client-Server API calls use the same `access_token` through the Matrix SDK.
-- P2P product API clients must use a `/_p2p` base URI. After login, product methods send WS `client.request` frames to `GET /_p2p/ws`; HTTP `/_p2p/query` and `/_p2p/command` are retained only for portal bootstrap/auth/status/password and `realtime.ws_ticket.create`.
+- P2P product API clients must use a `/_p2p` base URI. After login, non-MCP product methods send WS `client.request` frames to `GET /_p2p/ws`; HTTP `/_p2p/query` and `/_p2p/command` are retained for portal bootstrap/auth/status/password, `realtime.ws_ticket.create`, fixed `mcp.*` actions, and node-to-node public/callback actions.
 - Matrix access tokens are never a fallback credential for P2P product API calls.
 - After `portal.password` succeeds, persist the new login password and new P2P bearer token before any Matrix or P2P follow-up request can refresh authentication.
 - When login or password changes rotate the bearer token, delayed Matrix or P2P `M_UNKNOWN_TOKEN` responses from the previous token must not expire a session that has already applied the newer token.
@@ -28,7 +28,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 
 ## P2P Product API Responsibilities
 
-- Logged-in product requests use WS `client.request` frames with an `action` and `params` body. HTTP `POST /_p2p/query` or `POST /_p2p/command` are retained for startup/session actions and WS ticket creation.
+- Logged-in non-MCP product requests use WS `client.request` frames with an `action` and `params` body. HTTP `POST /_p2p/query` or `POST /_p2p/command` are retained for startup/session actions, WS ticket creation, fixed `mcp.*` actions, and node-to-node public/callback actions.
 - Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.password`.
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Conversation actions: `conversations.list`, `conversations.get`.
@@ -71,12 +71,15 @@ This document records the current P2P product API / Matrix boundary used by the 
   `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
   delete, and redaction remain Matrix Client-Server responsibilities.
 - Foreground/background and current-room push context use WS frames:
-  `client.lifecycle` reports resumed/background state, `client.focus` reports
-  the currently opened room, and `client.ack` reports the latest handled event
-  sequence. Logged-in clients still write Matrix global account data
-  `io.direxio.push.context` every 30 seconds as a migration fallback. The
-  backend stamps session/account-data freshness with server time; the client
-  must not send expiry timestamps.
+  `client.lifecycle` reports foreground plus optional `state`, `hidden`, and
+  `flags`; `client.focus` reports the currently opened room plus optional
+  `focused` and `flags`; `client.ack` reports the latest handled event
+  sequence. A foreground, non-hidden, same-room WS session suppresses push;
+  background, hidden, disconnected, expired, no-focus, or different-room state
+  keeps normal push behavior. Logged-in clients still write Matrix global
+  account data `io.direxio.push.context` every 30 seconds as a migration
+  fallback. The backend stamps session/account-data freshness with server time;
+  the client must not send expiry timestamps.
 - Channel post/comment list actions currently do not have a documented
   cursor/page contract. Client method signatures may keep local progressive
   loading parameters, but the HTTP client must not send uncontracted
@@ -102,7 +105,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Message search via Matrix search.
 - Local delete/clear through the Matrix `io.direxio` local visibility endpoint.
 - Read markers and sync via Matrix `/sync`.
-- Foreground/background and current-room push context via WS, with
+- Foreground/background/hidden/current-room push context via WS, with
   `io.direxio.push.context` retained as fallback.
 
 ## Bootstrap Privacy

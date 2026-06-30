@@ -28,7 +28,12 @@ typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
 typedef AsEventSeqRead = Future<int> Function();
 typedef AsEventSeqWrite = Future<void> Function(int seq);
 typedef AsEventSeqAck = Future<void> Function(int seq);
-typedef AsLifecycleReport = Future<void> Function(bool foreground);
+typedef AsLifecycleReport = Future<void> Function(
+  bool foreground, {
+  String? appState,
+  required bool hidden,
+  required Map<String, bool> flags,
+});
 typedef AsFocusedRoomReport = Future<void> Function(String roomId);
 typedef AsReadMarkerReport = Future<void> Function(
   String roomId,
@@ -156,7 +161,8 @@ class AsEventStreamRefreshController {
         _clearProductCache = clearProductCache ?? (() async {}),
         _applyProductEvent = applyProductEvent,
         _onCallChanged = onCallChanged,
-        _reportLifecycle = reportLifecycle ?? ((_) async {}),
+        _reportLifecycle = reportLifecycle ??
+            ((_, {appState, required hidden, required flags}) async {}),
         _reportFocusedRoom = reportFocusedRoom ?? ((_) async {}),
         _updateReadMarker = updateReadMarker ?? _noopReadMarkerReport,
         _onError = onError,
@@ -190,8 +196,18 @@ class AsEventStreamRefreshController {
 
   int get lastSeq => _lastSeq;
 
-  Future<void> reportLifecycle({required bool foreground}) {
-    return _reportLifecycle(foreground);
+  Future<void> reportLifecycle({
+    required bool foreground,
+    String? appState,
+    bool hidden = false,
+    Map<String, bool> flags = const {},
+  }) {
+    return _reportLifecycle(
+      foreground,
+      appState: appState,
+      hidden: hidden,
+      flags: flags,
+    );
   }
 
   Future<void> reportFocusedRoom(String roomId) {

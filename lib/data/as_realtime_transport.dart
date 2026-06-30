@@ -43,7 +43,12 @@ abstract class AsRealtimeTransport {
     String channelId = '',
   });
 
-  Future<void> reportLifecycle(bool foreground);
+  Future<void> reportLifecycle(
+    bool foreground, {
+    String? appState,
+    bool hidden = false,
+    Map<String, bool> flags = const {},
+  });
 
   Future<void> reportFocusedRoom(String roomId);
 
@@ -78,6 +83,9 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
   WebSocketChannel? _channel;
   bool _closed = false;
   bool? _foreground;
+  String? _appState;
+  bool _hidden = false;
+  Map<String, bool> _lifecycleFlags = const {};
   String? _focusedRoomId;
   int _latestSeq = 0;
   int _nextRequestId = 0;
@@ -144,13 +152,10 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
       'type': 'client.hello',
       if (since > 0) 'since': since,
     });
-    _sendFrame({
-      'type': 'client.lifecycle',
-      'foreground': _foreground ?? true,
-    });
+    _sendFrame(_lifecycleFrame());
     final focusedRoomId = _focusedRoomId;
     if (focusedRoomId != null) {
-      _sendFrame({'type': 'client.focus', 'room_id': focusedRoomId});
+      _sendFrame(_focusFrame(focusedRoomId));
     }
     return channel;
   }
@@ -214,15 +219,28 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
   }
 
   @override
-  Future<void> reportLifecycle(bool foreground) async {
+  Future<void> reportLifecycle(
+    bool foreground, {
+    String? appState,
+    bool hidden = false,
+    Map<String, bool> flags = const {},
+  }) async {
     _foreground = foreground;
-    _sendFrame({'type': 'client.lifecycle', 'foreground': foreground});
+    _appState = appState?.trim();
+    _hidden = hidden;
+    _lifecycleFlags = Map<String, bool>.unmodifiable({
+      ...flags,
+      'foreground': foreground,
+      'background': !foreground,
+      'hidden': hidden,
+    });
+    _sendFrame(_lifecycleFrame());
   }
 
   @override
   Future<void> reportFocusedRoom(String roomId) async {
     _focusedRoomId = roomId.trim();
-    _sendFrame({'type': 'client.focus', 'room_id': _focusedRoomId});
+    _sendFrame(_focusFrame(_focusedRoomId ?? ''));
   }
 
   @override
@@ -300,16 +318,10 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     try {
       await channel.ready;
       channel.sink.add(jsonEncode({'type': 'client.hello'}));
-      channel.sink.add(jsonEncode({
-        'type': 'client.lifecycle',
-        'foreground': _foreground ?? true,
-      }));
+      channel.sink.add(jsonEncode(_lifecycleFrame()));
       final focusedRoomId = _focusedRoomId;
       if (focusedRoomId != null) {
-        channel.sink.add(jsonEncode({
-          'type': 'client.focus',
-          'room_id': focusedRoomId,
-        }));
+        channel.sink.add(jsonEncode(_focusFrame(focusedRoomId)));
       }
       final requestId = 'req-${++_nextRequestId}';
       channel.sink.add(jsonEncode({
@@ -393,6 +405,35 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     _channel = null;
     _failPendingRequests(AsClientException('WS realtime is closed'));
     await channel?.sink.close();
+  }
+
+  Map<String, Object?> _lifecycleFrame() {
+    final foreground = _foreground ?? true;
+    final appState = _appState;
+    final hidden = _hidden;
+    final flags = <String, bool>{
+      ..._lifecycleFlags,
+      'foreground': foreground,
+      'background': !foreground,
+      'hidden': hidden,
+    };
+    return {
+      'type': 'client.lifecycle',
+      'foreground': foreground,
+      if (appState != null && appState.isNotEmpty) 'state': appState,
+      'hidden': hidden,
+      'flags': flags,
+    };
+  }
+
+  Map<String, Object?> _focusFrame(String roomId) {
+    final focused = roomId.trim().isNotEmpty;
+    return {
+      'type': 'client.focus',
+      'room_id': roomId.trim(),
+      'focused': focused,
+      'flags': {'focused': focused},
+    };
   }
 }
 

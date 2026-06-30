@@ -16,9 +16,17 @@ final direxioPushContextLifecycleProvider = Provider<void>((ref) {
   );
   final lifecycle = _DirexioPushContextLifecycle(
     reporter,
-    reportRealtimeLifecycle: (foreground) async {
+    reportRealtimeLifecycle: (
+      foreground, {
+      required String appState,
+      required bool hidden,
+      required Map<String, bool> flags,
+    }) async {
       await ref.read(asEventStreamRefreshProvider)?.reportLifecycle(
             foreground: foreground,
+            appState: appState,
+            hidden: hidden,
+            flags: flags,
           );
     },
   );
@@ -38,11 +46,21 @@ final direxioPushContextLifecycleProvider = Provider<void>((ref) {
 class _DirexioPushContextLifecycle with WidgetsBindingObserver {
   _DirexioPushContextLifecycle(
     this._reporter, {
-    Future<void> Function(bool foreground)? reportRealtimeLifecycle,
+    Future<void> Function(
+      bool foreground, {
+      required String appState,
+      required bool hidden,
+      required Map<String, bool> flags,
+    })? reportRealtimeLifecycle,
   }) : _reportRealtimeLifecycle = reportRealtimeLifecycle;
 
   final DirexioPushContextReporter _reporter;
-  final Future<void> Function(bool foreground)? _reportRealtimeLifecycle;
+  final Future<void> Function(
+    bool foreground, {
+    required String appState,
+    required bool hidden,
+    required Map<String, bool> flags,
+  })? _reportRealtimeLifecycle;
 
   bool _loggedIn = false;
   AppLifecycleState? _state = SchedulerBinding.instance.lifecycleState;
@@ -72,7 +90,21 @@ class _DirexioPushContextLifecycle with WidgetsBindingObserver {
         ? _reporter.enterForeground()
         : _reporter.enterBackground();
     unawaited(report);
+    final stateName = _state?.name ?? 'resumed';
     final foreground = _state == null || _state == AppLifecycleState.resumed;
-    unawaited(_reportRealtimeLifecycle?.call(foreground));
+    final hidden = stateName == 'hidden';
+    unawaited(_reportRealtimeLifecycle?.call(
+      foreground,
+      appState: stateName,
+      hidden: hidden,
+      flags: {
+        'resumed': stateName == 'resumed',
+        'inactive': stateName == 'inactive',
+        'paused': stateName == 'paused',
+        'detached': stateName == 'detached',
+        'hidden': hidden,
+        'background': !foreground,
+      },
+    ));
   }
 }

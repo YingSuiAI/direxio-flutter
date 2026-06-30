@@ -23,17 +23,21 @@ void main() {
         'wss://node.example/_p2p/ws?ticket=ticket-1');
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 8});
-    expect(await server.takeClientFrame(),
-        {'type': 'client.lifecycle', 'foreground': true});
+    expect(await server.takeClientFrame(), _lifecycleFrame());
 
-    await transport.reportLifecycle(true);
+    await transport.reportLifecycle(
+      true,
+      appState: 'resumed',
+      flags: const {'resumed': true},
+    );
     await transport.reportFocusedRoom(' !room:example.com ');
     await transport.ackEventSeq(9);
 
-    expect(await server.takeClientFrame(),
-        {'type': 'client.lifecycle', 'foreground': true});
-    expect(await server.takeClientFrame(),
-        {'type': 'client.focus', 'room_id': '!room:example.com'});
+    expect(
+      await server.takeClientFrame(),
+      _lifecycleFrame(appState: 'resumed', flags: const {'resumed': true}),
+    );
+    expect(await server.takeClientFrame(), _focusFrame('!room:example.com'));
     expect(await server.takeClientFrame(), {'type': 'client.ack', 'seq': 9});
 
     final readMarkerFuture = transport.updateReadMarker(
@@ -131,8 +135,7 @@ void main() {
     );
     await server.waitForConnection();
     expect(await server.takeClientFrame(), {'type': 'client.hello'});
-    expect(await server.takeClientFrame(),
-        {'type': 'client.lifecycle', 'foreground': true});
+    expect(await server.takeClientFrame(), _lifecycleFrame());
     expect(await server.takeClientFrame(), {
       'type': 'client.request',
       'id': 'req-1',
@@ -169,7 +172,12 @@ void main() {
     await server.waitForConnection();
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 1});
-    await transport.reportLifecycle(true);
+    await transport.reportLifecycle(
+      false,
+      appState: 'hidden',
+      hidden: true,
+      flags: const {'hidden': true, 'background': true},
+    );
     await transport.reportFocusedRoom('!focused:localhost');
     server.sendServerFrame({
       'type': 'server.event',
@@ -184,10 +192,16 @@ void main() {
         'ws://localhost:8448/_p2p/ws?ticket=ticket-2');
     expect(
         await server.takeClientFrame(), {'type': 'client.hello', 'since': 2});
-    expect(await server.takeClientFrame(),
-        {'type': 'client.lifecycle', 'foreground': true});
-    expect(await server.takeClientFrame(),
-        {'type': 'client.focus', 'room_id': '!focused:localhost'});
+    expect(
+      await server.takeClientFrame(),
+      _lifecycleFrame(
+        foreground: false,
+        appState: 'hidden',
+        hidden: true,
+        flags: const {'hidden': true, 'background': true},
+      ),
+    );
+    expect(await server.takeClientFrame(), _focusFrame('!focused:localhost'));
 
     await sub.cancel().timeout(const Duration(seconds: 2));
     await transport.close();
@@ -275,6 +289,36 @@ class _FakeWebSocketServer {
   }
 
   Future<void> closeActive() => _connections.last.close();
+}
+
+Map<String, Object?> _lifecycleFrame({
+  bool foreground = true,
+  String? appState,
+  bool hidden = false,
+  Map<String, bool> flags = const {},
+}) {
+  return {
+    'type': 'client.lifecycle',
+    'foreground': foreground,
+    if (appState != null) 'state': appState,
+    'hidden': hidden,
+    'flags': {
+      ...flags,
+      'foreground': foreground,
+      'background': !foreground,
+      'hidden': hidden,
+    },
+  };
+}
+
+Map<String, Object?> _focusFrame(String roomId) {
+  final focused = roomId.trim().isNotEmpty;
+  return {
+    'type': 'client.focus',
+    'room_id': roomId.trim(),
+    'focused': focused,
+    'flags': {'focused': focused},
+  };
 }
 
 class _FakeWebSocketChannel implements WebSocketChannel {

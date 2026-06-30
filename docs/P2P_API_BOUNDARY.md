@@ -70,6 +70,12 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Foreground Matrix refreshes use `/sync` filters with a low timeline limit and
   `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
   delete, and redaction remain Matrix Client-Server responsibilities.
+- Foreground/background push context uses Matrix global account data type
+  `io.direxio.push.context`. Logged-in clients write `{"foreground": true}`
+  immediately on `resumed` and every 30 seconds, and write
+  `{"foreground": false}` for non-resumed lifecycle states. The backend stamps
+  foreground writes with a server-clock 60-second expiry; the client must not
+  send expiry timestamps or model this as a P2P action.
 - Channel post/comment list actions currently do not have a documented
   cursor/page contract. Client method signatures may keep local progressive
   loading parameters, but the HTTP client must not send uncontracted
@@ -95,6 +101,8 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Message search via Matrix search.
 - Local delete/clear through the Matrix `io.direxio` local visibility endpoint.
 - Read markers and sync via Matrix `/sync`.
+- Foreground/background push context via global account data
+  `io.direxio.push.context`.
 
 ## Bootstrap Privacy
 

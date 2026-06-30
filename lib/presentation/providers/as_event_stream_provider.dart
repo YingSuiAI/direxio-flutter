@@ -32,6 +32,21 @@ typedef AsEventSeqWrite = Future<void> Function(int seq);
 typedef AsEventSeqAck = Future<void> Function(int seq);
 typedef AsLifecycleReport = Future<void> Function(bool foreground);
 typedef AsFocusedRoomReport = Future<void> Function(String roomId);
+typedef AsReadMarkerReport = Future<void> Function(
+  String roomId,
+  String eventId,
+  int originServerTs,
+  String action,
+  String channelId,
+);
+
+Future<void> _noopReadMarkerReport(
+  String roomId,
+  String eventId,
+  int originServerTs,
+  String action,
+  String channelId,
+) async {}
 typedef ProductCacheClear = Future<void> Function();
 typedef AsProductEventApply = FutureOr<AsProductEventHandling> Function(
   AsEventStreamEvent event,
@@ -94,6 +109,15 @@ final asEventStreamRefreshProvider =
     },
     reportLifecycle: realtimeTransport.reportLifecycle,
     reportFocusedRoom: realtimeTransport.reportFocusedRoom,
+    updateReadMarker: (roomId, eventId, originServerTs, action, channelId) {
+      return realtimeTransport.updateReadMarker(
+        roomId: roomId,
+        eventId: eventId,
+        originServerTs: originServerTs,
+        action: action,
+        channelId: channelId,
+      );
+    },
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');
     },
@@ -131,6 +155,7 @@ class AsEventStreamRefreshController {
     AsCallChanged? onCallChanged,
     AsLifecycleReport? reportLifecycle,
     AsFocusedRoomReport? reportFocusedRoom,
+    AsReadMarkerReport? updateReadMarker,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -146,6 +171,7 @@ class AsEventStreamRefreshController {
         _onCallChanged = onCallChanged,
         _reportLifecycle = reportLifecycle ?? ((_) async {}),
         _reportFocusedRoom = reportFocusedRoom ?? ((_) async {}),
+        _updateReadMarker = updateReadMarker ?? _noopReadMarkerReport,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -162,6 +188,7 @@ class AsEventStreamRefreshController {
   final AsCallChanged? _onCallChanged;
   final AsLifecycleReport _reportLifecycle;
   final AsFocusedRoomReport _reportFocusedRoom;
+  final AsReadMarkerReport _updateReadMarker;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -186,6 +213,22 @@ class AsEventStreamRefreshController {
 
   Future<void> clearFocusedRoom() {
     return _reportFocusedRoom('');
+  }
+
+  Future<void> updateReadMarker(
+    String roomId,
+    String eventId, {
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) {
+    return _updateReadMarker(
+      roomId,
+      eventId,
+      originServerTs,
+      action,
+      channelId,
+    );
   }
 
   void start() {
@@ -244,6 +287,14 @@ class AsEventStreamRefreshController {
   Future<void> _handleEventAsync(AsEventStreamEvent event) async {
     if (_isCursorResetEvent(event)) {
       await _handleCursorReset(event);
+      return;
+    }
+    if (event.type == 'agent.stream') {
+      try {
+        await _applyProductEvent?.call(event);
+      } catch (error, stackTrace) {
+        _onError?.call(error, stackTrace);
+      }
       return;
     }
     if (event.seq > 0 && event.seq <= _lastSeq) return;
@@ -381,6 +432,7 @@ Future<AsProductEventHandling> _applyProductEvent(
     case 'room.member_policy.projected':
     case 'channel.join_request.changed':
     case 'agent_room.message':
+    case 'agent.stream':
       ref.invalidate(productConversationsProvider);
       return AsProductEventHandling.handled;
     default:

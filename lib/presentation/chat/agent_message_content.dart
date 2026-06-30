@@ -261,12 +261,22 @@ AgentMessageContent _contentFromStreamFragments<T extends Object>(
   for (final fragment in ordered) {
     final content = fragment.content;
     final stream = _streamMap(content);
+    final done = _boolFromAny(stream?['done']) ||
+        _boolFromAny(stream?['complete']) ||
+        _boolFromAny(content['done']) ||
+        _boolFromAny(content['complete']);
     final mode = _firstString([
       stream?['body_mode'],
       stream?['mode'],
       content['body_mode'],
       content['mode'],
     ]).trim();
+    final finalText = _firstString([
+      stream?['final_body'],
+      content['final_body'],
+      if (done) stream?['body'],
+      if (done) content['body'],
+    ]);
     final text = _firstString([
       stream?['delta'],
       stream?['text_delta'],
@@ -275,24 +285,29 @@ AgentMessageContent _contentFromStreamFragments<T extends Object>(
       if (mode == 'replace') stream?['body'],
       if (mode == 'replace') content['body'],
     ]);
-    if (mode == 'replace' || _boolFromAny(stream?['replace'])) {
+    if (done && finalText.trim().isNotEmpty) {
+      buffer
+        ..clear()
+        ..write(finalText);
+    } else if (mode == 'replace' || _boolFromAny(stream?['replace'])) {
       buffer
         ..clear()
         ..write(text);
     } else {
       buffer.write(text);
     }
-    if (_boolFromAny(stream?['done']) ||
-        _boolFromAny(stream?['complete']) ||
-        _boolFromAny(content['done']) ||
-        _boolFromAny(content['complete'])) {
+    if (done) {
       generating = false;
     }
     final parsed = agentMessageContentFromMatrixContent(
       content,
       fallbackBody: fallbackBody,
     );
-    if (parsed.cards.isNotEmpty) cards = parsed.cards;
+    if (done) {
+      cards = parsed.cards;
+    } else if (parsed.cards.isNotEmpty) {
+      cards = parsed.cards;
+    }
   }
 
   final markdown = buffer.toString().trim().isNotEmpty

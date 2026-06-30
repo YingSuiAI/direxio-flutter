@@ -21,6 +21,7 @@ import '../../data/matrix_room_history_sync.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
@@ -73,6 +74,7 @@ import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/read_marker_sync.dart';
 import '../utils/chat_file_actions.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
@@ -1529,6 +1531,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       ).markCurrentTimelineRead(
         timeline: timeline,
         asClient: ref.read(asClientProvider),
+        syncReadMarker: _syncReadMarkerForEvent,
         onUnreadCleared: (readAt) {
           if (!mounted) return;
           ref.read(asSyncCacheProvider.notifier).update(
@@ -1544,6 +1547,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         unawaited(_markCurrentTimelineRead());
       }
     }
+  }
+
+  Future<void> _syncReadMarkerForEvent({
+    required Room room,
+    required Event event,
+  }) async {
+    final realtime = ref.read(asEventStreamRefreshProvider);
+    if (realtime != null) {
+      try {
+        await realtime.updateReadMarker(
+          room.id,
+          event.eventId,
+          originServerTs: event.originServerTs.toUtc().millisecondsSinceEpoch,
+        );
+        return;
+      } on Object catch (e) {
+        debugPrint('group WS read marker sync failed: $e');
+      }
+    }
+    await updateAsReadMarkerForEvent(
+      asClient: ref.read(asClientProvider),
+      room: room,
+      event: event,
+    );
   }
 
   _GroupQuotedMessagePreview? _replyPreviewForEvent(

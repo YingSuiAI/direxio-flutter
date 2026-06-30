@@ -10,6 +10,11 @@ import '../utils/read_marker_sync.dart';
 import '../utils/message_history_policy.dart';
 import '../utils/room_read_state.dart';
 
+typedef ChatReadMarkerSync = Future<void> Function({
+  required Room room,
+  required Event event,
+});
+
 class ChatTimelineController {
   const ChatTimelineController({
     required this.room,
@@ -153,6 +158,7 @@ class ChatTimelineController {
     required Timeline? timeline,
     required AsClient asClient,
     required void Function(DateTime readAt) onUnreadCleared,
+    ChatReadMarkerSync? syncReadMarker,
   }) async {
     final markerEvent =
         timeline == null ? null : latestSyncedMessageEvent(timeline);
@@ -164,8 +170,14 @@ class ChatTimelineController {
     try {
       await timeline.setReadMarker(eventId: markerEvent?.eventId);
       if (markerEvent != null) {
-        unawaited(updateAsReadMarkerForEvent(
-          asClient: asClient,
+        final sync = syncReadMarker ??
+            ({required Room room, required Event event}) =>
+                updateAsReadMarkerForEvent(
+                  asClient: asClient,
+                  room: room,
+                  event: event,
+                );
+        unawaited(sync(
           room: room,
           event: markerEvent,
         ).then((_) => onUnreadCleared(markerEvent.originServerTs)).catchError(

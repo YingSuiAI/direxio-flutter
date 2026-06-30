@@ -36,6 +36,28 @@ void main() {
         {'type': 'client.focus', 'room_id': '!room:example.com'});
     expect(await server.takeClientFrame(), {'type': 'client.ack', 'seq': 9});
 
+    final readMarkerFuture = transport.updateReadMarker(
+      roomId: ' !room:example.com ',
+      eventId: r'$event',
+      originServerTs: 1710000000000,
+    );
+    expect(await server.takeClientFrame(), {
+      'type': 'client.command',
+      'id': 'cmd-1',
+      'action': 'sync.read_marker',
+      'params': {
+        'room_id': '!room:example.com',
+        'event_id': r'$event',
+        'origin_server_ts': 1710000000000,
+      },
+    });
+    server.sendServerFrame({
+      'type': 'server.command_result',
+      'id': 'cmd-1',
+      'result': {'status': 'ok'},
+    });
+    await readMarkerFuture;
+
     server.sendServerFrame({
       'type': 'server.event',
       'event': {
@@ -53,6 +75,59 @@ void main() {
 
     await sub.cancel().timeout(const Duration(seconds: 2));
     await transport.close();
+  });
+
+  test('WS transport maps agent stream frames into realtime events', () async {
+    final server = _FakeWebSocketServer();
+    final transport = WsAsRealtimeTransport(
+      baseUri: Uri.parse('https://node.example/_p2p'),
+      createTicket: () async => const AsRealtimeWSTicket(ticket: 'ticket-1'),
+      connect: server.connect,
+      reconnectDelays: const [Duration.zero],
+    );
+
+    final events = <AsEventStreamEvent>[];
+    final sub = transport.streamEvents().listen(events.add);
+    await server.waitForConnection();
+    await server.takeClientFrame();
+    await server.takeClientFrame();
+
+    server.sendServerFrame({
+      'type': 'server.agent_stream',
+      'room_id': '!agent:example.com',
+      'stream_id': 'turn-1',
+      'seq': 1,
+      'delta': 'Hello',
+      'done': false,
+      'created_at': '2026-06-30T00:00:00Z',
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, hasLength(1));
+    expect(events.single.type, 'agent.stream');
+    expect(events.single.roomId, '!agent:example.com');
+    expect(events.single.payload['stream_id'], 'turn-1');
+    expect(events.single.payload['delta'], 'Hello');
+
+    await sub.cancel().timeout(const Duration(seconds: 2));
+    await transport.close();
+  });
+
+  test('WS transport fails read marker command when not connected', () async {
+    final transport = WsAsRealtimeTransport(
+      baseUri: Uri.parse('https://node.example/_p2p'),
+      createTicket: () async => const AsRealtimeWSTicket(ticket: 'ticket-1'),
+      reconnectDelays: const [Duration.zero],
+    );
+
+    await expectLater(
+      transport.updateReadMarker(
+        roomId: '!room:example.com',
+        eventId: r'$event',
+        originServerTs: 1710000000000,
+      ),
+      throwsA(isA<AsClientException>()),
+    );
   });
 
   test('WS transport reconnects with latest seq and replays state', () async {
@@ -110,6 +185,22 @@ void main() {
     final events = await transport.streamEvents(since: 4).toList();
 
     expect(events.single.seq, 5);
+  });
+
+  test('fallback transport propagates read marker command failures', () async {
+    final transport = FallbackAsRealtimeTransport(
+      primary: _FailingTransport(),
+      fallback: _StaticTransport(const Stream.empty()),
+    );
+
+    await expectLater(
+      transport.updateReadMarker(
+        roomId: '!room:example.com',
+        eventId: r'$event',
+        originServerTs: 1710000000000,
+      ),
+      throwsStateError,
+    );
   });
 }
 
@@ -248,6 +339,17 @@ class _FailingTransport implements AsRealtimeTransport {
 
   @override
   Future<void> reportLifecycle(bool foreground) async {}
+
+  @override
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) async {
+    throw StateError('ws command failed');
+  }
 }
 
 class _StaticTransport implements AsRealtimeTransport {
@@ -271,4 +373,13 @@ class _StaticTransport implements AsRealtimeTransport {
 
   @override
   Future<void> reportLifecycle(bool foreground) async {}
+
+  @override
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) async {}
 }

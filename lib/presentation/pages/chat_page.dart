@@ -14,6 +14,7 @@ import '../providers/agent_bridge_presence_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/agent_offline_reply_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
@@ -75,6 +76,7 @@ import '../utils/chat_time_format.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../utils/read_marker_sync.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/agent_message_body.dart';
@@ -1193,6 +1195,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ).markCurrentTimelineRead(
         timeline: timeline,
         asClient: ref.read(asClientProvider),
+        syncReadMarker: _syncReadMarkerForEvent,
         onUnreadCleared: (readAt) {
           if (!mounted) return;
           ref.read(asSyncCacheProvider.notifier).update(
@@ -1208,6 +1211,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         unawaited(_markCurrentTimelineRead());
       }
     }
+  }
+
+  Future<void> _syncReadMarkerForEvent({
+    required Room room,
+    required Event event,
+  }) async {
+    final realtime = ref.read(asEventStreamRefreshProvider);
+    if (realtime != null) {
+      try {
+        await realtime.updateReadMarker(
+          room.id,
+          event.eventId,
+          originServerTs: event.originServerTs.toUtc().millisecondsSinceEpoch,
+        );
+        return;
+      } on Object catch (e) {
+        debugPrint('private WS read marker sync failed: $e');
+      }
+    }
+    await updateAsReadMarkerForEvent(
+      asClient: ref.read(asClientProvider),
+      room: room,
+      event: event,
+    );
   }
 
   @override

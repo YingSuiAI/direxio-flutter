@@ -156,6 +156,69 @@ void main() {
     expect(content.isGenerating, isFalse);
   });
 
+  test('agent stream final body replaces earlier fragment cards', () {
+    final projection = projectAgentMessageEvents<_FakeAgentEvent>(
+      [
+        const _FakeAgentEvent(
+          id: r'$chunk1',
+          timestampMs: 1,
+          content: {
+            'msgtype': 'm.text',
+            'body': 'thinking chunk',
+            'io.direxio.agent_stream': {
+              'stream_id': 'turn-3',
+              'delta': 'thinking chunk',
+              'seq': 1,
+              'done': false,
+            },
+          },
+        ),
+        const _FakeAgentEvent(
+          id: r'$chunk2',
+          timestampMs: 2,
+          content: {
+            'msgtype': 'm.text',
+            'body': 'intermediate chunk',
+            'io.direxio.agent_stream': {
+              'stream_id': 'turn-3',
+              'delta': ' intermediate',
+              'seq': 2,
+              'done': false,
+            },
+            'io.direxio.agent_card': {
+              'header': {'title': 'Intermediate'},
+            },
+          },
+        ),
+        const _FakeAgentEvent(
+          id: r'$final',
+          timestampMs: 3,
+          content: {
+            'msgtype': 'm.text',
+            'body': 'final answer only',
+            'io.direxio.agent_stream': {
+              'stream_id': 'turn-3',
+              'final_body': 'final answer only',
+              'seq': 3,
+              'done': true,
+            },
+          },
+        ),
+      ],
+      eventId: (event) => event.id,
+      content: (event) => event.content,
+      fallbackBody: (_) => '',
+      timestampMs: (event) => event.timestampMs,
+    );
+
+    expect(projection.visibleEvents.map((event) => event.id), [r'$chunk1']);
+    final content =
+        projection.contentForEvent(projection.visibleEvents.single)!;
+    expect(content.markdown, 'final answer only');
+    expect(content.cards, isEmpty);
+    expect(content.isGenerating, isFalse);
+  });
+
   test('agent card content renders structured fields and text fallback', () {
     final content = agentMessageContentFromMatrixContent(const {
       'msgtype': 'm.text',

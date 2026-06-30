@@ -29,6 +29,14 @@ class AsRealtimeWSTicket {
 abstract class AsRealtimeTransport {
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId});
 
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  });
+
   Future<void> reportLifecycle(bool foreground);
 
   Future<void> reportFocusedRoom(String roomId);
@@ -62,6 +70,15 @@ class SseAsRealtimeTransport implements AsRealtimeTransport {
 
   @override
   Future<void> reportLifecycle(bool foreground) async {}
+
+  @override
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) async {}
 }
 
 class FallbackAsRealtimeTransport implements AsRealtimeTransport {
@@ -115,6 +132,23 @@ class FallbackAsRealtimeTransport implements AsRealtimeTransport {
     await _primary.reportLifecycle(foreground);
     await _fallback.reportLifecycle(foreground);
   }
+
+  @override
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) async {
+    await _primary.updateReadMarker(
+      roomId: roomId,
+      eventId: eventId,
+      originServerTs: originServerTs,
+      action: action,
+      channelId: channelId,
+    );
+  }
 }
 
 class WsAsRealtimeTransport implements AsRealtimeTransport {
@@ -145,6 +179,8 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
   bool? _foreground;
   String? _focusedRoomId;
   int _latestSeq = 0;
+  int _nextCommandId = 0;
+  final Map<String, Completer<Map<String, dynamic>>> _pendingCommands = {};
 
   @override
   Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
@@ -178,8 +214,13 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
             if (event.seq > _latestSeq) _latestSeq = event.seq;
             controller.add(event);
           }
+          if (identical(_channel, channel)) {
+            _channel = null;
+          }
+          _failPendingCommands(AsClientException('WS connection closed'));
         } catch (_) {
           if (_closed) return;
+          _failPendingCommands(AsClientException('WS connection failed'));
           final delay = _reconnectDelay(failures++);
           if (delay > Duration.zero) {
             await Future<void>.delayed(delay);
@@ -242,6 +283,18 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
         final rawEvent = frame['event'];
         if (rawEvent is! Map) return null;
         return AsEventStreamEvent.fromJson(rawEvent.cast<String, dynamic>());
+      case 'server.agent_stream':
+        return AsEventStreamEvent(
+          seq: 0,
+          type: 'agent.stream',
+          roomId: frame['room_id']?.toString() ?? '',
+          payload: Map<String, dynamic>.from(frame),
+          createdAt: DateTime.tryParse(frame['created_at']?.toString() ?? ''),
+        );
+      case 'server.command_result':
+      case 'server.command_error':
+        _completeCommand(frame);
+        return null;
       case 'server.cursor_reset':
         return AsEventStreamEvent(
           seq: 0,
@@ -274,6 +327,67 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     _sendFrame({'type': 'client.ack', 'seq': seq});
   }
 
+  @override
+  Future<void> updateReadMarker({
+    required String roomId,
+    required String eventId,
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) async {
+    final trimmedRoomId = roomId.trim();
+    final trimmedEventId = eventId.trim();
+    if (trimmedRoomId.isEmpty || trimmedEventId.isEmpty) return;
+    if (_channel == null) {
+      throw AsClientException('WS realtime is not connected');
+    }
+    final commandId = 'cmd-${++_nextCommandId}';
+    final completer = Completer<Map<String, dynamic>>();
+    _pendingCommands[commandId] = completer;
+    _sendFrame({
+      'type': 'client.command',
+      'id': commandId,
+      'action': action,
+      'params': {
+        'room_id': trimmedRoomId,
+        'event_id': trimmedEventId,
+        'origin_server_ts': originServerTs,
+        if (channelId.trim().isNotEmpty) 'channel_id': channelId.trim(),
+      },
+    });
+    try {
+      final frame = await completer.future.timeout(const Duration(seconds: 5));
+      if (frame['type'] == 'server.command_error') {
+        throw AsClientException(
+          frame['error']?.toString() ?? 'WS command error',
+          statusCode: _parseInt(frame['status']),
+        );
+      }
+    } finally {
+      _pendingCommands.remove(commandId);
+    }
+  }
+
+  void _completeCommand(Map<String, dynamic> frame) {
+    final id = frame['id']?.toString() ?? '';
+    final completer = _pendingCommands[id];
+    if (completer == null || completer.isCompleted) return;
+    completer.complete(frame);
+  }
+
+  void _failPendingCommands(Object error) {
+    if (_pendingCommands.isEmpty) return;
+    final pending = List<Completer<Map<String, dynamic>>>.from(
+      _pendingCommands.values,
+    );
+    _pendingCommands.clear();
+    for (final completer in pending) {
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+    }
+  }
+
   void _sendFrame(Map<String, Object?> frame) {
     final channel = _channel;
     if (channel == null) return;
@@ -287,6 +401,7 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
     _closed = true;
     final channel = _channel;
     _channel = null;
+    _failPendingCommands(AsClientException('WS realtime is closed'));
     await channel?.sink.close();
   }
 }

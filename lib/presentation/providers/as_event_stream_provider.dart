@@ -59,11 +59,11 @@ enum AsProductEventHandling { handled, bootstrapRequired }
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
-  final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+  final auth = ref.watch(asClientSessionSnapshotProvider);
   final matrixClient = ref.watch(matrixClientProvider);
-  final hasMatrixSession = auth?.isLoggedIn == true &&
-      (matrixClient.accessToken?.trim().isNotEmpty ?? false);
-  if (auth?.hasUsablePortalSession != true && !hasMatrixSession) return null;
+  final hasMatrixSession =
+      auth.isLoggedIn && (matrixClient.accessToken?.trim().isNotEmpty ?? false);
+  if (!auth.hasUsablePortalSession && !hasMatrixSession) return null;
 
   final realtimeTransport = ref.watch(asRealtimeTransportProvider);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);

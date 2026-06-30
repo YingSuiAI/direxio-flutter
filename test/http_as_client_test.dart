@@ -1253,6 +1253,223 @@ void main() {
     expect(calls.single['params'], isEmpty);
   });
 
+  test('WsAsClient migrates representative product APIs to WS', () async {
+    final calls = <Map<String, Object?>>[];
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        calls.add({
+          'action': action,
+          'params': params,
+          'allowed': allowedStatusCodes,
+        });
+        return switch (action) {
+          'contacts.list' => {'contacts': []},
+          'groups.create' => {
+              'room_id': '!group:example.com',
+              'name': 'Team',
+              'member_count': 1,
+            },
+          'channels.read_marker' => {'status': 'ok'},
+          'favorites.list' => {'favorites': []},
+          'follows.list' => {'follows': []},
+          'calls.active' => {'calls': []},
+          _ => <String, Object?>{},
+        };
+      },
+      httpClient: MockClient((request) async {
+        fail('logged-in product action should not use HTTP: ${request.url}');
+      }),
+    );
+
+    await client.listContacts();
+    await client.createGroup(name: 'Team', invite: const []);
+    await client.updateChannelReadMarker(
+      'channel-1',
+      eventId: r'$event',
+      originServerTs: 1710000000000,
+    );
+    await client.getFavorites();
+    await client.getFollows();
+    await client.getActiveCalls();
+
+    expect(
+      calls.map((call) => call['action']),
+      [
+        'contacts.list',
+        'groups.create',
+        'channels.read_marker',
+        'favorites.list',
+        'follows.list',
+        'calls.active',
+      ],
+    );
+    expect(calls[1]['params'], {
+      'name': 'Team',
+      'invite': <String>[],
+    });
+    expect(calls[2]['params'], {
+      'channel_id': 'channel-1',
+      'event_id': r'$event',
+      'origin_server_ts': 1710000000000,
+    });
+  });
+
+  test('product route mapping covers current WS migration surface', () {
+    final cases = <({String method, String path}), String>{
+      (method: 'GET', path: 'agents/get-password'): 'agent.password',
+      (method: 'GET', path: 'agent/config'): 'agent.config.get',
+      (method: 'PUT', path: 'agent/config'): 'agent.config.update',
+      (method: 'GET', path: 'follows'): 'follows.list',
+      (method: 'POST', path: 'follows'): 'follows.add',
+      (method: 'DELETE', path: 'follows/example.com'): 'follows.remove',
+      (method: 'GET', path: 'favorites'): 'favorites.list',
+      (method: 'POST', path: 'favorites'): 'favorites.add',
+      (method: 'POST', path: 'favorites/delete-batch'):
+          'favorites.delete_batch',
+      (method: 'DELETE', path: 'favorites/42'): 'favorites.delete',
+      (method: 'POST', path: 'calls'): 'calls.create',
+      (method: 'GET', path: 'calls/active'): 'calls.active',
+      (method: 'GET', path: 'calls'): 'calls.list',
+      (method: 'POST', path: 'calls/incoming'): 'calls.incoming',
+      (method: 'GET', path: 'calls/call-1'): 'calls.get',
+      (method: 'POST', path: 'calls/call-1/events'): 'calls.event',
+      (method: 'POST', path: 'channels'): 'channels.create',
+      (method: 'GET', path: 'channels'): 'channels.list',
+      (method: 'GET', path: 'channels/me/comments'): 'channels.my_comments',
+      (method: 'GET', path: 'channels/me/reactions'): 'channels.my_reactions',
+      (method: 'GET', path: 'public/channels/search'): 'channels.public.search',
+      (method: 'GET', path: 'public/channels/!room:example.com'):
+          'channels.public.get',
+      (method: 'POST', path: 'public/channels/!room:example.com/join'):
+          'channels.public.join_request',
+      (method: 'GET', path: 'users/@owner:example.com/public-channels'):
+          'users.public_channels',
+      (method: 'POST', path: 'channels/invite-grants'):
+          'channels.invite_grant.create',
+      (method: 'PUT', path: 'channels/ch1'): 'channels.update',
+      (method: 'POST', path: 'channels/ch1'): 'channels.join',
+      (method: 'POST', path: 'channels/ch1/join'): 'channels.join',
+      (method: 'POST', path: 'channels/ch1/leave'): 'channels.leave',
+      (method: 'POST', path: 'channels/ch1/dissolve'): 'channels.dissolve',
+      (method: 'POST', path: 'channels/ch1/invite'): 'channels.invite',
+      (method: 'POST', path: 'channels/ch1/invite-grants'):
+          'channels.invite_grant.create',
+      (method: 'GET', path: 'channels/ch1/members'): 'channels.members',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/remove'):
+          'channels.member.remove',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/mute'):
+          'channels.member.mute',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/unmute'):
+          'channels.member.unmute',
+      (
+        method: 'POST',
+        path: 'channels/ch1/join-requests/@u:example.com/approve',
+      ): 'channels.join_request.approve',
+      (
+        method: 'POST',
+        path: 'channels/ch1/join-requests/@u:example.com/reject',
+      ): 'channels.join_request.reject',
+      (method: 'POST', path: 'channels/ch1/mute'): 'channels.mute',
+      (method: 'POST', path: 'channels/ch1/unmute'): 'channels.unmute',
+      (method: 'GET', path: 'channels/ch1/posts'): 'channels.posts.list',
+      (method: 'POST', path: 'channels/ch1/posts'): 'channels.posts.create',
+      (method: 'PUT', path: 'channels/ch1/read-marker'): 'channels.read_marker',
+      (method: 'DELETE', path: 'channels/ch1/posts/post1'):
+          'channels.posts.recall',
+      (method: 'POST', path: 'channels/ch1/posts/post1/recall'):
+          'channels.posts.recall',
+      (method: 'GET', path: 'channels/ch1/posts/post1/comments'):
+          'channels.comments.list',
+      (method: 'POST', path: 'channels/ch1/posts/post1/comments'):
+          'channels.comments.create',
+      (method: 'POST', path: 'channels/ch1/posts/post1/reactions'):
+          'channels.post_reaction.toggle',
+      (
+        method: 'POST',
+        path: 'channels/ch1/posts/post1/comments/comment1/recall',
+      ): 'channels.comments.recall',
+      (
+        method: 'POST',
+        path: 'channels/ch1/posts/post1/comments/comment1/reactions',
+      ): 'channels.comment_reaction.toggle',
+      (method: 'POST', path: 'groups'): 'groups.create',
+      (method: 'GET', path: 'groups'): 'groups.list',
+      (method: 'PUT', path: 'groups/group1'): 'groups.update',
+      (method: 'POST', path: 'groups/group1/invite'): 'groups.invite',
+      (method: 'GET', path: 'groups/group1/members'): 'groups.members',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/remove'):
+          'groups.member.remove',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/mute'):
+          'groups.member.mute',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/unmute'):
+          'groups.member.unmute',
+      (method: 'POST', path: 'groups/group1/invite-policy'):
+          'groups.invite_policy.update',
+      (method: 'POST', path: 'groups/group1/join'): 'groups.join',
+      (method: 'POST', path: 'groups/group1/leave'): 'groups.leave',
+      (method: 'POST', path: 'groups/group1/dissolve'): 'groups.dissolve',
+      (method: 'POST', path: 'groups/group1/mute'): 'groups.mute',
+      (method: 'POST', path: 'groups/group1/unmute'): 'groups.unmute',
+      (method: 'GET', path: 'profile'): 'profile.get',
+      (method: 'PUT', path: 'profile'): 'profile.update',
+      (method: 'GET', path: 'sync/bootstrap'): 'sync.bootstrap',
+      (method: 'PUT', path: 'sync/read-marker'): 'sync.read_marker',
+      (method: 'GET', path: 'conversations'): 'conversations.list',
+      (method: 'GET', path: 'conversations/detail'): 'conversations.get',
+      (method: 'GET', path: 'contacts'): 'contacts.list',
+      (method: 'POST', path: 'contacts/reactivate'): 'contacts.reactivate',
+      (method: 'POST', path: 'contacts/requests'): 'contacts.request',
+      (method: 'DELETE', path: 'contacts/requests/!room:example.com'):
+          'contacts.requests.delete',
+      (method: 'POST', path: 'contacts/requests/!room:example.com/accept'):
+          'contacts.requests.accept',
+      (method: 'POST', path: 'contacts/requests/!room:example.com/reject'):
+          'contacts.requests.reject',
+      (method: 'PUT', path: 'contacts/!room:example.com'): 'contacts.update',
+      (method: 'DELETE', path: 'contacts/!room:example.com'): 'contacts.delete',
+    };
+
+    for (final entry in cases.entries) {
+      expect(
+        debugProductActionForRequest(entry.key.method, entry.key.path),
+        entry.value,
+        reason: '${entry.key.method} ${entry.key.path}',
+      );
+      expect(
+        debugProductActionUsesHttpOnlyTransport(entry.value),
+        isFalse,
+        reason: '${entry.value} should use WS after login',
+      );
+    }
+
+    for (final action in const [
+      'portal.bootstrap',
+      'portal.auth',
+      'portal.status',
+      'portal.password',
+      'realtime.ws_ticket.create',
+      'mcp.rooms.search',
+      'mcp.messages.send',
+      'mcp.messages.list',
+      'mcp.room_members.list',
+      'mcp.channel_posts.list',
+      'mcp.channel_comments.list',
+      'mcp.channel_comments.create',
+    ]) {
+      expect(
+        debugProductActionUsesHttpOnlyTransport(action),
+        isTrue,
+        reason: '$action should remain HTTP-only',
+      );
+    }
+  });
+
   test('WsAsClient keeps realtime ticket creation on HTTP', () async {
     var wsCalls = 0;
     final client = WsAsClient(

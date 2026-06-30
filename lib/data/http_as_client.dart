@@ -2165,11 +2165,23 @@ class WsAsClient extends HttpAsClient {
 bool _httpOnlyAction(String action) {
   if (action.trim().startsWith('mcp.')) return true;
   return switch (action) {
+    'portal.bootstrap' => true,
+    'portal.auth' => true,
     'portal.status' => true,
     'portal.password' => true,
     'realtime.ws_ticket.create' => true,
     _ => false,
   };
+}
+
+@visibleForTesting
+String debugProductActionForRequest(String method, String path) {
+  return _actionFor(method, path);
+}
+
+@visibleForTesting
+bool debugProductActionUsesHttpOnlyTransport(String action) {
+  return _httpOnlyAction(action);
 }
 
 List<Map<String, String>> _normalizedMentionPayload(

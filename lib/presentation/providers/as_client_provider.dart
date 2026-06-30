@@ -7,17 +7,41 @@ import '../../data/as_realtime_transport.dart';
 import '../../data/http_as_client.dart';
 import 'auth_provider.dart';
 
+typedef AsClientSessionSnapshot = ({
+  String homeserver,
+  bool hasUsablePortalSession,
+  bool isLoggedIn,
+  String portalToken,
+  String userId,
+});
+
+final asClientSessionSnapshotProvider =
+    Provider<AsClientSessionSnapshot>((ref) {
+  return ref.watch(
+    authStateNotifierProvider.select((state) {
+      final auth = state.valueOrNull;
+      final portalToken = auth?.portalToken?.trim() ?? '';
+      return (
+        homeserver: auth?.homeserver?.trim() ?? '',
+        hasUsablePortalSession:
+            auth?.isLoggedIn == true && portalToken.isNotEmpty,
+        isLoggedIn: auth?.isLoggedIn == true,
+        portalToken: portalToken,
+        userId: auth?.userId?.trim() ?? '',
+      );
+    }),
+  );
+});
+
 final asHttpClientProvider = Provider<HttpAsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
   final authNotifier = ref.read(authStateNotifierProvider.notifier);
-  final auth = ref.watch(authStateNotifierProvider).valueOrNull;
-  final authToken = auth?.portalToken?.trim() ?? '';
-  final clientToken =
-      auth?.isLoggedIn == true ? client.accessToken?.trim() ?? '' : '';
+  final auth = ref.watch(asClientSessionSnapshotProvider);
+  final authToken = auth.portalToken;
+  final clientToken = auth.isLoggedIn ? client.accessToken?.trim() ?? '' : '';
   final portalToken = clientToken.isNotEmpty ? clientToken : authToken;
   if (portalToken.isNotEmpty) {
-    final homeserver =
-        client.homeserver ?? Uri.tryParse(auth?.homeserver ?? '');
+    final homeserver = client.homeserver ?? Uri.tryParse(auth.homeserver);
     if (homeserver == null || homeserver.host.isEmpty) {
       throw AsClientException('P2P homeserver is required');
     }

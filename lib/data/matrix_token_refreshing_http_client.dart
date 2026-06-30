@@ -90,6 +90,14 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       await _notifyAuthenticationFailed(originalToken);
       return _rebuildResponse(response, responseBody);
     }
+    if (token == originalToken) {
+      ApiLogger.info(
+        '[Matrix] access token refresh returned unchanged token '
+        'uri=${request.url} ${_tokenPreview('token', originalToken)}',
+      );
+      await _notifyAuthenticationFailed(originalToken);
+      return _rebuildResponse(response, responseBody);
+    }
 
     ApiLogger.info(
       '[Matrix] access token refresh succeeded '

@@ -2063,7 +2063,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   void _configureMatrixTokenFailureHandler(Client client) {
     final httpClient = _matrixTokenRefreshingHttpClient(client);
     if (httpClient == null) return;
-    httpClient.refreshAccessToken = null;
+    httpClient.refreshAccessToken = () async {
+      if (_sessionExpiredLocally) return null;
+      final currentToken = client.accessToken?.trim();
+      if (currentToken != null && currentToken.isNotEmpty) {
+        return currentToken;
+      }
+      return (await _storage.read(key: accessTokenKey))?.trim();
+    };
     httpClient.onAuthenticationFailed = () async {
       if (await _shouldIgnoreRecentAnonymousMatrixAuthFailure(client)) {
         debugPrint(

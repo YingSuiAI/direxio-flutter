@@ -69,6 +69,42 @@ void main() {
     expect(refreshes, 0);
   });
 
+  test('does not retry when refresh returns the rejected Matrix token',
+      () async {
+    var calls = 0;
+    var authFailures = 0;
+    final client = MatrixTokenRefreshingHttpClient(
+      inner: MockClient((request) async {
+        calls += 1;
+        expect(request.headers['authorization'], 'Bearer same-token');
+        return http.Response(
+          jsonEncode({
+            'errcode': 'M_UNKNOWN_TOKEN',
+            'error': 'Unknown token',
+          }),
+          401,
+        );
+      }),
+    );
+    client.refreshAccessToken = () async => 'same-token';
+    client.onAuthenticationFailed = () async {
+      authFailures += 1;
+    };
+
+    final request = http.Request(
+      'GET',
+      Uri.parse('https://example.com/_matrix/client/v3/sync'),
+    )..headers['authorization'] = 'Bearer same-token';
+
+    final response = await client.send(request);
+    final body = await response.stream.bytesToString();
+
+    expect(response.statusCode, 401);
+    expect(jsonDecode(body), containsPair('errcode', 'M_UNKNOWN_TOKEN'));
+    expect(calls, 1);
+    expect(authFailures, 1);
+  });
+
   test('notifies auth failure when refreshed Matrix token is rejected',
       () async {
     var calls = 0;

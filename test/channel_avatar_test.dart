@@ -20,7 +20,7 @@ import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 import 'support/mock_as_client.dart';
 
 void main() {
-  testWidgets('channel inbox tile does not fetch cold network avatar',
+  testWidgets('channel inbox tile renders network avatar when cache is cold',
       (tester) async {
     final client = Client('ChannelAvatarTest');
     final avatarUrl =
@@ -57,9 +57,9 @@ void main() {
       tester
           .widgetList<PortalAvatar>(find.byType(PortalAvatar))
           .where((avatar) => avatar.imageUrl == avatarUrl),
-      isEmpty,
+      isNotEmpty,
     );
-    expect(find.text('产'), findsOneWidget);
+    expect(find.text('产'), findsNothing);
   });
 
   testWidgets('channel inbox tile renders cached avatar bytes after restart',
@@ -101,13 +101,7 @@ void main() {
         ),
       ),
     );
-    for (var i = 0;
-        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-
-    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    final avatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
     expect(avatar.imageUrl, isNull);
     expect(avatar.imageBytes, bytes);
     expect(avatar.shape, AvatarShape.squircle);
@@ -152,13 +146,7 @@ void main() {
         );
 
     await tester.pumpWidget(buildTile());
-    for (var i = 0;
-        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-
-    final firstAvatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    final firstAvatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
     expect(firstAvatar.imageBytes, bytes);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -217,13 +205,8 @@ void main() {
         );
 
     await tester.pumpWidget(buildSubject());
-    for (var i = 0;
-        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-    expect(tester.widget<PortalAvatar>(find.byType(PortalAvatar)).imageBytes,
-        bytes);
+    final firstAvatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
+    expect(firstAvatar.imageBytes, bytes);
 
     showTile = false;
     await tester.pumpWidget(buildSubject());
@@ -283,13 +266,7 @@ void main() {
         );
 
     await tester.pumpWidget(buildTile(firstAvatarUrl));
-    for (var i = 0;
-        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-
-    final firstAvatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    final firstAvatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
     expect(firstAvatar.imageBytes, bytes);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1021,6 +998,28 @@ class _ChannelMemberAvatarAsClient extends MockAsClient {
       ),
     ];
   }
+}
+
+Future<PortalAvatar> _pumpUntilPortalAvatarBytes(
+  WidgetTester tester,
+  Uint8List bytes,
+) async {
+  for (var i = 0; i < 20; i++) {
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    for (final avatar in avatars) {
+      if (_sameBytes(avatar.imageBytes, bytes)) return avatar;
+    }
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  return tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+}
+
+bool _sameBytes(Uint8List? actual, Uint8List expected) {
+  if (actual == null || actual.length != expected.length) return false;
+  for (var i = 0; i < actual.length; i++) {
+    if (actual[i] != expected[i]) return false;
+  }
+  return true;
 }
 
 const _transparentPngBytes = <int>[

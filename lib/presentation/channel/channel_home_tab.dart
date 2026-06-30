@@ -1495,6 +1495,12 @@ class _ChannelAvatar extends ConsumerWidget {
           shape: AvatarShape.squircle,
         );
       }
+      return PortalAvatar(
+        seed: channel.name,
+        size: size,
+        imageUrl: imageUrl,
+        shape: AvatarShape.squircle,
+      );
     }
     return _ChannelAvatarFallback(channel: channel, size: size);
   }

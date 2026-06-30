@@ -274,52 +274,6 @@ void main() {
     ]);
   });
 
-  test('agent stream events do not trigger bootstrap or matrix sync', () async {
-    final streams = <StreamController<AsEventStreamEvent>>[];
-    var matrixSyncCalls = 0;
-    var bootstrapCalls = 0;
-    final handledTypes = <String>[];
-
-    final controller = AsEventStreamRefreshController(
-      openEvents: ({int? since, String? lastEventId}) {
-        final stream = StreamController<AsEventStreamEvent>();
-        streams.add(stream);
-        return stream.stream;
-      },
-      syncMatrixConversations: () async {
-        matrixSyncCalls++;
-      },
-      loadBootstrap: () async {
-        bootstrapCalls++;
-        return _bootstrap();
-      },
-      onBootstrapLoaded: (_) {},
-      applyProductEvent: (event) {
-        handledTypes.add(event.type);
-        return AsProductEventHandling.handled;
-      },
-      reconnectDelay: const Duration(milliseconds: 5),
-    );
-
-    controller.start();
-    await Future<void>.delayed(Duration.zero);
-    streams.single.add(const AsEventStreamEvent(
-      seq: 0,
-      type: 'agent.stream',
-      roomId: '!agent:example.com',
-      payload: {'stream_id': 'turn-1', 'delta': 'Hello'},
-      createdAt: null,
-    ));
-    await Future<void>.delayed(Duration.zero);
-
-    expect(handledTypes, ['agent.stream']);
-    expect(matrixSyncCalls, 0);
-    expect(bootstrapCalls, 0);
-    expect(controller.lastSeq, 0);
-
-    await controller.stop();
-  });
-
   test(
       'cursor reset clears cache, bootstraps once, and reconnects from max seq',
       () async {

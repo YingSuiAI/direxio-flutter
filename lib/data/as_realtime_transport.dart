@@ -189,14 +189,6 @@ class WsAsRealtimeTransport implements AsRealtimeTransport {
         final rawEvent = frame['event'];
         if (rawEvent is! Map) return null;
         return AsEventStreamEvent.fromJson(rawEvent.cast<String, dynamic>());
-      case 'server.agent_stream':
-        return AsEventStreamEvent(
-          seq: 0,
-          type: 'agent.stream',
-          roomId: frame['room_id']?.toString() ?? '',
-          payload: Map<String, dynamic>.from(frame),
-          createdAt: DateTime.tryParse(frame['created_at']?.toString() ?? ''),
-        );
       case 'server.response':
         _completeRequest(frame);
         return null;

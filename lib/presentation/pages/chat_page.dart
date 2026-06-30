@@ -3073,7 +3073,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             content: (event) => agentDisplayContentForEvent(event, _timeline),
             fallbackBody: (event) =>
                 agentDisplayFallbackBodyForEvent(event, _timeline),
-            timestampMs: (event) => event.originServerTs.millisecondsSinceEpoch,
           )
         : null;
     if (agentMessageProjection != null) {

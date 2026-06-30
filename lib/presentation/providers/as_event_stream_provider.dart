@@ -292,14 +292,6 @@ class AsEventStreamRefreshController {
       await _handleCursorReset(event);
       return;
     }
-    if (event.type == 'agent.stream') {
-      try {
-        await _applyProductEvent?.call(event);
-      } catch (error, stackTrace) {
-        _onError?.call(error, stackTrace);
-      }
-      return;
-    }
     if (event.seq > 0 && event.seq <= _lastSeq) return;
     final call = asCallSessionFromEvent(event);
     if (call != null) {
@@ -434,10 +426,6 @@ Future<AsProductEventHandling> _applyProductEvent(
       return AsProductEventHandling.handled;
     case 'room.member_policy.projected':
     case 'channel.join_request.changed':
-    case 'agent_room.message':
-    case 'agent.stream':
-      ref.invalidate(productConversationsProvider);
-      return AsProductEventHandling.handled;
     default:
       return AsProductEventHandling.bootstrapRequired;
   }

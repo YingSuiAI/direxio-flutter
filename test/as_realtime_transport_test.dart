@@ -83,42 +83,6 @@ void main() {
     await transport.close();
   });
 
-  test('WS transport maps agent stream frames into realtime events', () async {
-    final server = _FakeWebSocketServer();
-    final transport = WsAsRealtimeTransport(
-      baseUri: Uri.parse('https://node.example/_p2p'),
-      createTicket: () async => const AsRealtimeWSTicket(ticket: 'ticket-1'),
-      connect: server.connect,
-      reconnectDelays: const [Duration.zero],
-    );
-
-    final events = <AsEventStreamEvent>[];
-    final sub = transport.streamEvents().listen(events.add);
-    await server.waitForConnection();
-    await server.takeClientFrame();
-    await server.takeClientFrame();
-
-    server.sendServerFrame({
-      'type': 'server.agent_stream',
-      'room_id': '!agent:example.com',
-      'stream_id': 'turn-1',
-      'seq': 1,
-      'delta': 'Hello',
-      'done': false,
-      'created_at': '2026-06-30T00:00:00Z',
-    });
-    await Future<void>.delayed(Duration.zero);
-
-    expect(events, hasLength(1));
-    expect(events.single.type, 'agent.stream');
-    expect(events.single.roomId, '!agent:example.com');
-    expect(events.single.payload['stream_id'], 'turn-1');
-    expect(events.single.payload['delta'], 'Hello');
-
-    await sub.cancel().timeout(const Duration(seconds: 2));
-    await transport.close();
-  });
-
   test('WS transport can send one-shot request before event stream starts',
       () async {
     final server = _FakeWebSocketServer();

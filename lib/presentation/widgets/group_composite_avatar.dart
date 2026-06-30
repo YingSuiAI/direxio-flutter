@@ -10,6 +10,7 @@ class GroupCompositeAvatar extends StatelessWidget {
     required this.seed,
     required this.size,
     this.imageUrl,
+    this.stableCacheKey,
     this.members = const [],
     this.memberAvatarUrls = const [],
     this.minimumSlots = 0,
@@ -19,6 +20,7 @@ class GroupCompositeAvatar extends StatelessWidget {
   final String seed;
   final double size;
   final String? imageUrl;
+  final String? stableCacheKey;
   final List<GroupCompositeAvatarMember> members;
   final List<String> memberAvatarUrls;
   final int minimumSlots;
@@ -32,6 +34,7 @@ class GroupCompositeAvatar extends StatelessWidget {
         seed: seed,
         size: size,
         imageUrl: cleanImageUrl,
+        stableCacheKey: stableCacheKey,
         shape: AvatarShape.squircle,
       );
     }
@@ -154,17 +157,24 @@ class _GroupCompositeAvatarCell extends StatelessWidget {
         key: ValueKey('group_composite_avatar_member_${member.seed}'),
         seed: member.seed,
         size: size,
+        stableCacheKey: _groupMemberStableCacheKey(member.seed),
         shape: AvatarShape.squircle,
       );
     }
     return PortalAvatar(
-      key: ValueKey('group_composite_avatar_member_${member.seed}_$url'),
+      key: ValueKey('group_composite_avatar_member_${member.seed}'),
       seed: member.seed,
       size: size,
       imageUrl: url,
+      stableCacheKey: _groupMemberStableCacheKey(member.seed),
       shape: AvatarShape.squircle,
     );
   }
+}
+
+String? _groupMemberStableCacheKey(String seed) {
+  final trimmed = seed.trim();
+  return trimmed.isEmpty ? null : 'group-member:$trimmed';
 }
 
 int _groupAvatarColumns(int count) {

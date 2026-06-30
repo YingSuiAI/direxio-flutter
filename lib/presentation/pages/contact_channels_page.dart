@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -334,6 +335,10 @@ class _ContactChannelListItem extends ConsumerWidget {
               seed: item.title,
               size: 42,
               imageUrl: avatarUrl,
+              stableCacheKey: channelAvatarStableCacheKey(
+                channelId: item.channelId,
+                roomId: item.roomId,
+              ),
               shape: AvatarShape.squircle,
             ),
             const SizedBox(width: 8),

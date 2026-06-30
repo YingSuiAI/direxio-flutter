@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 typedef ChannelAvatarCacheReader = Future<Uint8List?> Function(String imageUrl);
 
-const _channelAvatarMemoryCacheLimit = 256;
+const _channelAvatarMemoryCacheLimit = 1024;
 
 ChannelAvatarCacheReader _channelAvatarCacheReader =
     _readCachedChannelAvatarBytes;
@@ -51,15 +51,19 @@ Future<Uint8List?> loadCachedChannelAvatarBytes(
   String imageUrl, {
   required String? stableKey,
 }) {
-  final urlBytes = _channelAvatarMemoryBytes[imageUrl];
-  if (urlBytes != null && urlBytes.isNotEmpty) {
-    return Future.value(urlBytes);
+  final cachedBytes = cachedChannelAvatarBytes(imageUrl, stableKey);
+  if (cachedBytes != null && cachedBytes.isNotEmpty) {
+    return Future.value(cachedBytes);
   }
 
-  final pending = _channelAvatarMemoryLoads[imageUrl];
+  final loadKey = _channelAvatarLoadKey(imageUrl, stableKey);
+  final pending = _channelAvatarMemoryLoads[loadKey];
   if (pending != null) return pending;
 
-  final load = _channelAvatarCacheReader(imageUrl).then<Uint8List?>((bytes) {
+  final load = _readCachedChannelAvatarBytesForKeys(
+    imageUrl,
+    stableKey: stableKey,
+  ).then<Uint8List?>((bytes) {
     if (bytes == null || bytes.isEmpty) {
       return cachedChannelAvatarBytes(imageUrl, stableKey);
     }
@@ -71,9 +75,9 @@ Future<Uint8List?> loadCachedChannelAvatarBytes(
   }, onError: (_) {
     return cachedChannelAvatarBytes(imageUrl, stableKey);
   }).whenComplete(() {
-    _channelAvatarMemoryLoads.remove(imageUrl);
+    _channelAvatarMemoryLoads.remove(loadKey);
   });
-  _channelAvatarMemoryLoads[imageUrl] = load;
+  _channelAvatarMemoryLoads[loadKey] = load;
   return load;
 }
 
@@ -96,6 +100,15 @@ Future<void> seedChannelAvatarCacheBytes(
       bytes,
       fileExtension: _avatarFileExtension(trimmed),
     );
+    final stableDiskKey = _channelAvatarStableDiskCacheKey(stableKey);
+    if (stableDiskKey != null) {
+      await CachedNetworkImageProvider.defaultCacheManager.putFile(
+        trimmed,
+        bytes,
+        key: stableDiskKey,
+        fileExtension: _avatarFileExtension(trimmed),
+      );
+    }
   } catch (_) {
     // Memory cache still keeps the freshly selected avatar visible.
   }
@@ -121,6 +134,31 @@ Future<Uint8List?> _readCachedChannelAvatarBytes(String imageUrl) async {
   } catch (_) {
     return null;
   }
+}
+
+Future<Uint8List?> _readCachedChannelAvatarBytesForKeys(
+  String imageUrl, {
+  required String? stableKey,
+}) async {
+  final stableDiskKey = _channelAvatarStableDiskCacheKey(stableKey);
+  if (stableDiskKey != null) {
+    final stableBytes = await _channelAvatarCacheReader(stableDiskKey);
+    if (stableBytes != null && stableBytes.isNotEmpty) {
+      return stableBytes;
+    }
+  }
+  return _channelAvatarCacheReader(imageUrl);
+}
+
+String _channelAvatarLoadKey(String imageUrl, String? stableKey) {
+  final stableDiskKey = _channelAvatarStableDiskCacheKey(stableKey);
+  if (stableDiskKey == null) return imageUrl;
+  return '$imageUrl\n$stableDiskKey';
+}
+
+String? _channelAvatarStableDiskCacheKey(String? stableKey) {
+  final trimmed = stableKey?.trim() ?? '';
+  return trimmed.isEmpty ? null : 'channel-avatar:$trimmed';
 }
 
 String _avatarFileExtension(String imageUrl) {

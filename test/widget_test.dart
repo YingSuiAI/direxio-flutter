@@ -4885,6 +4885,104 @@ void main() {
     expect(find.text('还没有会话'), findsNothing);
   });
 
+  testWidgets('home keeps chat and channel tabs mounted when switching',
+      (tester) async {
+    const groupRoomId = '!mounted-group:p2p-im.com';
+    const channelRoomId = '!mounted-channel:p2p-im.com';
+    final client = Client('DirexioHomeTabKeepAliveTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 30, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: groupRoomId,
+          name: '常驻群聊',
+          avatarUrl: 'https://cdn.example.com/mounted-group.png',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'join',
+        ),
+      ],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'mounted-channel',
+          roomId: channelRoomId,
+          name: '常驻频道',
+          avatarUrl: 'https://cdn.example.com/mounted-channel.png',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_mounted_group',
+                roomId: groupRoomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '常驻群聊',
+                avatarUrl: 'https://cdn.example.com/mounted-group.png',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final groupAvatarFinder = find.byWidgetPredicate(
+      (widget) =>
+          widget is PortalAvatar &&
+          widget.imageUrl == 'https://cdn.example.com/mounted-group.png',
+    );
+    expect(groupAvatarFinder, findsOneWidget);
+
+    await tester.tap(find.text('频道'));
+    await tester.pump();
+
+    expect(find.byType(ChannelExplorePage), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.imageUrl == 'https://cdn.example.com/mounted-group.png',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('消息'));
+    await tester.pump();
+
+    expect(groupAvatarFinder, findsOneWidget);
+    expect(
+      find.byType(ChannelExplorePage, skipOffstage: false),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('messages ignore blank cached-only conversations while loading',
       (tester) async {
     final client = Client('DirexioBlankCachedHomeConversationListTest')
@@ -8554,14 +8652,18 @@ void main() {
     expect(
       find.descendant(
         of: groupRow,
-        matching: find.byKey(const ValueKey('https://example.com/alice.png')),
+        matching: find.byKey(
+          const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
+        ),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: groupRow,
-        matching: find.byKey(const ValueKey('https://example.com/bob.png')),
+        matching: find.byKey(
+          const ValueKey('group_composite_avatar_member_@bob:p2p-im.com'),
+        ),
       ),
       findsOneWidget,
     );
@@ -13349,9 +13451,7 @@ void main() {
       find.descendant(
         of: identityHeader,
         matching: find.byKey(
-          const ValueKey(
-            'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
-          ),
+          const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
         ),
       ),
       findsOneWidget,
@@ -13737,9 +13837,7 @@ void main() {
     );
     expect(
       find.byKey(
-        const ValueKey(
-          'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
-        ),
+        const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
       ),
       findsOneWidget,
     );
@@ -13762,9 +13860,7 @@ void main() {
     );
     expect(
       find.byKey(
-        const ValueKey(
-          'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
-        ),
+        const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
       ),
       findsNothing,
     );
@@ -18042,7 +18138,7 @@ void main() {
     expect(
         groupAvatar.members.map((member) => member.imageUrl),
         contains(
-          'https://cdn.example.com/alice-member.png',
+          'https://cdn.example.com/alice.png',
         ));
     var avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
     expect(

@@ -1467,42 +1467,97 @@ class _ChannelKindBadge extends StatelessWidget {
   }
 }
 
-class _ChannelAvatar extends ConsumerWidget {
+class _ChannelAvatar extends ConsumerStatefulWidget {
   const _ChannelAvatar({required this.channel, required this.size});
 
   final ChannelInboxItem channel;
   final double size;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ChannelAvatar> createState() => _ChannelAvatarState();
+}
+
+class _ChannelAvatarState extends ConsumerState<_ChannelAvatar> {
+  Uint8List? _lastAvatarBytes;
+  String? _lastAvatarImageUrl;
+  String? _lastAvatarStableKey;
+
+  @override
+  void didUpdateWidget(covariant _ChannelAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldIdentity = _channelAvatarIdentity(oldWidget.channel);
+    final nextIdentity = _channelAvatarIdentity(widget.channel);
+    if (oldIdentity != nextIdentity) {
+      _clearRetainedAvatar();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final imageUrl = avatarHttpUrl(
       ref.read(matrixClientProvider),
-      channel.avatarUrl,
+      widget.channel.avatarUrl,
     );
     if (imageUrl != null) {
-      final stableKey = _channelAvatarStableCacheKey(channel);
+      final stableKey = _channelAvatarStableCacheKey(widget.channel);
       final key = _ChannelAvatarBytesKey(
         imageUrl: imageUrl,
         stableKey: stableKey,
       );
       final bytes = ref.watch(_channelAvatarBytesProvider(key)).valueOrNull ??
-          cachedChannelAvatarBytes(imageUrl, stableKey);
+          cachedChannelAvatarBytes(imageUrl, stableKey) ??
+          _retainedAvatarBytes(imageUrl, stableKey);
       if (bytes != null && bytes.isNotEmpty) {
+        _rememberRetainedAvatar(
+          imageUrl: imageUrl,
+          stableKey: stableKey,
+          bytes: bytes,
+        );
         return PortalAvatar(
-          seed: channel.name,
-          size: size,
+          seed: widget.channel.name,
+          size: widget.size,
+          imageUrl: imageUrl,
           imageBytes: bytes,
+          stableCacheKey: stableKey,
           shape: AvatarShape.squircle,
         );
       }
       return PortalAvatar(
-        seed: channel.name,
-        size: size,
+        seed: widget.channel.name,
+        size: widget.size,
         imageUrl: imageUrl,
+        stableCacheKey: stableKey,
         shape: AvatarShape.squircle,
       );
     }
-    return _ChannelAvatarFallback(channel: channel, size: size);
+    _clearRetainedAvatar();
+    return _ChannelAvatarFallback(channel: widget.channel, size: widget.size);
+  }
+
+  Uint8List? _retainedAvatarBytes(String imageUrl, String? stableKey) {
+    final bytes = _lastAvatarBytes;
+    if (bytes == null || bytes.isEmpty) return null;
+    if (stableKey != null && stableKey == _lastAvatarStableKey) {
+      return bytes;
+    }
+    if (imageUrl == _lastAvatarImageUrl) return bytes;
+    return null;
+  }
+
+  void _rememberRetainedAvatar({
+    required String imageUrl,
+    required String? stableKey,
+    required Uint8List bytes,
+  }) {
+    _lastAvatarImageUrl = imageUrl;
+    _lastAvatarStableKey = stableKey;
+    _lastAvatarBytes = bytes;
+  }
+
+  void _clearRetainedAvatar() {
+    _lastAvatarImageUrl = null;
+    _lastAvatarStableKey = null;
+    _lastAvatarBytes = null;
   }
 }
 
@@ -1564,6 +1619,12 @@ String? _channelAvatarStableCacheKey(ChannelInboxItem channel) {
     channelId: channel.id,
     roomId: channel.roomId,
   );
+}
+
+String _channelAvatarIdentity(ChannelInboxItem channel) {
+  final stableKey = _channelAvatarStableCacheKey(channel);
+  if (stableKey != null && stableKey.isNotEmpty) return stableKey;
+  return channel.avatarUrl.trim();
 }
 
 class _UnreadDot extends StatelessWidget {

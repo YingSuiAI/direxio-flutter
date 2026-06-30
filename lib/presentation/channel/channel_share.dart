@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -16,6 +15,7 @@ import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
+import 'channel_avatar_cache.dart';
 
 const channelShareMessageType = 'channel_share';
 const channelShareMatrixPayloadKey = 'p2p.channel_share';
@@ -563,34 +563,25 @@ String _channelShareTypeLabel(
       : l10n?.channelShareTextType ?? '文字';
 }
 
-class _ChannelShareAvatar extends StatelessWidget {
+class _ChannelShareAvatar extends ConsumerWidget {
   const _ChannelShareAvatar({required this.payload});
 
   final ChannelSharePayload payload;
 
   @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final initial = payload.displayName.isEmpty ? '#' : payload.displayName[0];
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: t.secondaryContainer,
-        borderRadius: BorderRadius.circular(14),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PortalAvatar(
+      seed: payload.displayName,
+      size: 48,
+      imageUrl: avatarHttpUrl(
+        ref.watch(matrixClientProvider),
+        payload.avatarUrl,
       ),
-      child: Center(
-        child: payload.avatarUrl.trim().isEmpty
-            ? Text(
-                initial,
-                style: AppTheme.sans(
-                  size: 19,
-                  weight: FontWeight.w800,
-                  color: t.text,
-                ),
-              )
-            : Icon(Symbols.campaign, color: t.text, size: 24),
+      stableCacheKey: channelAvatarStableCacheKey(
+        channelId: payload.channelId,
+        roomId: payload.roomId,
       ),
+      shape: AvatarShape.squircle,
     );
   }
 }

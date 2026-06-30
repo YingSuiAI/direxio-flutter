@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -841,6 +842,10 @@ class _VisitorChannelTile extends StatelessWidget {
               seed: target.isEmpty ? channel.name : target,
               size: 40,
               imageUrl: channel.avatarUrl,
+              stableCacheKey: channelAvatarStableCacheKey(
+                channelId: channel.channelId,
+                roomId: channel.roomId,
+              ),
               shape: AvatarShape.squircle,
             )
           : const GlassListIcon(icon: Symbols.campaign),

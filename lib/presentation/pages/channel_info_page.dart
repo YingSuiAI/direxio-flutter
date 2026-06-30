@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
@@ -829,6 +830,10 @@ class _ChannelInfoHeader extends StatelessWidget {
             seed: channel.name,
             size: 86,
             imageUrl: avatarUrl,
+            stableCacheKey: channelAvatarStableCacheKey(
+              channelId: channel.id,
+              roomId: channel.roomId,
+            ),
             shape: AvatarShape.squircle,
           ),
         ),

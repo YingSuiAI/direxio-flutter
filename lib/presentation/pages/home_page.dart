@@ -542,23 +542,29 @@ class _HomePageState extends ConsumerState<HomePage>
             child: LayoutBuilder(
               builder: (ctx, c) {
                 final wide = c.maxWidth >= 900;
-                final pane = switch (_tab) {
-                  0 => _ChatList(client: client),
-                  1 => _ContactList(client: client),
-                  2 => const ChannelExplorePage(),
-                  _ => MePage(client: client),
-                };
-                if (!wide) return pane;
-                return Row(
-                  children: [
-                    SizedBox(width: 340, child: pane),
-                    VerticalDivider(width: 1, color: t.border),
-                    Expanded(
-                      child: _DetailPlaceholder(
-                        tabTitle: _homeTabTitle(l10n, _tab),
-                        isChatsTab: _tab == 0,
+                Widget tabPane(int index, Widget pane) {
+                  if (!wide) return pane;
+                  return Row(
+                    children: [
+                      SizedBox(width: 340, child: pane),
+                      VerticalDivider(width: 1, color: t.border),
+                      Expanded(
+                        child: _DetailPlaceholder(
+                          tabTitle: _homeTabTitle(l10n, index),
+                          isChatsTab: index == 0,
+                        ),
                       ),
-                    ),
+                    ],
+                  );
+                }
+
+                return IndexedStack(
+                  index: _tab,
+                  children: [
+                    tabPane(0, _ChatList(client: client)),
+                    tabPane(1, _ContactList(client: client)),
+                    tabPane(2, const ChannelExplorePage()),
+                    tabPane(3, MePage(client: client)),
                   ],
                 );
               },
@@ -744,6 +750,15 @@ String? _homeAvatarUrl(Client client, String? avatarUrl) {
     return null;
   }
   return value;
+}
+
+String? _homeAvatarStableCacheKey(
+    ConversationSummaryEntry entry, String roomId) {
+  final trimmedRoomId = roomId.trim();
+  if (trimmedRoomId.isEmpty) return null;
+  if (entry.isGroup) return 'group:$trimmedRoomId';
+  if (entry.isAgent) return 'agent:$trimmedRoomId';
+  return 'conversation:$trimmedRoomId';
 }
 
 class _ChatsTopBar extends StatelessWidget {
@@ -1518,6 +1533,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
           avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
+          avatarStableCacheKey: _homeAvatarStableCacheKey(entry, roomId),
           groupAvatarMembers: groupAvatarMembers?.members ??
               (entry.isGroup
                   ? cachedGroupAvatarMembers(
@@ -1691,6 +1707,7 @@ class _ConvRow extends StatelessWidget {
     this.isGroup = false,
     this.isPinned = false,
     this.avatarUrl,
+    this.avatarStableCacheKey,
     this.groupAvatarMembers = const [],
   });
   final String name;
@@ -1705,6 +1722,7 @@ class _ConvRow extends StatelessWidget {
   final bool isGroup;
   final bool isPinned;
   final String? avatarUrl;
+  final String? avatarStableCacheKey;
   final List<GroupCompositeAvatarMember> groupAvatarMembers;
 
   @override
@@ -1731,6 +1749,7 @@ class _ConvRow extends StatelessWidget {
                   seed: name,
                   size: _conversationTileAvatarSize,
                   imageUrl: avatarUrl,
+                  stableCacheKey: avatarStableCacheKey,
                   members: groupAvatarMembers,
                   minimumSlots: 4,
                 )
@@ -1738,6 +1757,7 @@ class _ConvRow extends StatelessWidget {
                   seed: name,
                   size: _conversationTileAvatarSize,
                   imageUrl: avatarUrl,
+                  stableCacheKey: avatarStableCacheKey,
                   shape: AvatarShape.squircle,
                 ),
     );

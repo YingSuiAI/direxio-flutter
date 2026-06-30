@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_join_flow.dart';
@@ -96,6 +97,10 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       ref.watch(matrixClientProvider),
       channel.avatarUrl,
     );
+    final avatarStableKey = channelAvatarStableCacheKey(
+      channelId: channel.id,
+      roomId: channel.roomId,
+    );
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -117,6 +122,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                     seed: channel.name,
                     size: 86,
                     imageUrl: avatarUrl,
+                    stableCacheKey: avatarStableKey,
                     shape: AvatarShape.squircle,
                   ),
                 ),

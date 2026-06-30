@@ -459,6 +459,7 @@ class _GroupRow extends StatelessWidget {
                 seed: name,
                 size: 48,
                 imageUrl: item.avatarUrl,
+                stableCacheKey: 'group:${item.id}',
                 members: item.avatarUrl.trim().isEmpty
                     ? item.avatarMembers
                     : const [],

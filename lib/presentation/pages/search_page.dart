@@ -271,6 +271,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               : avatarHttpUrl(client, productConversation.avatarUrl) ??
                   roomAvatarHttpUrl(room),
           avatarSeed: isContact ? peerMxid ?? name : room.id,
+          avatarStableCacheKey: isContact
+              ? _searchAvatarStableCacheKey(
+                  _SearchResultType.contact,
+                  peerMxid ?? room.id,
+                )
+              : _searchAvatarStableCacheKey(_SearchResultType.group, room.id),
           groupAvatarMembers: groupAvatarMembers,
         ),
       );
@@ -303,6 +309,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             route: '/channel/${Uri.encodeComponent(channel.id)}',
             avatarUrl: avatarHttpUrl(client, channel.avatarUrl),
             avatarSeed: channel.id,
+            avatarStableCacheKey: _searchAvatarStableCacheKey(
+                _SearchResultType.channel, channel.id),
           ),
         );
       }
@@ -429,6 +437,17 @@ bool _looksLikeMatrixRoomId(String text) {
 
 enum _SearchResultType { message, contact, group, channel }
 
+String? _searchAvatarStableCacheKey(_SearchResultType type, String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  return switch (type) {
+    _SearchResultType.contact => 'contact:$trimmed',
+    _SearchResultType.group => 'group:$trimmed',
+    _SearchResultType.channel => 'channel:$trimmed',
+    _SearchResultType.message => 'message:$trimmed',
+  };
+}
+
 class _GlobalSearchResult {
   const _GlobalSearchResult({
     required this.type,
@@ -439,6 +458,7 @@ class _GlobalSearchResult {
     this.timestamp,
     this.avatarUrl,
     this.avatarSeed,
+    this.avatarStableCacheKey,
     this.groupAvatarMembers = const [],
   });
 
@@ -498,6 +518,7 @@ class _GlobalSearchResult {
     String? route,
     String? avatarUrl,
     String? avatarSeed,
+    String? avatarStableCacheKey,
     List<GroupCompositeAvatarMember> groupAvatarMembers = const [],
   }) =>
       _GlobalSearchResult(
@@ -507,6 +528,7 @@ class _GlobalSearchResult {
         route: route,
         avatarUrl: avatarUrl,
         avatarSeed: avatarSeed,
+        avatarStableCacheKey: avatarStableCacheKey,
         groupAvatarMembers: groupAvatarMembers,
       );
 
@@ -518,6 +540,7 @@ class _GlobalSearchResult {
   final DateTime? timestamp;
   final String? avatarUrl;
   final String? avatarSeed;
+  final String? avatarStableCacheKey;
   final List<GroupCompositeAvatarMember> groupAvatarMembers;
 
   IconData get icon => switch (type) {
@@ -733,6 +756,7 @@ class _ResultThumbnail extends StatelessWidget {
         seed: avatarSeed,
         size: 28,
         imageUrl: result.avatarUrl,
+        stableCacheKey: result.avatarStableCacheKey,
         members: result.groupAvatarMembers,
         minimumSlots: 4,
         radius: 5.6,
@@ -743,6 +767,7 @@ class _ResultThumbnail extends StatelessWidget {
         seed: avatarSeed,
         size: 28,
         imageUrl: result.avatarUrl!.trim(),
+        stableCacheKey: result.avatarStableCacheKey,
         shape: AvatarShape.squircle,
       );
     }

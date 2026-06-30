@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_voice_player.dart';
@@ -427,6 +428,10 @@ class _MeLikePostCard extends StatelessWidget {
                     imageUrl: item.channel.avatarUrl.trim().isEmpty
                         ? null
                         : item.channel.avatarUrl.trim(),
+                    stableCacheKey: channelAvatarStableCacheKey(
+                      channelId: item.channel.channelId,
+                      roomId: item.channel.roomId,
+                    ),
                     size: 40,
                     shape: AvatarShape.squircle,
                   ),
@@ -693,6 +698,10 @@ class _MeCommentCard extends ConsumerWidget {
                 imageUrl: channelDisplay.avatarUrl.trim().isEmpty
                     ? null
                     : channelDisplay.avatarUrl.trim(),
+                stableCacheKey: channelAvatarStableCacheKey(
+                  channelId: item.channel.channelId,
+                  roomId: item.channel.roomId,
+                ),
                 size: 40,
                 shape: AvatarShape.squircle,
               ),

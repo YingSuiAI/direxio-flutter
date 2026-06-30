@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +21,7 @@ class PortalAvatar extends StatefulWidget {
     this.imageUrl,
     this.imageAsset,
     this.imageBytes,
+    this.stableCacheKey,
     this.shape = AvatarShape.circle,
   });
 
@@ -27,6 +30,7 @@ class PortalAvatar extends StatefulWidget {
   final String? imageUrl;
   final String? imageAsset;
   final Uint8List? imageBytes;
+  final String? stableCacheKey;
   final AvatarShape shape;
 
   @override
@@ -34,6 +38,29 @@ class PortalAvatar extends StatefulWidget {
 }
 
 class _PortalAvatarState extends State<PortalAvatar> {
+  Uint8List? _lastNetworkBytes;
+  String? _lastNetworkSeed;
+  String? _lastNetworkImageUrl;
+  String? _lastNetworkStableKey;
+  String? _lastNetworkAuthKey;
+
+  @override
+  void didUpdateWidget(covariant PortalAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextImageUrl = widget.imageUrl?.trim() ?? '';
+    if (nextImageUrl.isEmpty) {
+      _clearRetainedNetworkBytes();
+      return;
+    }
+    final oldStableKey = _normalizedStableCacheKey(oldWidget.stableCacheKey);
+    final nextStableKey = _normalizedStableCacheKey(widget.stableCacheKey);
+    if (oldStableKey != null && oldStableKey == nextStableKey) return;
+    final oldImageUrl = oldWidget.imageUrl?.trim() ?? '';
+    if (oldImageUrl.isNotEmpty && oldImageUrl == nextImageUrl) return;
+    if (oldWidget.seed == widget.seed) return;
+    _clearRetainedNetworkBytes();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
@@ -61,15 +88,35 @@ class _PortalAvatarState extends State<PortalAvatar> {
       widget.imageUrl,
     );
     final networkImageUrl = widget.imageUrl;
+    final stableCacheKey = _normalizedStableCacheKey(widget.stableCacheKey);
     final networkCacheKey = networkImageUrl == null
         ? null
         : _portalAvatarMemoryCacheKey(networkImageUrl, imageHeaders);
-    final cachedNetworkBytes = networkCacheKey == null
+    final stableMemoryCacheKey = stableCacheKey == null
         ? null
-        : _portalAvatarMemoryBytes[networkCacheKey];
-    if (networkImageUrl != null && cachedNetworkBytes == null) {
+        : _portalAvatarStableMemoryCacheKey(stableCacheKey, imageHeaders);
+    final stableDiskCacheKey = stableCacheKey == null
+        ? null
+        : _portalAvatarStableDiskCacheKey(stableCacheKey, imageHeaders);
+    final networkDiskCacheKey =
+        networkImageUrl == null ? null : stableDiskCacheKey ?? networkImageUrl;
+    final cachedNetworkBytes = _cachedPortalAvatarBytes(
+      stableMemoryCacheKey: stableMemoryCacheKey,
+      urlMemoryCacheKey: networkCacheKey,
+    );
+    final retainedNetworkBytes = _retainedNetworkBytes(
+      networkImageUrl,
+      imageHeaders,
+      stableCacheKey,
+    );
+    if (networkImageUrl != null &&
+        cachedNetworkBytes == null &&
+        widget.imageBytes == null) {
       _warmPortalAvatarMemoryCache(
-        cacheKey: networkCacheKey!,
+        urlMemoryCacheKey: networkCacheKey!,
+        stableMemoryCacheKey: stableMemoryCacheKey,
+        stableDiskCacheKey: stableDiskCacheKey,
+        networkDiskCacheKey: networkDiskCacheKey!,
         imageUrl: networkImageUrl,
         headers: imageHeaders,
         onLoaded: () {
@@ -77,64 +124,129 @@ class _PortalAvatarState extends State<PortalAvatar> {
         },
       );
     }
+    final displayedImageBytes =
+        widget.imageBytes ?? cachedNetworkBytes ?? retainedNetworkBytes;
+    if (networkImageUrl != null &&
+        displayedImageBytes != null &&
+        displayedImageBytes.isNotEmpty) {
+      if (networkCacheKey != null) {
+        _putPortalAvatarMemoryBytes(networkCacheKey, displayedImageBytes);
+      }
+      if (stableMemoryCacheKey != null) {
+        _putPortalAvatarMemoryBytes(stableMemoryCacheKey, displayedImageBytes);
+      }
+      _rememberNetworkBytes(
+        bytes: displayedImageBytes,
+        imageUrl: networkImageUrl,
+        stableCacheKey: stableCacheKey,
+        headers: imageHeaders,
+      );
+    }
 
-    return Container(
-      width: widget.size,
-      height: widget.size,
-      decoration: BoxDecoration(color: bg, borderRadius: radius),
-      clipBehavior: Clip.antiAlias,
-      alignment: Alignment.center,
-      child: widget.imageBytes != null
-          ? Image.memory(
-              widget.imageBytes!,
-              width: widget.size,
-              height: widget.size,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              errorBuilder: (_, error, ___) => _imageError(letter, fg, error),
-            )
-          : cachedNetworkBytes != null
-              ? Image.memory(
-                  cachedNetworkBytes,
-                  width: widget.size,
-                  height: widget.size,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, error, ___) =>
-                      _imageError(letter, fg, error),
-                )
-              : networkImageUrl != null
-                  ? Image(
-                      key: ValueKey(
-                        Object.hash(
-                          networkImageUrl,
-                          imageHeaders?['authorization'],
+    return RepaintBoundary(
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(color: bg, borderRadius: radius),
+        clipBehavior: Clip.antiAlias,
+        alignment: Alignment.center,
+        child: displayedImageBytes != null
+            ? Image.memory(
+                displayedImageBytes,
+                width: widget.size,
+                height: widget.size,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, error, ___) => _imageError(letter, fg, error),
+              )
+            : cachedNetworkBytes != null
+                ? Image.memory(
+                    cachedNetworkBytes,
+                    width: widget.size,
+                    height: widget.size,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, error, ___) =>
+                        _imageError(letter, fg, error),
+                  )
+                : networkImageUrl != null
+                    ? Image(
+                        key: ValueKey(
+                          Object.hash(
+                            networkDiskCacheKey,
+                            imageHeaders?['authorization'],
+                          ),
                         ),
-                      ),
-                      image: CachedNetworkImageProvider(
-                        networkImageUrl,
-                        cacheKey: networkImageUrl,
-                        headers: imageHeaders,
-                      ),
-                      width: widget.size,
-                      height: widget.size,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      errorBuilder: (_, error, ___) =>
-                          _imageError(letter, fg, error),
-                    )
-                  : widget.imageAsset != null
-                      ? Image.asset(
-                          widget.imageAsset!,
-                          width: widget.size,
-                          height: widget.size,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, error, ___) =>
-                              _imageError(letter, fg, error),
-                        )
-                      : _letter(letter, fg),
+                        image: CachedNetworkImageProvider(
+                          networkImageUrl,
+                          cacheKey: networkDiskCacheKey,
+                          headers: imageHeaders,
+                        ),
+                        width: widget.size,
+                        height: widget.size,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        frameBuilder:
+                            (_, child, frame, wasSynchronouslyLoaded) {
+                          if (wasSynchronouslyLoaded || frame != null) {
+                            return child;
+                          }
+                          return const SizedBox.expand();
+                        },
+                        errorBuilder: (_, error, ___) =>
+                            _imageError(letter, fg, error),
+                      )
+                    : widget.imageAsset != null
+                        ? Image.asset(
+                            widget.imageAsset!,
+                            width: widget.size,
+                            height: widget.size,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (_, error, ___) =>
+                                _imageError(letter, fg, error),
+                          )
+                        : _letter(letter, fg),
+      ),
     );
+  }
+
+  Uint8List? _retainedNetworkBytes(
+    String? imageUrl,
+    Map<String, String>? headers,
+    String? stableCacheKey,
+  ) {
+    final bytes = _lastNetworkBytes;
+    if (imageUrl == null || bytes == null || bytes.isEmpty) return null;
+    if (_lastNetworkAuthKey != _portalAvatarAuthKey(headers)) return null;
+    if (stableCacheKey != null && stableCacheKey == _lastNetworkStableKey) {
+      return bytes;
+    }
+    if (imageUrl == _lastNetworkImageUrl) return bytes;
+    if (_lastNetworkSeed != widget.seed) return null;
+    return bytes;
+  }
+
+  void _rememberNetworkBytes({
+    required Uint8List bytes,
+    required String? imageUrl,
+    required String? stableCacheKey,
+    required Map<String, String>? headers,
+  }) {
+    if (bytes.isEmpty) return;
+    _lastNetworkBytes = bytes;
+    _lastNetworkSeed = widget.seed;
+    _lastNetworkImageUrl = imageUrl;
+    _lastNetworkStableKey = stableCacheKey;
+    _lastNetworkAuthKey = _portalAvatarAuthKey(headers);
+  }
+
+  void _clearRetainedNetworkBytes() {
+    _lastNetworkBytes = null;
+    _lastNetworkSeed = null;
+    _lastNetworkImageUrl = null;
+    _lastNetworkStableKey = null;
+    _lastNetworkAuthKey = null;
   }
 
   Widget _imageError(String letter, Color fg, Object error) {
@@ -155,7 +267,7 @@ class _PortalAvatarState extends State<PortalAvatar> {
       );
 }
 
-const int _portalAvatarMemoryCacheLimit = 256;
+const int _portalAvatarMemoryCacheLimit = 2048;
 final _portalAvatarMemoryBytes = <String, Uint8List>{};
 final _portalAvatarMemoryLoads = <String, Future<void>>{};
 
@@ -163,7 +275,43 @@ String _portalAvatarMemoryCacheKey(
   String imageUrl,
   Map<String, String>? headers,
 ) {
-  return '$imageUrl\n${headers?['authorization'] ?? ''}';
+  return '$imageUrl\n${_portalAvatarAuthKey(headers)}';
+}
+
+String _portalAvatarStableMemoryCacheKey(
+  String stableCacheKey,
+  Map<String, String>? headers,
+) {
+  return 'stable:$stableCacheKey\n${_portalAvatarAuthKey(headers)}';
+}
+
+String _portalAvatarStableDiskCacheKey(
+  String stableCacheKey,
+  Map<String, String>? headers,
+) {
+  return 'portal-avatar:$stableCacheKey\n${_portalAvatarAuthKey(headers)}';
+}
+
+String _portalAvatarAuthKey(Map<String, String>? headers) {
+  return headers?['authorization'] ?? '';
+}
+
+String? _normalizedStableCacheKey(String? stableCacheKey) {
+  final trimmed = stableCacheKey?.trim() ?? '';
+  return trimmed.isEmpty ? null : trimmed;
+}
+
+Uint8List? _cachedPortalAvatarBytes({
+  required String? stableMemoryCacheKey,
+  required String? urlMemoryCacheKey,
+}) {
+  if (stableMemoryCacheKey != null) {
+    final stableBytes = _portalAvatarMemoryBytes[stableMemoryCacheKey];
+    if (stableBytes != null && stableBytes.isNotEmpty) return stableBytes;
+  }
+  if (urlMemoryCacheKey == null) return null;
+  final urlBytes = _portalAvatarMemoryBytes[urlMemoryCacheKey];
+  return urlBytes == null || urlBytes.isEmpty ? null : urlBytes;
 }
 
 void _putPortalAvatarMemoryBytes(String key, Uint8List bytes) {
@@ -175,25 +323,86 @@ void _putPortalAvatarMemoryBytes(String key, Uint8List bytes) {
 }
 
 void _warmPortalAvatarMemoryCache({
-  required String cacheKey,
+  required String urlMemoryCacheKey,
+  required String? stableMemoryCacheKey,
+  required String? stableDiskCacheKey,
+  required String networkDiskCacheKey,
   required String imageUrl,
   required Map<String, String>? headers,
   required VoidCallback onLoaded,
 }) {
-  if (_portalAvatarMemoryLoads.containsKey(cacheKey)) return;
-  final load = CachedNetworkImageProvider.defaultCacheManager
-      .getSingleFile(imageUrl, key: imageUrl, headers: headers ?? const {})
+  if (_portalAvatarMemoryLoads.containsKey(urlMemoryCacheKey)) return;
+  final load = _loadStablePortalAvatarBytes(
+    stableMemoryCacheKey: stableMemoryCacheKey,
+    stableDiskCacheKey: stableDiskCacheKey,
+    onLoaded: onLoaded,
+  )
+      .then(
+        (_) => CachedNetworkImageProvider.defaultCacheManager.getSingleFile(
+          imageUrl,
+          key: networkDiskCacheKey,
+          headers: headers ?? const {},
+        ),
+      )
       .then((file) => file.readAsBytes())
       .then((bytes) {
     if (bytes.isEmpty) return;
-    _putPortalAvatarMemoryBytes(cacheKey, bytes);
+    _putPortalAvatarMemoryBytes(urlMemoryCacheKey, bytes);
+    if (stableMemoryCacheKey != null) {
+      _putPortalAvatarMemoryBytes(stableMemoryCacheKey, bytes);
+    }
+    if (stableDiskCacheKey != null) {
+      unawaited(_persistStablePortalAvatarBytes(
+        imageUrl: imageUrl,
+        stableDiskCacheKey: stableDiskCacheKey,
+        bytes: bytes,
+      ));
+    }
     onLoaded();
   }).catchError((_) {
-    _portalAvatarMemoryBytes.remove(cacheKey);
+    _portalAvatarMemoryBytes.remove(urlMemoryCacheKey);
   }).whenComplete(() {
-    _portalAvatarMemoryLoads.remove(cacheKey);
+    _portalAvatarMemoryLoads.remove(urlMemoryCacheKey);
   });
-  _portalAvatarMemoryLoads[cacheKey] = load;
+  _portalAvatarMemoryLoads[urlMemoryCacheKey] = load;
+}
+
+Future<void> _loadStablePortalAvatarBytes({
+  required String? stableMemoryCacheKey,
+  required String? stableDiskCacheKey,
+  required VoidCallback onLoaded,
+}) async {
+  if (stableMemoryCacheKey == null || stableDiskCacheKey == null) return;
+  if (_portalAvatarMemoryBytes.containsKey(stableMemoryCacheKey)) return;
+  try {
+    final cached = await CachedNetworkImageProvider.defaultCacheManager
+        .getFileFromCache(stableDiskCacheKey);
+    final file = cached?.file;
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) return;
+    _putPortalAvatarMemoryBytes(stableMemoryCacheKey, bytes);
+    onLoaded();
+  } catch (_) {
+    // The URL cache path still has a chance to load the image.
+  }
+}
+
+Future<void> _persistStablePortalAvatarBytes({
+  required String imageUrl,
+  required String stableDiskCacheKey,
+  required Uint8List bytes,
+}) async {
+  try {
+    await CachedNetworkImageProvider.defaultCacheManager.putFile(
+      imageUrl,
+      bytes,
+      key: stableDiskCacheKey,
+      fileExtension: _avatarFileExtension(imageUrl),
+    );
+  } catch (_) {
+    // Memory still keeps the visible avatar stable for this session.
+  }
 }
 
 @visibleForTesting
@@ -201,11 +410,19 @@ void cachePortalAvatarBytesForTesting({
   required String imageUrl,
   required Map<String, String>? headers,
   required Uint8List bytes,
+  String? stableCacheKey,
 }) {
   _putPortalAvatarMemoryBytes(
     _portalAvatarMemoryCacheKey(imageUrl, headers),
     bytes,
   );
+  final stableKey = _normalizedStableCacheKey(stableCacheKey);
+  if (stableKey != null) {
+    _putPortalAvatarMemoryBytes(
+      _portalAvatarStableMemoryCacheKey(stableKey, headers),
+      bytes,
+    );
+  }
 }
 
 @visibleForTesting
@@ -239,6 +456,14 @@ bool _sameOrigin(Uri left, Uri right) {
   return left.scheme == right.scheme &&
       left.host.toLowerCase() == right.host.toLowerCase() &&
       left.port == right.port;
+}
+
+String _avatarFileExtension(String imageUrl) {
+  final path = Uri.tryParse(imageUrl)?.path.toLowerCase() ?? '';
+  if (path.endsWith('.png')) return 'png';
+  if (path.endsWith('.webp')) return 'webp';
+  if (path.endsWith('.gif')) return 'gif';
+  return 'jpg';
 }
 
 /// 在线状态绿点 —— 叠在头像右下角。

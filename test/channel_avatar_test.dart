@@ -102,7 +102,7 @@ void main() {
       ),
     );
     final avatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
-    expect(avatar.imageUrl, isNull);
+    expect(avatar.imageUrl, avatarUrl);
     expect(avatar.imageBytes, bytes);
     expect(avatar.shape, AvatarShape.squircle);
   });
@@ -284,6 +284,150 @@ void main() {
     expect(avatar.shape, AvatarShape.squircle);
   });
 
+  testWidgets(
+      'channel inbox tile keeps displayed avatar while refreshed url reloads',
+      (tester) async {
+    final client = Client('ChannelForegroundAvatarUrlChangeTest');
+    final firstAvatarUrl =
+        'https://cdn.example.com/channel-foreground-a-${DateTime.now().microsecondsSinceEpoch}.png';
+    final refreshedAvatarUrl =
+        'https://cdn.example.com/channel-foreground-b-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (url) async => url == firstAvatarUrl ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+
+    Widget buildTile(String avatarUrl) => ProviderScope(
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: Scaffold(
+              body: ChannelInboxTile(
+                channel: ChannelInboxItem(
+                  id: 'ch_avatar_foreground_url',
+                  roomId: '!avatar-foreground-url:p2p-im.com',
+                  name: '产品公告',
+                  domain: 'p2p-im.com',
+                  avatarUrl: avatarUrl,
+                  latestPreview: '频道介绍',
+                  latestAt: null,
+                  unreadCount: 0,
+                  isOwned: true,
+                  tags: const ['文字'],
+                ),
+                showDivider: false,
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildTile(firstAvatarUrl));
+    final firstAvatar = await _pumpUntilPortalAvatarBytes(tester, bytes);
+    expect(firstAvatar.imageBytes, bytes);
+
+    clearChannelAvatarMemoryCacheForTesting();
+    final pendingRead = Completer<Uint8List?>();
+    setChannelAvatarCacheReaderForTesting(
+      (url) => url == refreshedAvatarUrl ? pendingRead.future : Future.value(),
+    );
+
+    await tester.pumpWidget(buildTile(refreshedAvatarUrl));
+    await tester.pump();
+
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageBytes, bytes);
+    expect(avatar.imageUrl, refreshedAvatarUrl);
+    expect(avatar.shape, AvatarShape.squircle);
+    expect(find.text('产'), findsNothing);
+  });
+
+  testWidgets(
+      'channel inbox tile keeps displayed avatar when resume changes label',
+      (tester) async {
+    final client = Client('ChannelResumeAvatarLabelChangeTest')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final firstAvatarUrl =
+        'https://p2p-im.com/_matrix/media/v3/download/example.com/channel-resume-a-${DateTime.now().microsecondsSinceEpoch}.png';
+    final refreshedAvatarUrl =
+        'https://p2p-im.com/_matrix/media/v3/download/example.com/channel-resume-b-${DateTime.now().microsecondsSinceEpoch}.png';
+    const channelId = 'ch_avatar_resume_label';
+    const roomId = '!avatar-resume-label:p2p-im.com';
+    final stableKey = channelAvatarStableCacheKey(
+      channelId: channelId,
+      roomId: roomId,
+    );
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    clearPortalAvatarMemoryCacheForTesting();
+    cachePortalAvatarBytesForTesting(
+      imageUrl: firstAvatarUrl,
+      headers: avatarImageHeadersForUrl(client, firstAvatarUrl),
+      bytes: bytes,
+      stableCacheKey: stableKey,
+    );
+    setChannelAvatarCacheReaderForTesting((_) async => null);
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+      clearPortalAvatarMemoryCacheForTesting();
+    });
+
+    Widget buildTile({
+      required String name,
+      required String avatarUrl,
+    }) =>
+        ProviderScope(
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: Scaffold(
+              body: ChannelInboxTile(
+                channel: ChannelInboxItem(
+                  id: channelId,
+                  roomId: roomId,
+                  name: name,
+                  domain: 'p2p-im.com',
+                  avatarUrl: avatarUrl,
+                  latestPreview: '频道介绍',
+                  latestAt: null,
+                  unreadCount: 0,
+                  isOwned: true,
+                  tags: const ['文字'],
+                ),
+                showDivider: false,
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(
+      buildTile(name: '产品公告', avatarUrl: firstAvatarUrl),
+    );
+    final firstImage = tester.widget<Image>(find.byType(Image));
+    expect(firstImage.image, isA<MemoryImage>());
+    expect((firstImage.image as MemoryImage).bytes, same(bytes));
+
+    clearPortalAvatarMemoryCacheForTesting();
+    final pendingRead = Completer<Uint8List?>();
+    setChannelAvatarCacheReaderForTesting((_) => pendingRead.future);
+
+    await tester.pumpWidget(
+      buildTile(name: '产品公告频道', avatarUrl: refreshedAvatarUrl),
+    );
+    await tester.pump();
+
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageUrl, refreshedAvatarUrl);
+    final resumedImage = tester.widget<Image>(find.byType(Image));
+    expect(resumedImage.image, isA<MemoryImage>());
+    expect((resumedImage.image as MemoryImage).bytes, same(bytes));
+    expect(find.text('产'), findsNothing);
+  });
+
   testWidgets('channel inbox tile renders avatar bytes seeded after create',
       (tester) async {
     final client = Client('ChannelSeededAvatarTest');
@@ -331,6 +475,33 @@ void main() {
     final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
     expect(avatar.imageBytes, bytes);
     expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  test('channel avatar disk cache restores by stable key when url changes',
+      () async {
+    final refreshedAvatarUrl =
+        'https://cdn.example.com/channel-disk-b-${DateTime.now().microsecondsSinceEpoch}.png';
+    final stableKey = channelAvatarStableCacheKey(
+      channelId: 'ch_avatar_disk',
+      roomId: '!avatar-disk:p2p-im.com',
+    );
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (key) async => key == 'channel-avatar:$stableKey' ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+    clearChannelAvatarMemoryCacheForTesting();
+
+    final restored = await loadCachedChannelAvatarBytes(
+      refreshedAvatarUrl,
+      stableKey: stableKey,
+    );
+
+    expect(restored, isNotNull);
+    expect(restored, orderedEquals(bytes));
   });
 
   testWidgets('member channel info page renders uploaded channel avatar',
@@ -383,6 +554,7 @@ void main() {
       avatars.any(
         (avatar) =>
             avatar.imageUrl == avatarUrl &&
+            avatar.stableCacheKey == 'channel:ch_owned' &&
             avatar.shape == AvatarShape.squircle,
       ),
       isTrue,

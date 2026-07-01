@@ -20,13 +20,3 @@ bool shouldBackfillLocalChatOpenHistory({
   return visibleMessageCountForChatOpenHistory(timelineEvents) <
       chatOpenLocalHistoryTargetMessages;
 }
-
-bool shouldSyncEmptyRoomHistoryOnOpen({
-  required Iterable<Event> timelineEvents,
-  required String? prevBatch,
-}) {
-  if (visibleMessageCountForChatOpenHistory(timelineEvents) > 0) {
-    return false;
-  }
-  return (prevBatch ?? '').isEmpty;
-}

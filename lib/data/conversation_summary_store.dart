@@ -166,6 +166,13 @@ class ConversationSummaryEntry {
     final previousEntry = previous;
     final liveLastMessage = lastMessage.trim();
     final liveAvatar = avatarUrl.trim();
+    final keepPreviousPreview = previousEntry != null &&
+        !clearCachedPreview &&
+        _previousPreviewIsNewer(
+          previousEntry,
+          liveLastMessage: liveLastMessage,
+          livePreviewTs: previewTs,
+        );
     return ConversationSummaryEntry(
       conversationId: conversationId.trim().isNotEmpty
           ? conversationId
@@ -173,16 +180,20 @@ class ConversationSummaryEntry {
       roomId: roomId,
       kind: kind.trim().isNotEmpty ? kind : previousEntry?.kind ?? '',
       name: name.trim().isNotEmpty ? name : previousEntry?.name ?? roomId,
-      lastMessage: liveLastMessage.isNotEmpty
-          ? lastMessage
-          : clearCachedPreview
-              ? ''
-              : previousEntry?.lastMessage ?? lastMessage,
-      previewTs: previewTs > 0
-          ? previewTs
-          : clearCachedPreview
-              ? 0
-              : previousEntry?.previewTs ?? 0,
+      lastMessage: clearCachedPreview
+          ? ''
+          : keepPreviousPreview
+              ? previousEntry.lastMessage
+              : liveLastMessage.isNotEmpty
+                  ? lastMessage
+                  : previousEntry?.lastMessage ?? lastMessage,
+      previewTs: clearCachedPreview
+          ? 0
+          : keepPreviousPreview
+              ? previousEntry.previewTs
+              : previewTs > 0
+                  ? previewTs
+                  : previousEntry?.previewTs ?? 0,
       unread: clearCachedPreview
           ? unread
           : hasDisplaySignal
@@ -240,6 +251,17 @@ class ConversationSummaryEntry {
       clearCachedPreview,
     );
   }
+}
+
+bool _previousPreviewIsNewer(
+  ConversationSummaryEntry previous, {
+  required String liveLastMessage,
+  required int livePreviewTs,
+}) {
+  final previousPreviewTs = previous.previewTs;
+  if (previousPreviewTs <= 0) return false;
+  if (livePreviewTs <= 0) return liveLastMessage.isNotEmpty;
+  return previousPreviewTs > livePreviewTs;
 }
 
 abstract class ConversationSummaryStore {

@@ -90,6 +90,17 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       await _notifyAuthenticationFailed(originalToken);
       return _rebuildResponse(response, responseBody);
     }
+    if (token == originalToken) {
+      token = await _waitForChangedAccessToken(originalToken);
+    }
+    if (token == originalToken) {
+      ApiLogger.info(
+        '[Matrix] access token refresh returned unchanged token '
+        'uri=${request.url} ${_tokenPreview('token', originalToken)}',
+      );
+      await _notifyAuthenticationFailed(originalToken);
+      return _rebuildResponse(response, responseBody);
+    }
 
     ApiLogger.info(
       '[Matrix] access token refresh succeeded '
@@ -98,12 +109,24 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       '${_tokenPreview('new_token', token)} '
       'changed=${originalToken != token}',
     );
-    _setBearerAuth(retryRequest.headers, token);
+    final retryToken = token!;
+    _setBearerAuth(retryRequest.headers, retryToken);
     return _sendRetry(
       retryRequest,
       notifyAuthenticationFailed: true,
-      failedToken: token,
+      failedToken: retryToken,
     );
+  }
+
+  Future<String?> _waitForChangedAccessToken(String originalToken) async {
+    for (var attempt = 0; attempt < 4; attempt += 1) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final token = (await refreshAccessToken?.call())?.trim();
+      if (token != null && token.isNotEmpty && token != originalToken) {
+        return token;
+      }
+    }
+    return originalToken;
   }
 
   Future<http.StreamedResponse> _sendRetry(

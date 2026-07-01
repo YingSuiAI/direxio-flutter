@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-29
+Last verified from current code: 2026-06-30
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -17,9 +17,9 @@ This document records the current P2P product API / Matrix boundary used by the 
 ## Token Boundary
 
 - Backend auth responses expose one `access_token`.
-- P2P product API calls use `access_token` as bearer auth.
+- Startup/session P2P calls use `access_token` as bearer auth. Logged-in product calls use WS when the realtime transport is already ready; if WS is not ready or disconnected at click time, the current action falls back to owner HTTP immediately while the realtime stream reconnects in the background.
 - Matrix Client-Server API calls use the same `access_token` through the Matrix SDK.
-- P2P product API clients must use a `/_p2p` base URI and send action envelopes to `/_p2p/query` or `/_p2p/command`.
+- P2P product API clients must use a `/_p2p` base URI. After login, non-MCP product methods send WS `client.request` frames to `GET /_p2p/ws` only after `server.ready`; if realtime is not ready, the same action envelope is sent to HTTP `/_p2p/query` or `/_p2p/command` with the owner bearer token immediately. HTTP is still the primary path for portal bootstrap/auth/status/password, `realtime.ws_ticket.create`, fixed `mcp.*` actions, and node-to-node public/callback actions.
 - Matrix access tokens are never a fallback credential for P2P product API calls.
 - After `portal.password` succeeds, persist the new login password and new P2P bearer token before any Matrix or P2P follow-up request can refresh authentication.
 - When login or password changes rotate the bearer token, delayed Matrix or P2P `M_UNKNOWN_TOKEN` responses from the previous token must not expire a session that has already applied the newer token.
@@ -28,7 +28,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 
 ## P2P Product API Responsibilities
 
-- Requests use `POST /_p2p/query` or `POST /_p2p/command` with an `action` and `params` body.
+- Logged-in non-MCP product requests use WS `client.request` frames with an `action` and `params` body when WS is ready. If WS is not ready or disconnected, the client falls back immediately to HTTP `POST /_p2p/query` or `POST /_p2p/command` with the same `action` and `params`; the realtime stream reconnects separately. If a WS request was already sent and the response is lost, HTTP fallback is allowed only for safe repeated actions such as contact request decisions, joins, read markers, and product queries. Business errors returned by WS are not retried over HTTP.
 - Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.password`.
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Conversation actions: `conversations.list`, `conversations.get`.
@@ -48,34 +48,38 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Public channel join requests return `pending`, `rejected`, `approved`, `joining`, `joined`, or `join_failed`. Only `joined` is openable as a joined channel; `approved`/`joining` are still in-progress states.
 - Channel join-request review actions return a top-level status with the same approval/join states. The client must preserve that top-level status; approving a request is not a successful join unless the returned status is `joined`.
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
-- Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
+- Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; WS `server.event` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
 - Agent actions: `agent.*`. Agent room header presence uses
   native Matrix room state in the real `agent_room_id`: event type
   `io.direxio.agent.status`, state key `@agent:<server>`, and content field
   `online`. `sync.bootstrap` only supplies the real `agent_room_id`; it does
-  not mirror the online bit, and `GET /_p2p/events` does not emit
+  not mirror the online bit, and WS `server.event` does not emit
   `agent.presence`. Typing, thinking, and streaming reply generation are
   separate chat UI states. `agent.status` and `agents.status` are not current
   client APIs.
 - Sync strategy: use `sync.bootstrap` only for cold start, login recovery,
   corrupt local cache, unknown event fallback, or confirmed event gaps. Normal
-  updates should persist the last handled SSE `seq` and apply typed local
-  reducers from `GET /_p2p/events?since=<last_seq>` instead of full bootstrap
+  updates should create a `realtime.ws_ticket.create` ticket, connect
+  `GET /_p2p/ws`, persist the last handled `seq`, send `client.ack`, and apply
+  typed local reducers from WS `server.event` frames instead of full bootstrap
   refreshes.
-- If `GET /_p2p/events` emits `event: p2p.cursor_reset` or returns
-  `X-Direxio-P2P-Events-Cursor-Reset: true`, the client clears local product
-  projection caches, runs one `sync.bootstrap`, persists the response
-  `max_seq` as the recovered cursor when present, and resumes deltas from that
-  sequence. The cursor-reset control event itself must not advance `last_seq`.
+- If WS emits `server.cursor_reset`, the client clears local product
+  projection caches, runs one `sync.bootstrap` over WS, persists the response
+  `max_seq` as the recovered cursor when present, and resumes deltas from that sequence.
+  The cursor-reset control event itself must not advance `last_seq`.
 - Foreground Matrix refreshes use `/sync` filters with a low timeline limit and
   `lazy_load_members=true`. Ordinary chat, media history, search, unread, local
   delete, and redaction remain Matrix Client-Server responsibilities.
-- Foreground/background push context uses Matrix global account data type
-  `io.direxio.push.context`. Logged-in clients write `{"foreground": true}`
-  immediately on `resumed` and every 30 seconds, and write
-  `{"foreground": false}` for non-resumed lifecycle states. The backend stamps
-  foreground writes with a server-clock 60-second expiry; the client must not
-  send expiry timestamps or model this as a P2P action.
+- Foreground/background and current-room push context use WS frames:
+  `client.lifecycle` reports foreground plus optional `state`, `hidden`, and
+  `flags`; `client.focus` reports the currently opened room plus optional
+  `focused` and `flags`; `client.ack` reports the latest handled event
+  sequence. A foreground, non-hidden, same-room WS session suppresses push;
+  background, hidden, disconnected, expired, no-focus, or different-room state
+  keeps normal push behavior. Logged-in clients still write Matrix global
+  account data `io.direxio.push.context` every 30 seconds as a migration
+  fallback. The backend stamps session/account-data freshness with server time;
+  the client must not send expiry timestamps.
 - Channel post/comment list actions currently do not have a documented
   cursor/page contract. Client method signatures may keep local progressive
   loading parameters, but the HTTP client must not send uncontracted
@@ -101,8 +105,8 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Message search via Matrix search.
 - Local delete/clear through the Matrix `io.direxio` local visibility endpoint.
 - Read markers and sync via Matrix `/sync`.
-- Foreground/background push context via global account data
-  `io.direxio.push.context`.
+- Foreground/background/hidden/current-room push context via WS, with
+  `io.direxio.push.context` retained as fallback.
 
 ## Bootstrap Privacy
 

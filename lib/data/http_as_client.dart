@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import 'api_logger.dart';
 import 'as_client.dart';
+import 'as_realtime_transport.dart';
 import 'local_endpoint_resolver.dart';
 
 /// HTTP implementation for the Direxio P2P backend P2P product API.
@@ -68,6 +69,8 @@ class HttpAsClient implements AsClient {
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
+
+  Uri get realtimeBaseUri => _baseUri;
 
   static Uri defaultProductBaseUri(
     Uri homeserver, {
@@ -205,93 +208,13 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Stream<AsEventStreamEvent> streamEvents({
-    int? since,
-    String? lastEventId,
-  }) async* {
-    final queryParameters = <String, String>{
-      if (since != null && since > 0) 'since': since.toString(),
-    };
-    final uri = _resolve(
-      'events',
-      queryParameters: queryParameters.isEmpty ? null : queryParameters,
-    );
-    final replayId = lastEventId?.trim() ?? '';
+  Stream<AsEventStreamEvent> streamEvents({int? since, String? lastEventId}) {
+    throw AsClientException('SSE event stream has been removed; use WS');
+  }
 
-    late http.StreamedResponse streamed;
-    Duration elapsed = Duration.zero;
-    for (var attempt = 0; attempt < 2; attempt++) {
-      final request = http.Request('GET', uri);
-      request.headers['Authorization'] = 'Bearer $_portalToken';
-      request.headers['Accept'] = 'text/event-stream';
-      if (replayId.isNotEmpty) {
-        request.headers['Last-Event-ID'] = replayId;
-      }
-
-      final stopwatch = Stopwatch()..start();
-      final httpClient = _streamingHttpClient(_http);
-      try {
-        streamed = await httpClient.send(request).timeout(_timeout);
-      } catch (error, stackTrace) {
-        stopwatch.stop();
-        ApiLogger.failure(
-          service: 'P2P events',
-          method: 'GET',
-          uri: uri,
-          elapsed: stopwatch.elapsed,
-          error: error,
-          stackTrace: stackTrace,
-        );
-        rethrow;
-      }
-      stopwatch.stop();
-      elapsed = stopwatch.elapsed;
-      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
-        break;
-      }
-      final response = await http.Response.fromStream(streamed);
-      ApiLogger.response(
-        service: 'P2P events',
-        method: 'GET',
-        uri: uri,
-        statusCode: response.statusCode,
-        elapsed: elapsed,
-        responseBody: response.body,
-      );
-      if (_isAuthenticationFailureResponse(response)) {
-        if (attempt == 0) {
-          final refreshedToken =
-              (await _onAuthenticationRefresh?.call())?.trim();
-          if (refreshedToken != null && refreshedToken.isNotEmpty) {
-            _portalToken = refreshedToken;
-            continue;
-          }
-        }
-        await _notifyAuthenticationFailed();
-      }
-      throw AsClientException(
-        _extractErrorMessage(response),
-        statusCode: response.statusCode,
-      );
-    }
-    ApiLogger.response(
-      service: 'P2P events',
-      method: 'GET',
-      uri: uri,
-      statusCode: streamed.statusCode,
-      elapsed: elapsed,
-    );
-    if (_isCursorResetHeader(streamed.headers)) {
-      yield AsEventStreamEvent(
-        seq: 0,
-        type: 'p2p.cursor_reset',
-        createdAt: null,
-        payload: _cursorResetPayloadFromHeaders(streamed.headers, since),
-      );
-    }
-    yield* _decodeSseEvents(
-      streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),
-    );
+  Future<AsRealtimeWSTicket> createRealtimeWSTicket() async {
+    final body = await _requestJson('POST', 'realtime/ws-ticket');
+    return AsRealtimeWSTicket.fromJson(body);
   }
 
   @override
@@ -2084,6 +2007,285 @@ class HttpAsClient implements AsClient {
   }
 }
 
+typedef AsWSActionRequester = Future<Map<String, dynamic>> Function(
+  String action,
+  Map<String, Object?> params, {
+  Set<int> allowedStatusCodes,
+});
+
+class WsAsClient extends HttpAsClient {
+  WsAsClient({
+    required super.baseUri,
+    required super.portalToken,
+    required AsWSActionRequester requestAction,
+    super.authSource = 'portal_token',
+    super.accessTokenForDebug,
+    super.onAuthenticationRefresh,
+    super.onAuthenticationFailed,
+    super.onAuthenticationFailedForToken,
+    super.httpClient,
+  }) : _requestAction = requestAction;
+
+  factory WsAsClient.fromHttpClient(
+    HttpAsClient client, {
+    required AsWSActionRequester requestAction,
+  }) {
+    return WsAsClient(
+      baseUri: client._baseUri,
+      portalToken: client._portalToken,
+      requestAction: requestAction,
+      authSource: client._authSource ?? 'portal_token',
+      accessTokenForDebug: client._accessTokenForDebug,
+      onAuthenticationRefresh: client._onAuthenticationRefresh,
+      onAuthenticationFailed: client._onAuthenticationFailed,
+      onAuthenticationFailedForToken: client._onAuthenticationFailedForToken,
+      httpClient: client._http,
+    );
+  }
+
+  factory WsAsClient.fromPortalSession(
+    Client client, {
+    required String portalToken,
+    Uri? baseUri,
+    FutureOr<String?> Function()? onAuthenticationRefresh,
+    FutureOr<void> Function()? onAuthenticationFailed,
+    FutureOr<void> Function(String failedToken)? onAuthenticationFailedForToken,
+  }) {
+    final homeserver = client.homeserver;
+    if (homeserver == null) {
+      throw AsClientException('Matrix session is not initialized');
+    }
+    late WsAsRealtimeTransport transport;
+    late WsAsClient wsClient;
+    wsClient = WsAsClient(
+      baseUri: baseUri ?? HttpAsClient.defaultProductBaseUri(homeserver),
+      portalToken: portalToken,
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) {
+        return transport.requestAction(
+          action,
+          params,
+          allowedStatusCodes: allowedStatusCodes,
+        );
+      },
+      authSource: 'portal_token',
+      accessTokenForDebug: client.accessToken,
+      onAuthenticationRefresh: onAuthenticationRefresh,
+      onAuthenticationFailed: onAuthenticationFailed,
+      onAuthenticationFailedForToken: onAuthenticationFailedForToken,
+      httpClient: client.httpClient,
+    );
+    transport = WsAsRealtimeTransport(
+      baseUri: wsClient.realtimeBaseUri,
+      createTicket: wsClient.createRealtimeWSTicket,
+    );
+    return wsClient;
+  }
+
+  final AsWSActionRequester _requestAction;
+  final Map<String, Future<Map<String, dynamic>>> _inFlightProductActions = {};
+
+  @override
+  Future<Map<String, dynamic>> _requestJson(
+    String method,
+    String path, {
+    Map<String, String>? queryParameters,
+    Object? body,
+    Set<int> allowedStatusCodes = const {200},
+  }) async {
+    final action = _actionFor(method, path);
+    if (_httpOnlyAction(action)) {
+      return super._requestJson(
+        method,
+        path,
+        queryParameters: queryParameters,
+        body: body,
+        allowedStatusCodes: allowedStatusCodes,
+      );
+    }
+    var params =
+        _actionParams(path, queryParameters: queryParameters, body: body);
+    if (action == 'favorites.add') {
+      params = _favoriteAddParams(params);
+    }
+    final inFlightKey = _productActionInFlightKey(action, params);
+    final inFlight = _inFlightProductActions[inFlightKey];
+    if (inFlight != null) return inFlight;
+    late Future<Map<String, dynamic>> request;
+    request = _requestJsonWSFirst(
+      method,
+      path,
+      action: action,
+      params: params,
+      queryParameters: queryParameters,
+      body: body,
+      allowedStatusCodes: allowedStatusCodes,
+    );
+    _inFlightProductActions[inFlightKey] = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_inFlightProductActions[inFlightKey], request)) {
+        _inFlightProductActions.remove(inFlightKey);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _requestJsonWSFirst(
+    String method,
+    String path, {
+    required String action,
+    required Map<String, Object?> params,
+    Map<String, String>? queryParameters,
+    Object? body,
+    Set<int> allowedStatusCodes = const {200},
+  }) async {
+    _logChannelShareApiParams(action, params);
+    final requestBody = jsonEncode({
+      'type': 'client.request',
+      'action': action,
+      'params': _redactChannelShareApiParams(params),
+    });
+    final stopwatch = Stopwatch()..start();
+    try {
+      final result = await _requestAction(
+        action,
+        params,
+        allowedStatusCodes: allowedStatusCodes,
+      );
+      stopwatch.stop();
+      final responseBody = jsonEncode(_redactChannelShareApiParams(result));
+      _logChannelShareApiResponse(
+        action,
+        statusCode: 200,
+        body: responseBody,
+      );
+      ApiLogger.response(
+        service: 'P2P product WS',
+        method: 'WS',
+        uri: realtimeBaseUri,
+        statusCode: 200,
+        elapsed: stopwatch.elapsed,
+        apiName: action,
+        requestBody: requestBody,
+        responseBody: responseBody,
+      );
+      return result;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      _logChannelShareApiError(action, error);
+      if (error is AsClientException && error.statusCode == 401) {
+        await _notifyAuthenticationFailed();
+      }
+      ApiLogger.failure(
+        service: 'P2P product WS',
+        method: 'WS',
+        uri: realtimeBaseUri,
+        elapsed: stopwatch.elapsed,
+        apiName: action,
+        requestBody: requestBody,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (_shouldHTTPFallbackForWSError(action, error)) {
+        return super._requestJson(
+          method,
+          path,
+          queryParameters: queryParameters,
+          body: body,
+          allowedStatusCodes: allowedStatusCodes,
+        );
+      }
+      rethrow;
+    }
+  }
+}
+
+String _productActionInFlightKey(String action, Map<String, Object?> params) {
+  return jsonEncode({
+    'action': action.trim(),
+    'params': _canonicalJson(params),
+  });
+}
+
+Object? _canonicalJson(Object? value) {
+  if (value is Map) {
+    final keys = value.keys.map((key) => key.toString()).toList()..sort();
+    return {
+      for (final key in keys) key: _canonicalJson(value[key]),
+    };
+  }
+  if (value is Iterable) {
+    return [for (final item in value) _canonicalJson(item)];
+  }
+  return value;
+}
+
+bool _shouldHTTPFallbackForWSError(String action, Object error) {
+  if (error is TimeoutException) return true;
+  if (error is AsClientException && error.statusCode != null) return false;
+  final message = error.toString().toLowerCase();
+  if (message.contains('before request') || message.contains('not ready')) {
+    return true;
+  }
+  if (message.contains('before response') ||
+      message.contains('after request')) {
+    return _canHTTPFallbackAfterWSDispatch(action);
+  }
+  return message.contains('ws ') ||
+      message.contains('websocket') ||
+      message.contains('socket') ||
+      message.contains('connection failed');
+}
+
+bool _canHTTPFallbackAfterWSDispatch(String action) {
+  final normalized = action.trim();
+  if (normalized.endsWith('.get') ||
+      normalized.endsWith('.list') ||
+      normalized.endsWith('.search') ||
+      normalized == 'sync.bootstrap') {
+    return true;
+  }
+  return const {
+    'contacts.requests.accept',
+    'contacts.requests.reject',
+    'contacts.requests.delete',
+    'groups.join',
+    'groups.invite.reject',
+    'channels.join',
+    'channels.join_request.approve',
+    'channels.join_request.reject',
+    'channels.public.join_request',
+    'sync.read_marker',
+    'channels.read_marker',
+  }.contains(normalized);
+}
+
+bool _httpOnlyAction(String action) {
+  if (action.trim().startsWith('mcp.')) return true;
+  return switch (action) {
+    'portal.bootstrap' => true,
+    'portal.auth' => true,
+    'portal.status' => true,
+    'portal.password' => true,
+    'realtime.ws_ticket.create' => true,
+    _ => false,
+  };
+}
+
+@visibleForTesting
+String debugProductActionForRequest(String method, String path) {
+  return _actionFor(method, path);
+}
+
+@visibleForTesting
+bool debugProductActionUsesHttpOnlyTransport(String action) {
+  return _httpOnlyAction(action);
+}
+
 List<Map<String, String>> _normalizedMentionPayload(
   Iterable<Map<String, Object?>> mentions,
 ) {
@@ -2133,6 +2335,9 @@ String _actionFor(String method, String path) {
   }
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
+  if (method == 'POST' && clean == 'realtime/ws-ticket') {
+    return 'realtime.ws_ticket.create';
+  }
   if (method == 'GET' && clean == 'follows') return 'follows.list';
   if (method == 'POST' && clean == 'follows') return 'follows.add';
   if (method == 'DELETE' && segments.first == 'follows') {
@@ -2615,96 +2820,4 @@ bool _invalidProductChannelId(String channelId, String roomId) {
       matrixRoomId.isEmpty ||
       productId == matrixRoomId ||
       productId.startsWith('!');
-}
-
-Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {
-  var eventName = '';
-  var eventId = '';
-  final dataLines = <String>[];
-
-  AsEventStreamEvent? buildEvent() {
-    if (dataLines.isEmpty) return null;
-    final rawData = dataLines.join('\n');
-    dataLines.clear();
-    final name = eventName;
-    final id = eventId;
-    eventName = '';
-    eventId = '';
-
-    final decoded = jsonDecode(rawData);
-    if (decoded is! Map<String, dynamic>) return null;
-    final fromJson = AsEventStreamEvent.fromJson(decoded);
-    final fallbackSeq = int.tryParse(id) ?? 0;
-    return AsEventStreamEvent(
-      seq: fromJson.seq > 0 ? fromJson.seq : fallbackSeq,
-      type: fromJson.type.isNotEmpty ? fromJson.type : name,
-      roomId: fromJson.roomId,
-      eventId: fromJson.eventId,
-      payload: fromJson.payload,
-      createdAt: fromJson.createdAt,
-    );
-  }
-
-  await for (final line in lines) {
-    if (line.isEmpty) {
-      final event = buildEvent();
-      if (event != null) yield event;
-      continue;
-    }
-    if (line.startsWith(':')) continue;
-    final separator = line.indexOf(':');
-    final field = separator == -1 ? line : line.substring(0, separator);
-    var value = separator == -1 ? '' : line.substring(separator + 1);
-    if (value.startsWith(' ')) value = value.substring(1);
-    switch (field) {
-      case 'event':
-        eventName = value;
-        break;
-      case 'id':
-        eventId = value;
-        break;
-      case 'data':
-        dataLines.add(value);
-        break;
-    }
-  }
-  final trailing = buildEvent();
-  if (trailing != null) yield trailing;
-}
-
-bool _isCursorResetHeader(Map<String, String> headers) {
-  for (final entry in headers.entries) {
-    if (entry.key.toLowerCase() == 'x-direxio-p2p-events-cursor-reset') {
-      return entry.value.trim().toLowerCase() == 'true';
-    }
-  }
-  return false;
-}
-
-Map<String, dynamic> _cursorResetPayloadFromHeaders(
-  Map<String, String> headers,
-  int? since,
-) {
-  String header(String name) {
-    final lower = name.toLowerCase();
-    for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() == lower) return entry.value.trim();
-    }
-    return '';
-  }
-
-  int headerInt(String name) => int.tryParse(header(name)) ?? 0;
-  return {
-    'type': 'p2p.cursor_reset',
-    if (since != null && since > 0) 'since': since,
-    'min_seq': headerInt('X-Direxio-P2P-Events-Min-Seq'),
-    'max_seq': headerInt('X-Direxio-P2P-Events-Max-Seq'),
-    'count': headerInt('X-Direxio-P2P-Events-Count'),
-    'recovery': 'bootstrap_required',
-  };
-}
-
-http.Client _streamingHttpClient(http.Client client) {
-  if (client is TimeoutHttpClient) return client.inner;
-  return client;
 }

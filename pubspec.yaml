@@ -17,6 +17,7 @@ dependencies:
 
   # HTTP（well-known 域名发现 + P2P product API 调用）
   http: ^1.2.0
+  web_socket_channel: ^3.0.3
   crypto: ^3.0.7
 
   # WebRTC（matrix VoIP 必需，不是自动传递依赖，必须显式声明）

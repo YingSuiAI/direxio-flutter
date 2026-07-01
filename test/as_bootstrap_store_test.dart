@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late Directory tempDir;
@@ -54,6 +55,33 @@ void main() {
     await File('${tempDir.path}/bootstrap.json').writeAsString('{bad json');
 
     expect(await store.read(), isNull);
+  });
+
+  test('shared preferences store supports web cache read write and clear',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final webStore = SharedPreferencesAsBootstrapStore(preferences);
+
+    await webStore.write(_bootstrap(contactRoomId: '!web:p2p-im.com'));
+    final loaded = await webStore.read();
+
+    expect(loaded, isNotNull);
+    expect(loaded!.contacts.single.roomId, '!web:p2p-im.com');
+
+    await webStore.clear();
+
+    expect(await webStore.read(), isNull);
+  });
+
+  test('shared preferences store ignores corrupt web cache', () async {
+    SharedPreferences.setMockInitialValues({
+      'direxio_p2p_bootstrap': '{bad json',
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final webStore = SharedPreferencesAsBootstrapStore(preferences);
+
+    expect(await webStore.read(), isNull);
   });
 
   test('parses contact peer_mxid from message-server bootstrap', () {

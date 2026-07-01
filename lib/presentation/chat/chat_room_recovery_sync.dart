@@ -1,5 +1,3 @@
-import 'chat_history_backfill_policy.dart';
-
 typedef MissingRoomHistorySync = Future<void> Function({
   required String roomId,
   required int timelineLimit,
@@ -13,7 +11,7 @@ Future<bool> syncMissingRoomHistoryFromServer({
   if (trimmedRoomId.isEmpty) return false;
   await syncHistory(
     roomId: trimmedRoomId,
-    timelineLimit: chatOpenLocalHistoryPageSize,
+    timelineLimit: 0,
   );
   return true;
 }

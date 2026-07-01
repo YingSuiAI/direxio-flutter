@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/local_endpoint_resolver.dart';
@@ -1224,182 +1223,510 @@ void main() {
     expect(status.allHealthy, isFalse);
   });
 
-  test('streamEvents uses P2P SSE endpoint with replay cursor', () async {
-    final client = HttpAsClient(
+  test('WsAsClient sends logged-in product actions through WS requestAction',
+      () async {
+    final calls = <Map<String, Object?>>[];
+    final client = WsAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        calls.add({
+          'action': action,
+          'params': params,
+          'allowed': allowedStatusCodes,
+        });
+        return {'follows': []};
+      },
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/_p2p/events');
-        expect(request.url.queryParameters, {'since': '41'});
+        fail('product action should not use HTTP');
+      }),
+    );
+
+    final follows = await client.getFollows();
+
+    expect(follows, isEmpty);
+    expect(calls, hasLength(1));
+    expect(calls.single['action'], 'follows.list');
+    expect(calls.single['params'], isEmpty);
+  });
+
+  test('WsAsClient migrates representative product APIs to WS', () async {
+    final calls = <Map<String, Object?>>[];
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        calls.add({
+          'action': action,
+          'params': params,
+          'allowed': allowedStatusCodes,
+        });
+        return switch (action) {
+          'contacts.list' => {'contacts': []},
+          'groups.create' => {
+              'room_id': '!group:example.com',
+              'name': 'Team',
+              'member_count': 1,
+            },
+          'channels.read_marker' => {'status': 'ok'},
+          'favorites.list' => {'favorites': []},
+          'follows.list' => {'follows': []},
+          'calls.active' => {'calls': []},
+          _ => <String, Object?>{},
+        };
+      },
+      httpClient: MockClient((request) async {
+        fail('logged-in product action should not use HTTP: ${request.url}');
+      }),
+    );
+
+    await client.listContacts();
+    await client.createGroup(name: 'Team', invite: const []);
+    await client.updateChannelReadMarker(
+      'channel-1',
+      eventId: r'$event',
+      originServerTs: 1710000000000,
+    );
+    await client.getFavorites();
+    await client.getFollows();
+    await client.getActiveCalls();
+
+    expect(
+      calls.map((call) => call['action']),
+      [
+        'contacts.list',
+        'groups.create',
+        'channels.read_marker',
+        'favorites.list',
+        'follows.list',
+        'calls.active',
+      ],
+    );
+    expect(calls[1]['params'], {
+      'name': 'Team',
+      'invite': <String>[],
+    });
+    expect(calls[2]['params'], {
+      'channel_id': 'channel-1',
+      'event_id': r'$event',
+      'origin_server_ts': 1710000000000,
+    });
+  });
+
+  test('product route mapping covers current WS migration surface', () {
+    final cases = <({String method, String path}), String>{
+      (method: 'GET', path: 'agents/get-password'): 'agent.password',
+      (method: 'GET', path: 'agent/config'): 'agent.config.get',
+      (method: 'PUT', path: 'agent/config'): 'agent.config.update',
+      (method: 'GET', path: 'follows'): 'follows.list',
+      (method: 'POST', path: 'follows'): 'follows.add',
+      (method: 'DELETE', path: 'follows/example.com'): 'follows.remove',
+      (method: 'GET', path: 'favorites'): 'favorites.list',
+      (method: 'POST', path: 'favorites'): 'favorites.add',
+      (method: 'POST', path: 'favorites/delete-batch'):
+          'favorites.delete_batch',
+      (method: 'DELETE', path: 'favorites/42'): 'favorites.delete',
+      (method: 'POST', path: 'calls'): 'calls.create',
+      (method: 'GET', path: 'calls/active'): 'calls.active',
+      (method: 'GET', path: 'calls'): 'calls.list',
+      (method: 'POST', path: 'calls/incoming'): 'calls.incoming',
+      (method: 'GET', path: 'calls/call-1'): 'calls.get',
+      (method: 'POST', path: 'calls/call-1/events'): 'calls.event',
+      (method: 'POST', path: 'channels'): 'channels.create',
+      (method: 'GET', path: 'channels'): 'channels.list',
+      (method: 'GET', path: 'channels/me/comments'): 'channels.my_comments',
+      (method: 'GET', path: 'channels/me/reactions'): 'channels.my_reactions',
+      (method: 'GET', path: 'public/channels/search'): 'channels.public.search',
+      (method: 'GET', path: 'public/channels/!room:example.com'):
+          'channels.public.get',
+      (method: 'POST', path: 'public/channels/!room:example.com/join'):
+          'channels.public.join_request',
+      (method: 'GET', path: 'users/@owner:example.com/public-channels'):
+          'users.public_channels',
+      (method: 'POST', path: 'channels/invite-grants'):
+          'channels.invite_grant.create',
+      (method: 'PUT', path: 'channels/ch1'): 'channels.update',
+      (method: 'POST', path: 'channels/ch1'): 'channels.join',
+      (method: 'POST', path: 'channels/ch1/join'): 'channels.join',
+      (method: 'POST', path: 'channels/ch1/leave'): 'channels.leave',
+      (method: 'POST', path: 'channels/ch1/dissolve'): 'channels.dissolve',
+      (method: 'POST', path: 'channels/ch1/invite'): 'channels.invite',
+      (method: 'POST', path: 'channels/ch1/invite-grants'):
+          'channels.invite_grant.create',
+      (method: 'GET', path: 'channels/ch1/members'): 'channels.members',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/remove'):
+          'channels.member.remove',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/mute'):
+          'channels.member.mute',
+      (method: 'POST', path: 'channels/ch1/members/@u:example.com/unmute'):
+          'channels.member.unmute',
+      (
+        method: 'POST',
+        path: 'channels/ch1/join-requests/@u:example.com/approve',
+      ): 'channels.join_request.approve',
+      (
+        method: 'POST',
+        path: 'channels/ch1/join-requests/@u:example.com/reject',
+      ): 'channels.join_request.reject',
+      (method: 'POST', path: 'channels/ch1/mute'): 'channels.mute',
+      (method: 'POST', path: 'channels/ch1/unmute'): 'channels.unmute',
+      (method: 'GET', path: 'channels/ch1/posts'): 'channels.posts.list',
+      (method: 'POST', path: 'channels/ch1/posts'): 'channels.posts.create',
+      (method: 'PUT', path: 'channels/ch1/read-marker'): 'channels.read_marker',
+      (method: 'DELETE', path: 'channels/ch1/posts/post1'):
+          'channels.posts.recall',
+      (method: 'POST', path: 'channels/ch1/posts/post1/recall'):
+          'channels.posts.recall',
+      (method: 'GET', path: 'channels/ch1/posts/post1/comments'):
+          'channels.comments.list',
+      (method: 'POST', path: 'channels/ch1/posts/post1/comments'):
+          'channels.comments.create',
+      (method: 'POST', path: 'channels/ch1/posts/post1/reactions'):
+          'channels.post_reaction.toggle',
+      (
+        method: 'POST',
+        path: 'channels/ch1/posts/post1/comments/comment1/recall',
+      ): 'channels.comments.recall',
+      (
+        method: 'POST',
+        path: 'channels/ch1/posts/post1/comments/comment1/reactions',
+      ): 'channels.comment_reaction.toggle',
+      (method: 'POST', path: 'groups'): 'groups.create',
+      (method: 'GET', path: 'groups'): 'groups.list',
+      (method: 'PUT', path: 'groups/group1'): 'groups.update',
+      (method: 'POST', path: 'groups/group1/invite'): 'groups.invite',
+      (method: 'GET', path: 'groups/group1/members'): 'groups.members',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/remove'):
+          'groups.member.remove',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/mute'):
+          'groups.member.mute',
+      (method: 'POST', path: 'groups/group1/members/@u:example.com/unmute'):
+          'groups.member.unmute',
+      (method: 'POST', path: 'groups/group1/invite-policy'):
+          'groups.invite_policy.update',
+      (method: 'POST', path: 'groups/group1/join'): 'groups.join',
+      (method: 'POST', path: 'groups/group1/leave'): 'groups.leave',
+      (method: 'POST', path: 'groups/group1/dissolve'): 'groups.dissolve',
+      (method: 'POST', path: 'groups/group1/mute'): 'groups.mute',
+      (method: 'POST', path: 'groups/group1/unmute'): 'groups.unmute',
+      (method: 'GET', path: 'profile'): 'profile.get',
+      (method: 'PUT', path: 'profile'): 'profile.update',
+      (method: 'GET', path: 'sync/bootstrap'): 'sync.bootstrap',
+      (method: 'PUT', path: 'sync/read-marker'): 'sync.read_marker',
+      (method: 'GET', path: 'conversations'): 'conversations.list',
+      (method: 'GET', path: 'conversations/detail'): 'conversations.get',
+      (method: 'GET', path: 'contacts'): 'contacts.list',
+      (method: 'POST', path: 'contacts/reactivate'): 'contacts.reactivate',
+      (method: 'POST', path: 'contacts/requests'): 'contacts.request',
+      (method: 'DELETE', path: 'contacts/requests/!room:example.com'):
+          'contacts.requests.delete',
+      (method: 'POST', path: 'contacts/requests/!room:example.com/accept'):
+          'contacts.requests.accept',
+      (method: 'POST', path: 'contacts/requests/!room:example.com/reject'):
+          'contacts.requests.reject',
+      (method: 'PUT', path: 'contacts/!room:example.com'): 'contacts.update',
+      (method: 'DELETE', path: 'contacts/!room:example.com'): 'contacts.delete',
+    };
+
+    for (final entry in cases.entries) {
+      expect(
+        debugProductActionForRequest(entry.key.method, entry.key.path),
+        entry.value,
+        reason: '${entry.key.method} ${entry.key.path}',
+      );
+      expect(
+        debugProductActionUsesHttpOnlyTransport(entry.value),
+        isFalse,
+        reason: '${entry.value} should use WS after login',
+      );
+    }
+
+    for (final action in const [
+      'portal.bootstrap',
+      'portal.auth',
+      'portal.status',
+      'portal.password',
+      'realtime.ws_ticket.create',
+      'mcp.rooms.search',
+      'mcp.messages.send',
+      'mcp.messages.list',
+      'mcp.room_members.list',
+      'mcp.channel_posts.list',
+      'mcp.channel_comments.list',
+      'mcp.channel_comments.create',
+    ]) {
+      expect(
+        debugProductActionUsesHttpOnlyTransport(action),
+        isTrue,
+        reason: '$action should remain HTTP-only',
+      );
+    }
+  });
+
+  test('WsAsClient keeps realtime ticket creation on HTTP', () async {
+    var wsCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        return const {};
+      },
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'realtime.ws_ticket.create',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'ticket': 'ws-ticket',
+          'expires_in_ms': 60000,
+        }, 200);
+      }),
+    );
+
+    final ticket = await client.createRealtimeWSTicket();
+
+    expect(ticket.ticket, 'ws-ticket');
+    expect(wsCalls, 0);
+  });
+
+  test('WsAsClient falls back to HTTP when WS transport is unavailable',
+      () async {
+    var wsCalls = 0;
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        throw AsClientException('WS connection failed');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
         expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(request.headers['Accept'], 'text/event-stream');
-        expect(request.headers['Last-Event-ID'], '40');
-        return http.Response(
-          [
-            'id: 42',
-            'event: sync.bootstrap.changed',
-            r'data: {"seq":42,"type":"sync.bootstrap.changed","room_id":"!room:example.com","event_id":"$event","payload":{"reason":"contacts"},"created_at":"2026-06-20T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
+        expect(jsonDecode(request.body), {
+          'action': 'profile.get',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'user_id': '@owner:example.com',
+          'display_name': 'Owner',
+          'domain': 'example.com',
+        }, 200);
       }),
     );
 
-    final events = await client
-        .streamEvents(
-          since: 41,
-          lastEventId: '40',
-        )
-        .toList();
+    final profile = await client.getOwnerProfile();
 
-    expect(events, hasLength(1));
-    expect(events.single.seq, 42);
-    expect(events.single.type, 'sync.bootstrap.changed');
-    expect(events.single.roomId, '!room:example.com');
-    expect(events.single.eventId, r'$event');
-    expect(events.single.payload['reason'], 'contacts');
+    expect(profile.userId, '@owner:example.com');
+    expect(wsCalls, 1);
+    expect(httpCalls, 1);
   });
 
-  test('streamEvents refreshes token and retries once on M_UNKNOWN_TOKEN',
+  test('WsAsClient uses HTTP immediately when WS is not ready', () async {
+    var wsCalls = 0;
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        wsCalls++;
+        throw AsClientException('WS transport is not ready before request');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(jsonDecode(request.body), {
+          'action': 'profile.get',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'user_id': '@owner:example.com',
+          'display_name': 'Owner',
+          'domain': 'example.com',
+        }, 200);
+      }),
+    );
+
+    final profile = await client.getOwnerProfile();
+
+    expect(profile.userId, '@owner:example.com');
+    expect(wsCalls, 1);
+    expect(httpCalls, 1);
+  });
+
+  test('WsAsClient falls back after sent for safe idempotent actions',
       () async {
-    final authorizations = <String>[];
-    var refreshCalls = 0;
-    var expired = false;
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'stale-token',
-      onAuthenticationRefresh: () {
-        refreshCalls++;
-        return 'fresh-token';
-      },
-      onAuthenticationFailed: () {
-        expired = true;
-      },
-      httpClient: MockClient((request) async {
-        authorizations.add(request.headers['Authorization'] ?? '');
-        if (authorizations.length == 1) {
-          return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
-        }
-        return http.Response(
-          [
-            'id: 43',
-            'event: sync.bootstrap.changed',
-            r'data: {"seq":43,"type":"sync.bootstrap.changed","payload":{"reason":"call"},"created_at":"2026-06-20T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
-      }),
-    );
-
-    final events = await client.streamEvents().toList();
-
-    expect(authorizations, ['Bearer stale-token', 'Bearer fresh-token']);
-    expect(refreshCalls, 1);
-    expect(expired, isFalse);
-    expect(events.single.seq, 43);
-    expect(events.single.payload['reason'], 'call');
-  });
-
-  test('streamEvents decodes agent room message events', () async {
-    final client = HttpAsClient(
+    var httpCalls = 0;
+    final client = WsAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        expect(action, 'contacts.requests.accept');
+        throw AsClientException('WS connection closed before response');
+      },
       httpClient: MockClient((request) async {
-        return http.Response(
-          [
-            'id: 45',
-            'event: agent_room.message',
-            r'data: {"seq":45,"type":"agent_room.message","room_id":"!real:server","payload":{"body":"hi"},"created_at":"2026-06-26T00:00:00Z"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
-      }),
-    );
-
-    final events = await client.streamEvents().toList();
-
-    expect(events.single.seq, 45);
-    expect(events.single.type, 'agent_room.message');
-    expect(events.single.roomId, '!real:server');
-    expect(events.single.payload['body'], 'hi');
-  });
-
-  test('streamEvents emits cursor reset from response headers', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        return http.Response(
-          '',
-          200,
-          headers: {
-            'content-type': 'text/event-stream; charset=utf-8',
-            'X-Direxio-P2P-Events-Cursor-Reset': 'true',
-            'X-Direxio-P2P-Events-Min-Seq': '12',
-            'X-Direxio-P2P-Events-Max-Seq': '19',
-            'X-Direxio-P2P-Events-Count': '8',
+        httpCalls++;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'contacts.requests.accept',
+          'params': {
+            'room_id': '!room:example.com',
+            'peer_mxid': '@alice:example.com',
+            'display_name': 'Alice',
           },
-        );
+        });
+        return _jsonResponse({
+          'peer_mxid': '@alice:example.com',
+          'display_name': 'Alice',
+          'domain': 'example.com',
+          'room_id': '!room:example.com',
+          'status': 'accepted',
+        }, 200);
       }),
     );
 
-    final events = await client.streamEvents(since: 8).toList();
+    final result = await client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
 
-    expect(events.single.type, 'p2p.cursor_reset');
-    expect(events.single.seq, 0);
-    expect(events.single.payload['since'], 8);
-    expect(events.single.payload['min_seq'], 12);
-    expect(events.single.payload['max_seq'], 19);
-    expect(events.single.payload['count'], 8);
-    expect(events.single.payload['recovery'], 'bootstrap_required');
+    expect(result.status, 'accepted');
+    expect(httpCalls, 1);
   });
 
-  test('streamEvents decodes cursor reset control payload', () async {
-    final client = HttpAsClient(
+  test('WsAsClient does not fall back after sent for create actions', () async {
+    var httpCalls = 0;
+    final client = WsAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        expect(action, 'groups.create');
+        throw AsClientException('WS connection closed before response');
+      },
       httpClient: MockClient((request) async {
-        return http.Response(
-          [
-            'event: p2p.cursor_reset',
-            r'data: {"type":"p2p.cursor_reset","since":8,"min_seq":12,"max_seq":19,"count":8,"recovery":"bootstrap_required"}',
-            '',
-          ].join('\n'),
-          200,
-          headers: {'content-type': 'text/event-stream; charset=utf-8'},
-        );
+        httpCalls++;
+        return _jsonResponse({'error': 'should not be called'}, 500);
       }),
     );
 
-    final events = await client.streamEvents(since: 8).toList();
-
-    expect(events.single.type, 'p2p.cursor_reset');
-    expect(events.single.seq, 0);
-    expect(events.single.payload['max_seq'], 19);
-  });
-
-  test('streamEvents bypasses Matrix response stream timeout wrapper',
-      () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: FixedTimeoutHttpClient(
-        _DelayedSseClient(const Duration(milliseconds: 20)),
-        const Duration(milliseconds: 1),
+    await expectLater(
+      client.createGroup(name: 'Team', invite: const []),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.message,
+          'message',
+          'WS connection closed before response',
+        ),
       ),
     );
+    expect(httpCalls, 0);
+  });
 
-    final events = await client.streamEvents().toList();
+  test('WsAsClient does not HTTP fallback for business errors', () async {
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        throw AsClientException('M_FORBIDDEN', statusCode: 403);
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        return _jsonResponse({'error': 'should not be called'}, 500);
+      }),
+    );
 
-    expect(events.single.seq, 44);
-    expect(events.single.type, 'sync.bootstrap.changed');
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(
+        isA<AsClientException>().having((e) => e.statusCode, 'status', 403),
+      ),
+    );
+    expect(httpCalls, 0);
+  });
+
+  test('WsAsClient shares duplicate in-flight product actions', () async {
+    final firstRequest = Completer<Map<String, dynamic>>();
+    var wsCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) {
+        wsCalls++;
+        expect(action, 'contacts.requests.accept');
+        return firstRequest.future;
+      },
+      httpClient: MockClient((request) async {
+        fail('duplicate in-flight WS action should not fall back to HTTP');
+      }),
+    );
+
+    final first = client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
+    final second = client.acceptContactRequest(
+      roomId: '!room:example.com',
+      peerMxid: '@alice:example.com',
+      displayName: 'Alice',
+    );
+    firstRequest.complete({
+      'peer_mxid': '@alice:example.com',
+      'display_name': 'Alice',
+      'domain': 'example.com',
+      'room_id': '!room:example.com',
+      'status': 'accepted',
+    });
+
+    final results = await Future.wait([first, second]);
+
+    expect(wsCalls, 1);
+    expect(results[0].status, 'accepted');
+    expect(results[1].roomId, '!room:example.com');
   });
 
   test('getPublicChannelByRoomId uses override unified node without auth',
@@ -2281,32 +2608,4 @@ void main() {
     expect(reactions.single.postId, 'post1');
     expect(reactions.single.channelId, 'ch1');
   });
-}
-
-class _DelayedSseClient extends http.BaseClient {
-  _DelayedSseClient(this.delay);
-
-  final Duration delay;
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    return http.StreamedResponse(
-      http.ByteStream(_delayedSse()),
-      200,
-      headers: {'content-type': 'text/event-stream; charset=utf-8'},
-      request: request,
-    );
-  }
-
-  Stream<List<int>> _delayedSse() async* {
-    await Future<void>.delayed(delay);
-    yield utf8.encode(
-      [
-        'id: 44',
-        'event: sync.bootstrap.changed',
-        'data: {"seq":44,"type":"sync.bootstrap.changed","payload":{"reason":"keepalive"},"created_at":"2026-06-20T00:00:00Z"}',
-        '',
-      ].join('\n'),
-    );
-  }
 }

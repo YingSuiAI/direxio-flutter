@@ -161,6 +161,119 @@ void main() {
     await controller.stop();
   });
 
+  test('handled events acknowledge the persisted sequence', () async {
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    final persisted = <int>[];
+    final acked = <int>[];
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async => _bootstrap(),
+      onBootstrapLoaded: (_) {},
+      applyProductEvent: (_) => AsProductEventHandling.handled,
+      writeLastSeq: (seq) async {
+        persisted.add(seq);
+      },
+      ackEventSeq: (seq) async {
+        acked.add(seq);
+      },
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    await Future<void>.delayed(Duration.zero);
+    streams.single.add(AsEventStreamEvent(
+      seq: 31,
+      type: 'contact.requested',
+      payload: const {'room_id': '!room:example.com'},
+      createdAt: DateTime.utc(2026, 6, 29),
+    ));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(persisted, [31]);
+    expect(acked, [31]);
+
+    await controller.stop();
+  });
+
+  test('lifecycle and focused room changes are forwarded', () async {
+    final lifecycle = <Map<String, Object?>>[];
+    final focusedRooms = <String>[];
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) => const Stream.empty(),
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async => _bootstrap(),
+      onBootstrapLoaded: (_) {},
+      reportLifecycle: (
+        foreground, {
+        String? appState,
+        bool hidden = false,
+        Map<String, bool> flags = const {},
+      }) async {
+        lifecycle.add({
+          'foreground': foreground,
+          'state': appState,
+          'hidden': hidden,
+          'flags': flags,
+        });
+      },
+      reportFocusedRoom: (roomId) async {
+        focusedRooms.add(roomId);
+      },
+    );
+
+    await controller.reportLifecycle(
+      foreground: false,
+      appState: 'hidden',
+      hidden: true,
+      flags: const {'hidden': true},
+    );
+    await controller.reportFocusedRoom(' !room:example.com ');
+    await controller.clearFocusedRoom();
+
+    expect(lifecycle, [
+      {
+        'foreground': false,
+        'state': 'hidden',
+        'hidden': true,
+        'flags': {'hidden': true},
+      }
+    ]);
+    expect(focusedRooms, ['!room:example.com', '']);
+  });
+
+  test('read marker changes are forwarded to realtime command path', () async {
+    final markers = <String>[];
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) => const Stream.empty(),
+      syncMatrixConversations: () async {},
+      loadBootstrap: () async => _bootstrap(),
+      onBootstrapLoaded: (_) {},
+      updateReadMarker: (roomId, eventId, originServerTs, action, channelId) {
+        markers.add('$action|$roomId|$eventId|$originServerTs|$channelId');
+        return Future<void>.value();
+      },
+    );
+
+    await controller.updateReadMarker(
+      '!room:example.com',
+      r'$event',
+      originServerTs: 1710000000000,
+      action: 'channels.read_marker',
+      channelId: 'channel-1',
+    );
+
+    expect(markers, [
+      r'channels.read_marker|!room:example.com|$event|1710000000000|channel-1',
+    ]);
+  });
+
   test(
       'cursor reset clears cache, bootstraps once, and reconnects from max seq',
       () async {

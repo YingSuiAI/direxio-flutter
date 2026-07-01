@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
 import 'package:portal_app/presentation/chat/chat_room_recovery_sync.dart';
 
 void main() {
@@ -17,7 +16,7 @@ void main() {
     expect(calls, 0);
   });
 
-  test('trims room id and uses chat open history page size', () async {
+  test('trims room id and uses state-only sync limit', () async {
     final calls = <({String roomId, int timelineLimit})>[];
 
     final synced = await syncMissingRoomHistoryFromServer(
@@ -31,7 +30,7 @@ void main() {
     expect(calls, [
       (
         roomId: '!room:p2p.test',
-        timelineLimit: chatOpenLocalHistoryPageSize,
+        timelineLimit: 0,
       ),
     ]);
   });

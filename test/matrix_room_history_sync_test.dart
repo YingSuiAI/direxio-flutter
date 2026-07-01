@@ -17,10 +17,10 @@ void main() {
     expect(client.handledDirection, Direction.b);
   });
 
-  test('chat-open room history sync fetches concrete timeline messages', () {
+  test('room state sync filter can omit timeline message bodies', () {
     final filter = matrixRoomHistorySyncFilterJson(
       roomId: '!room:example.com',
-      timelineLimit: 30,
+      timelineLimit: -1,
     );
     final room = filter['room'] as Map<String, Object?>;
     final timeline = room['timeline'] as Map<String, Object?>;
@@ -28,7 +28,7 @@ void main() {
 
     expect(filter['event_fields'], isNull);
     expect(room['rooms'], ['!room:example.com']);
-    expect(timeline['limit'], 30);
+    expect(timeline['limit'], 0);
     expect(timeline['not_types'], isNull);
     expect(ephemeral['not_types'], ['m.receipt', 'm.typing']);
 
@@ -36,7 +36,7 @@ void main() {
     expect(encoded, contains('!room:example.com'));
   });
 
-  test('chat-open room history sync clamps invalid limits to one page', () {
+  test('room state sync clamps negative limits to zero', () {
     final filter = matrixRoomHistorySyncFilterJson(
       roomId: '!room:example.com',
       timelineLimit: 0,
@@ -44,7 +44,7 @@ void main() {
     final room = filter['room'] as Map<String, Object?>;
     final timeline = room['timeline'] as Map<String, Object?>;
 
-    expect(timeline['limit'], 1);
+    expect(timeline['limit'], 0);
   });
 }
 

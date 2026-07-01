@@ -74,30 +74,15 @@ class AgentMessageTimelineProjection<T extends Object> {
   }
 }
 
-class _StreamFragment<T extends Object> {
-  const _StreamFragment({
-    required this.content,
-    required this.timestampMs,
-    required this.sequence,
-  });
-
-  final Map<String, Object?> content;
-  final int timestampMs;
-  final int sequence;
-}
-
 AgentMessageTimelineProjection<T> projectAgentMessageEvents<T extends Object>(
   List<T> events, {
   required String Function(T event) eventId,
   required Map<String, Object?> Function(T event) content,
   required String Function(T event) fallbackBody,
-  required int Function(T event) timestampMs,
 }) {
   final visible = <T>[];
   final hiddenKeys = <String>{};
   final replacementByTargetId = <String, Map<String, Object?>>{};
-  final streamGroups = <String, List<_StreamFragment<T>>>{};
-  final streamRootKey = <String, String>{};
   final contentByKey = <String, AgentMessageContent>{};
 
   for (final event in events) {
@@ -107,20 +92,6 @@ AgentMessageTimelineProjection<T> projectAgentMessageEvents<T extends Object>(
       replacementByTargetId[targetId] = currentContent;
       hiddenKeys.add(_eventObjectKey(event));
       continue;
-    }
-
-    final streamId = agentStreamIdFromContent(currentContent);
-    if (streamId.isNotEmpty) {
-      final key = _eventObjectKey(event);
-      streamRootKey.putIfAbsent(streamId, () => key);
-      if (streamRootKey[streamId] != key) hiddenKeys.add(key);
-      streamGroups.putIfAbsent(streamId, () => []).add(
-            _StreamFragment(
-              content: currentContent,
-              timestampMs: timestampMs(event),
-              sequence: agentStreamSequenceFromContent(currentContent),
-            ),
-          );
     }
   }
 
@@ -140,19 +111,8 @@ AgentMessageTimelineProjection<T> projectAgentMessageEvents<T extends Object>(
       continue;
     }
 
-    final currentContent = content(event);
-    final streamId = agentStreamIdFromContent(currentContent);
-    final fragments = streamId.isEmpty ? null : streamGroups[streamId];
-    if (fragments != null && fragments.isNotEmpty) {
-      contentByKey[key] = _contentFromStreamFragments(
-        fragments,
-        fallbackBody: fallbackBody(event),
-      );
-      continue;
-    }
-
     contentByKey[key] = agentMessageContentFromMatrixContent(
-      currentContent,
+      content(event),
       fallbackBody: fallbackBody(event),
     );
   }
@@ -222,107 +182,12 @@ String matrixReplacementTargetEventId(Map<String, Object?> content) {
   return _stringFromAny(relates['event_id']).trim();
 }
 
-String agentStreamIdFromContent(Map<String, Object?> content) {
-  final stream = _streamMap(content);
-  return _firstString([
-    stream?['stream_id'],
-    stream?['reply_id'],
-    stream?['turn_id'],
-    content['stream_id'],
-    content['reply_id'],
-    content['turn_id'],
-    content['io.direxio.agent_stream_id'],
-  ]).trim();
-}
-
-int agentStreamSequenceFromContent(Map<String, Object?> content) {
-  final stream = _streamMap(content);
-  return _intFromAny(
-    stream?['seq'] ??
-        stream?['sequence'] ??
-        content['seq'] ??
-        content['sequence'],
-  );
-}
-
-AgentMessageContent _contentFromStreamFragments<T extends Object>(
-  List<_StreamFragment<T>> fragments, {
-  required String fallbackBody,
-}) {
-  final ordered = [...fragments]..sort((a, b) {
-      final bySeq = a.sequence.compareTo(b.sequence);
-      if (bySeq != 0) return bySeq;
-      return a.timestampMs.compareTo(b.timestampMs);
-    });
-
-  final buffer = StringBuffer();
-  var generating = true;
-  var cards = const <AgentMessageCard>[];
-  for (final fragment in ordered) {
-    final content = fragment.content;
-    final stream = _streamMap(content);
-    final mode = _firstString([
-      stream?['body_mode'],
-      stream?['mode'],
-      content['body_mode'],
-      content['mode'],
-    ]).trim();
-    final text = _firstString([
-      stream?['delta'],
-      stream?['text_delta'],
-      content['delta'],
-      content['text_delta'],
-      if (mode == 'replace') stream?['body'],
-      if (mode == 'replace') content['body'],
-    ]);
-    if (mode == 'replace' || _boolFromAny(stream?['replace'])) {
-      buffer
-        ..clear()
-        ..write(text);
-    } else {
-      buffer.write(text);
-    }
-    if (_boolFromAny(stream?['done']) ||
-        _boolFromAny(stream?['complete']) ||
-        _boolFromAny(content['done']) ||
-        _boolFromAny(content['complete'])) {
-      generating = false;
-    }
-    final parsed = agentMessageContentFromMatrixContent(
-      content,
-      fallbackBody: fallbackBody,
-    );
-    if (parsed.cards.isNotEmpty) cards = parsed.cards;
-  }
-
-  final markdown = buffer.toString().trim().isNotEmpty
-      ? buffer.toString().trim()
-      : fallbackBody.trim();
-  return AgentMessageContent(
-    markdown: markdown,
-    cards: cards,
-    isGenerating: generating,
-  );
-}
-
 Map<String, Object?> _effectiveMessageContent(Map<String, Object?> content) {
   final replacement = content['m.new_content'];
   if (replacement is Map) {
     return replacement.cast<String, Object?>();
   }
   return content;
-}
-
-Map<String, Object?>? _streamMap(Map<String, Object?> content) {
-  for (final key in const [
-    'io.direxio.agent_stream',
-    'agent_stream',
-    'stream',
-  ]) {
-    final value = content[key];
-    if (value is Map) return value.cast<String, Object?>();
-  }
-  return null;
 }
 
 AgentMessageCard? _cardFromAny(Object? raw) {
@@ -451,12 +316,6 @@ String _stringFromAny(Object? value) {
   if (value == null) return '';
   if (value is String) return value;
   return value.toString();
-}
-
-int _intFromAny(Object? value) {
-  if (value is int) return value;
-  if (value is num) return value.toInt();
-  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 bool _boolFromAny(Object? value) {

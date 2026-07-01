@@ -686,7 +686,8 @@ int _visibleHomeUnreadTotal({
     rooms: client.rooms,
     productConversations:
         productConversationsAsync.valueOrNull ?? const <AsConversation>[],
-    productConversationsLoaded: productConversationsAsync.hasValue,
+    productConversationsLoaded:
+        productConversationsAsync.hasValue && syncCache.bootstrap != null,
     syncCache: syncCache,
     summaryState: ref.watch(conversationSummaryProvider),
     hiddenConversationIds: ref.watch(homeHiddenConversationIdsProvider),
@@ -1416,7 +1417,8 @@ class _ChatList extends ConsumerWidget {
       client: client,
       rooms: rooms,
       productConversations: productConversations,
-      productConversationsLoaded: productConversationsAsync.hasValue,
+      productConversationsLoaded:
+          productConversationsAsync.hasValue && syncCache.bootstrap != null,
       syncCache: syncCache,
       summaryState: summaryState,
       hiddenConversationIds: hiddenConversationIds,
@@ -1485,6 +1487,10 @@ class _HomeConversationEntryList extends ConsumerWidget {
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final groupAvatarMemberAvatars =
         ref.watch(groupAvatarMemberAvatarsProvider);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: entries.length,
@@ -1527,7 +1533,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
         return _ConvRow(
           key: ValueKey('home_conversation_$roomId'),
           name: name,
-          lastMessage: entry.lastMessage,
+          lastMessage: _homeConversationPreviewText(entry, l10n),
           time: entry.previewTs <= 0 ? '' : _formatConvTime(entry.previewTs),
           unread: entry.unread,
           isAgent: entry.isAgent,
@@ -1557,6 +1563,18 @@ class _HomeConversationEntryList extends ConsumerWidget {
       },
     );
   }
+}
+
+String _homeConversationPreviewText(
+  ConversationSummaryEntry entry,
+  AppLocalizations? l10n,
+) {
+  final preview = entry.lastMessage.trim();
+  if (preview.isNotEmpty) return entry.lastMessage;
+  if (entry.isAgent) {
+    return l10n?.agentChatEmptyTitle ?? defaultAgentConversationPreview;
+  }
+  return '';
 }
 
 Future<void> _deleteHomeConversation(

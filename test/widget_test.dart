@@ -22303,7 +22303,8 @@ void main() {
     expect(matrixSendCalls, 1);
   });
 
-  testWidgets('agent chat shows thinking animation after send', (tester) async {
+  testWidgets('agent chat clears thinking on server-clock-skewed reply',
+      (tester) async {
     const roomId = '!agent-room:p2p-im.com';
     const ownerMxid = '@owner:p2p-im.com';
     const agentMxid = '@agent:p2p-im.com';
@@ -22441,8 +22442,8 @@ void main() {
                     eventId: r'$agent-reply',
                     roomId: roomId,
                     senderId: agentMxid,
-                    originServerTs: DateTime.now().add(
-                      const Duration(seconds: 1),
+                    originServerTs: DateTime.now().subtract(
+                      const Duration(minutes: 5),
                     ),
                     content: const {
                       'msgtype': MessageTypes.Text,

@@ -14,6 +14,7 @@ import '../providers/agent_bridge_presence_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/agent_offline_reply_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
@@ -77,9 +78,11 @@ import '../utils/chat_time_format.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../utils/read_marker_sync.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/agent_message_body.dart';
+import '../widgets/realtime_room_focus.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/conversation_summary_store.dart';
@@ -200,14 +203,46 @@ bool _hasAgentReplyAfter(
   Iterable<Event> events,
   String? agentMxid,
   DateTime since,
+  Set<String> knownEventIds,
 ) {
   final agent = agentMxid?.trim() ?? '';
   if (agent.isEmpty) return false;
   for (final event in events) {
     if (event.senderId.trim() != agent) continue;
-    if (event.originServerTs.isAfter(since)) return true;
+    final eventId = event.eventId.trim();
+    if (eventId.isNotEmpty && !knownEventIds.contains(eventId)) return true;
+    if (eventId.isEmpty && event.originServerTs.isAfter(since)) return true;
   }
   return false;
+}
+
+Set<String> _agentReplyEventIds(
+  Iterable<Event> events,
+  String? agentMxid,
+) {
+  final agent = agentMxid?.trim() ?? '';
+  if (agent.isEmpty) return const <String>{};
+  final ids = <String>{};
+  for (final event in events) {
+    if (event.senderId.trim() != agent) continue;
+    final eventId = event.eventId.trim();
+    if (eventId.isNotEmpty) ids.add(eventId);
+  }
+  return ids;
+}
+
+String _agentMxidForChatRoom(Room room, String fallbackMxid) {
+  final agentMxid = portalAgentMxidForClient(room.client)?.trim() ?? '';
+  return agentMxid.isNotEmpty ? agentMxid : fallbackMxid.trim();
+}
+
+Set<String> _knownAgentReplyEventIdsForRoom(Room room, Timeline? timeline) {
+  final agentMxid = portalAgentMxidForClient(room.client);
+  if ((agentMxid ?? '').trim().isEmpty) return const <String>{};
+  return _agentReplyEventIds(
+    timelineEventsIncludingRoomLastEvent(room, timeline),
+    agentMxid,
+  );
 }
 
 bool _conversationSummaryHasCachedMessage(
@@ -434,7 +469,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _downloadingImageEventIds = {};
   final Set<String> _downloadedImageEventIds = {};
   final Set<String> _favoritingEventIds = {};
-  final Set<String> _joiningGroupInviteEventIds = {};
+  final Set<String> _joiningGroupInviteKeys = {};
   final Set<String> _joiningChannelShareIds = {};
   final Set<String> _requestedChannelShareIds = {};
   final Set<String> _locallyHiddenEventIds = {};
@@ -477,10 +512,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Timer? _callHistoryFastReloadTimer;
   Timer? _callHistorySlowReloadTimer;
   DateTime? _agentThinkingSince;
+  Set<String> _agentThinkingKnownReplyEventIds = const <String>{};
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
   AppLocalizations? get _l10n =>
       Localizations.of<AppLocalizations>(context, AppLocalizations);
+
+  bool _isCurrentAgentRoom() {
+    final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final room = _room;
+    if (room != null) {
+      return _isAgentRoomForChat(room, syncCache, productConversations);
+    }
+    final roomId = widget.roomId.trim();
+    if (roomId.isEmpty) return false;
+    if ((syncCache.bootstrap?.agentRoomId.trim() ?? '') == roomId) return true;
+    return productConversationForRoom(
+          productConversations,
+          roomId,
+          kinds: const {asConversationKindAgent},
+        ) !=
+        null;
+  }
 
   void _debugMissingRoomState(String phase, {Object? error}) {
     final client = ref.read(matrixClientProvider);
@@ -805,7 +861,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .read(voiceCallControllerProvider)
         .stateStream
         .listen(_handleVoiceCallHistoryState);
-    unawaited(_loadLocalAsCallHistory());
+    if (!_isCurrentAgentRoom()) {
+      unawaited(_loadLocalAsCallHistory());
+    }
     _initTimeline();
   }
 
@@ -836,18 +894,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _debugMissingRoomState('init-timeline-room-missing');
       return;
     }
+    final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
     void rebuild() {
       if (!mounted) return;
       setState(() {});
       _scheduleTimelineThumbnailWarmup();
-      _scheduleAsCallHistoryReloadForTimeline();
+      if (!isAgent) {
+        _scheduleAsCallHistoryReloadForTimeline();
+      }
       unawaited(_markCurrentTimelineRead());
     }
 
     _timeline = await ChatTimelineController(
       room: room,
       rebuild: rebuild,
-      debugLabel: 'private',
+      debugLabel: isAgent ? 'agent' : 'private',
     ).openInitialTimeline();
     if (mounted) setState(() {});
     _scheduleTimelineThumbnailWarmup();
@@ -1030,6 +1095,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _loadLocalAsCallHistory() async {
+    if (!mounted || _isCurrentAgentRoom()) return;
     try {
       final store = await ref.read(asCallSessionStoreProvider.future);
       final sessions = await store.readRoomStable(widget.roomId);
@@ -1046,6 +1112,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _scheduleAsCallHistoryReloadForTimeline() {
+    if (_isCurrentAgentRoom()) return;
     final room = _room;
     if (room == null) return;
     final rawTimelineEvents = timelineEventsIncludingRoomLastEvent(
@@ -1071,6 +1138,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _refreshAsCallHistoryFromAs() async {
+    if (!mounted || _isCurrentAgentRoom()) return;
     if (_roomAsCallHistoryRefreshing) return;
     _roomAsCallHistoryRefreshing = true;
     try {
@@ -1096,7 +1164,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _handleVoiceCallHistoryState(VoiceCallUiState state) {
-    if (!mounted || state.roomId != widget.roomId) return;
+    if (!mounted || state.roomId != widget.roomId || _isCurrentAgentRoom()) {
+      return;
+    }
     if (state.status != VoiceCallStatus.ended &&
         state.status != VoiceCallStatus.failed) {
       return;
@@ -1126,11 +1196,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _asCallSessionCache[callId] = session;
     }
     if (!mounted) return;
-    debugPrint(
-      'chat direct call history replace room=${widget.roomId} '
-      'terminal=${next.values.where(asCallSessionSnapshotIsTerminal).length} '
-      'total=${next.length}',
-    );
+    if (next.isEmpty && _roomAsCallHistory.isEmpty) return;
     setState(() {
       _roomAsCallHistory
         ..clear()
@@ -1196,6 +1262,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ).markCurrentTimelineRead(
         timeline: timeline,
         asClient: ref.read(asClientProvider),
+        syncReadMarker: _syncReadMarkerForEvent,
         onUnreadCleared: (readAt) {
           if (!mounted) return;
           ref.read(asSyncCacheProvider.notifier).update(
@@ -1211,6 +1278,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         unawaited(_markCurrentTimelineRead());
       }
     }
+  }
+
+  Future<void> _syncReadMarkerForEvent({
+    required Room room,
+    required Event event,
+  }) async {
+    final realtime = ref.read(asEventStreamRefreshProvider);
+    if (realtime != null) {
+      try {
+        await realtime.updateReadMarker(
+          room.id,
+          event.eventId,
+          originServerTs: event.originServerTs.toUtc().millisecondsSinceEpoch,
+        );
+        return;
+      } on Object catch (e) {
+        debugPrint('private WS read marker sync failed: $e');
+      }
+    }
+    await updateAsReadMarkerForEvent(
+      asClient: ref.read(asClientProvider),
+      room: room,
+      event: event,
+    );
   }
 
   @override
@@ -1276,7 +1367,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       if (isAgent) {
         if (!agentIsOffline && mounted) {
-          setState(() => _agentThinkingSince = DateTime.now());
+          final knownReplyEventIds =
+              _knownAgentReplyEventIdsForRoom(room, _timeline);
+          setState(() {
+            _agentThinkingSince = DateTime.now();
+            _agentThinkingKnownReplyEventIds = knownReplyEventIds;
+          });
           _scheduleViewportScrollToBottom();
         } else {
           ref
@@ -1303,6 +1399,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (isAgent && mounted) {
         setState(() {
           _agentThinkingSince = null;
+          _agentThinkingKnownReplyEventIds = const <String>{};
         });
         if (agentIsOffline) {
           ref
@@ -2055,13 +2152,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return l10n?.chatJoinGroupFailed('$error') ?? '加入群聊失败: $error';
   }
 
-  Future<void> _joinGroupInvite(GroupInviteContent invite) async {
+  String _groupInviteJoinKey(GroupInviteContent invite) {
     final eventId = invite.inviteEventId.trim();
-    if (eventId.isNotEmpty && _joiningGroupInviteEventIds.contains(eventId)) {
+    if (eventId.isNotEmpty) return eventId;
+    return invite.groupRoomId.trim();
+  }
+
+  Future<void> _joinGroupInvite(GroupInviteContent invite) async {
+    final joinKey = _groupInviteJoinKey(invite);
+    if (joinKey.isNotEmpty && _joiningGroupInviteKeys.contains(joinKey)) {
       return;
     }
-    if (eventId.isNotEmpty && mounted) {
-      setState(() => _joiningGroupInviteEventIds.add(eventId));
+    if (joinKey.isNotEmpty && mounted) {
+      setState(() => _joiningGroupInviteKeys.add(joinKey));
     }
     try {
       final group = await joinGroupInviteThroughAs(
@@ -2091,8 +2194,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         SnackBar(content: Text(_joinGroupInviteFailureMessage(e))),
       );
     } finally {
-      if (eventId.isNotEmpty && mounted) {
-        setState(() => _joiningGroupInviteEventIds.remove(eventId));
+      if (joinKey.isNotEmpty && mounted) {
+        setState(() => _joiningGroupInviteKeys.remove(joinKey));
       }
     }
   }
@@ -2963,11 +3066,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       rawTimelineEvents: rawTimelineEvents,
       callRecordContextEvents: callRecordContextEvents,
     );
-    debugPrint(
-      'chat direct call history merge room=${widget.roomId} '
-      'as_records=${asCallRecords.length} '
-      'ids=${asCallRecords.map((session) => session.callId).join(",")}',
-    );
     final visibleEvents = groupTimelineEventsReplacingAsCallSnapshots(
       visibleEvents: filteredEvents,
       callRecordContextEvents: callRecordContextEvents,
@@ -2997,7 +3095,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             content: (event) => agentDisplayContentForEvent(event, _timeline),
             fallbackBody: (event) =>
                 agentDisplayFallbackBodyForEvent(event, _timeline),
-            timestampMs: (event) => event.originServerTs.millisecondsSinceEpoch,
           )
         : null;
     if (agentMessageProjection != null) {
@@ -3078,11 +3175,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     final agentThinkingSince = _agentThinkingSince;
+    final agentReplyMxid = isAgent ? _agentMxidForChatRoom(room, mxid) : mxid;
     final hasAgentReply = agentThinkingSince != null &&
-        _hasAgentReplyAfter(messageEvents, mxid, agentThinkingSince);
+        _hasAgentReplyAfter(
+          messageEvents,
+          agentReplyMxid,
+          agentThinkingSince,
+          _agentThinkingKnownReplyEventIds,
+        );
     if (isAgent && hasAgentReply) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _agentThinkingSince = null);
+        if (mounted) {
+          setState(() {
+            _agentThinkingSince = null;
+            _agentThinkingKnownReplyEventIds = const <String>{};
+          });
+        }
       });
     }
     final agentPresence =
@@ -3224,126 +3332,165 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       reserveBottomOverlay: false,
     ).add(const EdgeInsets.symmetric(vertical: 12));
 
-    return Scaffold(
-      body: ChatGlassBackground(
-        child: ChatLayeredLayout(
-          messageTopInset: messageTopInset,
-          messageBottomInset: messageBottomInset,
-          header: _multiSelect
-              ? ChatSelectionHeader(
-                  count: _selected.length,
-                  onCancel: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                )
-              : ChatCapsuleHeader(
-                  title: name,
-                  subtitle: headerSubtitle,
-                  subtitleStatus: headerSubtitleStatus,
-                  onBack: () => unawaited(_popChatOrHome(context)),
-                  showEncryptionIcon: true,
-                  actions: isAgent
-                      ? const []
-                      : [
-                          ChatCapsuleAction(
-                            icon: Symbols.call,
-                            tooltip: l10n?.groupChatVoiceCall ?? '语音通话',
-                            color: t.accent,
-                            onTap: canStartCall
-                                ? () => context.push(
-                                      _privateVoiceCallRoute(
-                                        widget.roomId,
-                                        mxid,
-                                        name,
-                                        peerAvatarUrl,
+    return RealtimeRoomFocus(
+      roomId: widget.roomId,
+      child: Scaffold(
+        body: ChatGlassBackground(
+          child: ChatLayeredLayout(
+            messageTopInset: messageTopInset,
+            messageBottomInset: messageBottomInset,
+            header: _multiSelect
+                ? ChatSelectionHeader(
+                    count: _selected.length,
+                    onCancel: () => setState(() {
+                      _multiSelect = false;
+                      _selected.clear();
+                    }),
+                  )
+                : ChatCapsuleHeader(
+                    title: name,
+                    subtitle: headerSubtitle,
+                    subtitleStatus: headerSubtitleStatus,
+                    onBack: () => unawaited(_popChatOrHome(context)),
+                    showEncryptionIcon: true,
+                    actions: isAgent
+                        ? const []
+                        : [
+                            ChatCapsuleAction(
+                              icon: Symbols.call,
+                              tooltip: l10n?.groupChatVoiceCall ?? '语音通话',
+                              color: t.accent,
+                              onTap: canStartCall
+                                  ? () => context.push(
+                                        _privateVoiceCallRoute(
+                                          widget.roomId,
+                                          mxid,
+                                          name,
+                                          peerAvatarUrl,
+                                        ),
+                                      )
+                                  : () => _showPendingContactToast(context),
+                            ),
+                            ChatCapsuleAction(
+                              icon: Symbols.more_vert,
+                              tooltip: l10n?.groupChatDetails ?? '详情',
+                              color: t.accent,
+                              onTap: () => _openContactInfo(mxid),
+                            ),
+                          ],
+                  ),
+            messageLayer: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _closePanels(),
+              child: timelineItems.isEmpty &&
+                      topSystemNoticeText == null &&
+                      !showAgentThinking &&
+                      !showDefaultAgentOfflineReply
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final emptyHeight = math.max(
+                          0.0,
+                          constraints.maxHeight - messagePadding.vertical,
+                        );
+                        return RefreshIndicator(
+                          color: t.accent,
+                          onRefresh: _requestOlderMessages,
+                          child: ListView(
+                            controller: _messageScrollCtrl,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: messagePadding,
+                            children: [
+                              SizedBox(
+                                height: emptyHeight,
+                                child: suppressFirstMessageEmpty
+                                    ? const SizedBox.shrink()
+                                    : Center(
+                                        child: Text(
+                                          isAgent
+                                              ? l10n?.agentChatEmptyTitle ??
+                                                  '开始我们的聊天吧'
+                                              : '开始你们的第一条消息',
+                                          style: AppTheme.sans(
+                                            size: 13,
+                                            color: t.textMute,
+                                          ),
+                                        ),
                                       ),
-                                    )
-                                : () => _showPendingContactToast(context),
+                              ),
+                            ],
                           ),
-                          ChatCapsuleAction(
-                            icon: Symbols.more_vert,
-                            tooltip: l10n?.groupChatDetails ?? '详情',
-                            color: t.accent,
-                            onTap: () => _openContactInfo(mxid),
-                          ),
-                        ],
-                ),
-          messageLayer: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _closePanels(),
-            child: timelineItems.isEmpty &&
-                    topSystemNoticeText == null &&
-                    !showAgentThinking &&
-                    !showDefaultAgentOfflineReply
-                ? LayoutBuilder(
-                    builder: (context, constraints) {
-                      final emptyHeight = math.max(
-                        0.0,
-                        constraints.maxHeight - messagePadding.vertical,
-                      );
-                      return RefreshIndicator(
+                        );
+                      },
+                    )
+                  : ChatTimelineListMotion(
+                      itemCount: chatDisplayItems.length +
+                          (topSystemNoticeText == null ? 0 : 1) +
+                          (showAgentThinking ? 1 : 0) +
+                          (showDefaultAgentOfflineReply ? 1 : 0),
+                      newestItemKey: newestTimelineItemKey,
+                      child: RefreshIndicator(
                         color: t.accent,
                         onRefresh: _requestOlderMessages,
-                        child: ListView(
+                        child: ListView.builder(
                           controller: _messageScrollCtrl,
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: messagePadding,
-                          children: [
-                            SizedBox(
-                              height: emptyHeight,
-                              child: suppressFirstMessageEmpty
-                                  ? const SizedBox.shrink()
-                                  : Center(
-                                      child: Text(
-                                        isAgent
-                                            ? l10n?.agentChatEmptyTitle ??
-                                                '开始我们的聊天吧'
-                                            : '开始你们的第一条消息',
-                                        style: AppTheme.sans(
-                                          size: 13,
-                                          color: t.textMute,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  )
-                : ChatTimelineListMotion(
-                    itemCount: chatDisplayItems.length +
-                        (topSystemNoticeText == null ? 0 : 1) +
-                        (showAgentThinking ? 1 : 0) +
-                        (showDefaultAgentOfflineReply ? 1 : 0),
-                    newestItemKey: newestTimelineItemKey,
-                    child: RefreshIndicator(
-                      color: t.accent,
-                      onRefresh: _requestOlderMessages,
-                      child: ListView.builder(
-                        controller: _messageScrollCtrl,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: messagePadding,
-                        itemCount: chatDisplayItems.length +
-                            1 +
-                            (showAgentThinking ? 1 : 0) +
-                            (showDefaultAgentOfflineReply ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i == 0) {
-                            if (topSystemNoticeText != null) {
-                              return _SChatSystemNotice(
-                                text: topSystemNoticeText,
-                              );
+                          itemCount: chatDisplayItems.length +
+                              1 +
+                              (showAgentThinking ? 1 : 0) +
+                              (showDefaultAgentOfflineReply ? 1 : 0),
+                          itemBuilder: (context, i) {
+                            if (i == 0) {
+                              if (topSystemNoticeText != null) {
+                                return _SChatSystemNotice(
+                                  text: topSystemNoticeText,
+                                );
+                              }
+                              return const _E2eFooter();
                             }
-                            return const _E2eFooter();
-                          }
-                          final itemIndex = i - 1;
-                          if (itemIndex >= chatDisplayItems.length) {
-                            if (showDefaultAgentOfflineReply) {
+                            final itemIndex = i - 1;
+                            if (itemIndex >= chatDisplayItems.length) {
+                              if (showDefaultAgentOfflineReply) {
+                                return chatMessageEntrance(
+                                  key: const ValueKey(
+                                    'private_message_enter_agent_offline_reply_default',
+                                  ),
+                                  isMe: false,
+                                  index: itemIndex,
+                                  enabled: true,
+                                  child: _SAgentOfflineReplyBubble(
+                                    text: l10n?.agentChatOfflineReply ??
+                                        '目前Agent离线，请耐心等待',
+                                    avatarSeed: name,
+                                    avatarUrl: peerAvatarUrl,
+                                    avatarAsset: agentAvatarAsset,
+                                  ),
+                                );
+                              }
+                              if (!showAgentThinking) {
+                                return const SizedBox.shrink();
+                              }
                               return chatMessageEntrance(
                                 key: const ValueKey(
-                                  'private_message_enter_agent_offline_reply_default',
+                                  'private_message_enter_agent_thinking',
+                                ),
+                                isMe: false,
+                                index: itemIndex,
+                                enabled: true,
+                                child: _SAgentThinkingBubble(
+                                  avatarSeed: name,
+                                  avatarUrl: peerAvatarUrl,
+                                  avatarAsset: agentAvatarAsset,
+                                ),
+                              );
+                            }
+                            final chatDisplayItem = chatDisplayItems[itemIndex];
+                            final agentOfflineReplyIndex =
+                                chatDisplayItem.agentOfflineReplyIndex;
+                            if (agentOfflineReplyIndex != null) {
+                              return chatMessageEntrance(
+                                key: ValueKey(
+                                  'private_message_enter_agent_offline_reply_$agentOfflineReplyIndex',
                                 ),
                                 isMe: false,
                                 index: itemIndex,
@@ -3357,313 +3504,396 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ),
                               );
                             }
-                            if (!showAgentThinking) {
+                            final timelineItem = chatDisplayItem.timeline;
+                            if (timelineItem == null) {
                               return const SizedBox.shrink();
                             }
-                            return chatMessageEntrance(
-                              key: const ValueKey(
-                                'private_message_enter_agent_thinking',
-                              ),
-                              isMe: false,
-                              index: itemIndex,
-                              enabled: true,
-                              child: _SAgentThinkingBubble(
-                                avatarSeed: name,
-                                avatarUrl: peerAvatarUrl,
-                                avatarAsset: agentAvatarAsset,
-                              ),
+                            final timelineItemIndex =
+                                displayTimelineItems.indexOf(timelineItem);
+                            final itemKey = _timelineItemKey(timelineItem);
+                            final contextMenuPlacement =
+                                _messageContextMenuPlacement(
+                              timelineItemIndex < 0
+                                  ? itemIndex
+                                  : timelineItemIndex,
+                              displayTimelineItems.length,
                             );
-                          }
-                          final chatDisplayItem = chatDisplayItems[itemIndex];
-                          final agentOfflineReplyIndex =
-                              chatDisplayItem.agentOfflineReplyIndex;
-                          if (agentOfflineReplyIndex != null) {
-                            return chatMessageEntrance(
-                              key: ValueKey(
-                                'private_message_enter_agent_offline_reply_$agentOfflineReplyIndex',
-                              ),
-                              isMe: false,
-                              index: itemIndex,
-                              enabled: true,
-                              child: _SAgentOfflineReplyBubble(
-                                text: l10n?.agentChatOfflineReply ??
-                                    '目前Agent离线，请耐心等待',
-                                avatarSeed: name,
-                                avatarUrl: peerAvatarUrl,
-                                avatarAsset: agentAvatarAsset,
-                              ),
-                            );
-                          }
-                          final timelineItem = chatDisplayItem.timeline;
-                          if (timelineItem == null) {
-                            return const SizedBox.shrink();
-                          }
-                          final timelineItemIndex =
-                              displayTimelineItems.indexOf(timelineItem);
-                          final itemKey = _timelineItemKey(timelineItem);
-                          final contextMenuPlacement =
-                              _messageContextMenuPlacement(
-                            timelineItemIndex < 0
-                                ? itemIndex
-                                : timelineItemIndex,
-                            displayTimelineItems.length,
-                          );
-                          Widget enter(
-                            Widget child, {
-                            required bool isMe,
-                            required Object id,
-                            GlobalKey? anchorKey,
-                            bool flashing = false,
-                          }) {
-                            return chatMessageEntrance(
-                              key: ValueKey('private_message_enter_$id'),
-                              isMe: isMe,
-                              index: itemIndex,
-                              enabled: _initialTimelineEntrances.contains(
-                                itemKey,
-                              ),
-                              child: anchorKey == null
-                                  ? _MessageJumpFlash(
-                                      flashing: flashing,
-                                      child: child,
-                                    )
-                                  : KeyedSubtree(
-                                      key: anchorKey,
-                                      child: _MessageJumpFlash(
+                            Widget enter(
+                              Widget child, {
+                              required bool isMe,
+                              required Object id,
+                              GlobalKey? anchorKey,
+                              bool flashing = false,
+                            }) {
+                              return chatMessageEntrance(
+                                key: ValueKey('private_message_enter_$id'),
+                                isMe: isMe,
+                                index: itemIndex,
+                                enabled: _initialTimelineEntrances.contains(
+                                  itemKey,
+                                ),
+                                child: anchorKey == null
+                                    ? _MessageJumpFlash(
                                         flashing: flashing,
                                         child: child,
+                                      )
+                                    : KeyedSubtree(
+                                        key: anchorKey,
+                                        child: _MessageJumpFlash(
+                                          flashing: flashing,
+                                          child: child,
+                                        ),
                                       ),
-                                    ),
-                            );
-                          }
+                              );
+                            }
 
-                          return timelineItem.when(
-                            outbox: (pending) {
-                              if (pending.messageKind ==
-                                  LocalOutboxMessageKind.text) {
-                                return enter(
-                                  _SChatBubble(
-                                    key: ValueKey(pending.id),
-                                    isMe: true,
-                                    text: pending.text,
-                                    time: _formatMsgTime(pending.createdAt),
-                                    showRead: false,
-                                    avatarSeed: currentUserAvatarSeed,
-                                    avatarUrl: currentUserAvatarUrl,
-                                    outboxStatus: _InlineOutboxStatusIcon(
-                                      status: pending.status,
-                                      label: l10n?.groupChatMessageFallback ??
-                                          'Message',
-                                      onRetry: () => unawaited(
-                                        _retryFailedTextMessage(pending),
-                                      ),
-                                    ),
-                                    onLongPressAt: (pos) =>
-                                        _onLongPressOutboxItem(
-                                      context,
-                                      pending,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: true,
-                                  id: pending.id,
-                                );
-                              }
-                              if (_isVoiceOutboxItem(pending)) {
-                                final playback = _voicePlayer.playback.value;
-                                final isPlaying =
-                                    playback.messageId == pending.id &&
-                                        playback.playing;
-                                return enter(
-                                  _SChatVoiceBubble(
-                                    key: ValueKey(pending.id),
-                                    isMe: true,
-                                    time: _formatMsgTime(pending.createdAt),
-                                    showRead: false,
-                                    avatarSeed: currentUserAvatarSeed,
-                                    avatarUrl: currentUserAvatarUrl,
-                                    durationSeconds:
-                                        _voiceDurationSecondsFromMs(
-                                      pending.durationMs,
-                                    ),
-                                    selected: false,
-                                    multiSelect: false,
-                                    isPlaying: isPlaying,
-                                    currentPlaySeconds:
-                                        playback.position.inSeconds,
-                                    onTap: null,
-                                    onLongPressAt: (pos) =>
-                                        _onLongPressOutboxItem(
-                                      context,
-                                      pending,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: true,
-                                  id: pending.id,
-                                );
-                              }
-                              if (pending.messageKind ==
-                                  LocalOutboxMessageKind.file) {
-                                return enter(
-                                  _SChatFileBubble(
-                                    key: ValueKey(pending.id),
-                                    isMe: true,
-                                    time: _formatMsgTime(pending.createdAt),
-                                    showRead: false,
-                                    avatarSeed: currentUserAvatarSeed,
-                                    avatarUrl: currentUserAvatarUrl,
-                                    leadingIcon: Symbols.description,
-                                    fileName: pending.filename,
-                                    sizeLabel: outboxFileSizeLabel(pending),
-                                    trailing: _FileOutboxStatusIcon(
-                                      status: pending.status,
-                                      label: '文件',
-                                      onRetry: () => unawaited(
-                                        _retryFailedMediaUpload(pending),
-                                      ),
-                                    ),
-                                    selected: false,
-                                    multiSelect: false,
-                                    onTap: null,
-                                    onLongPressAt: (pos) =>
-                                        _onLongPressOutboxItem(
-                                      context,
-                                      pending,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: true,
-                                  id: pending.id,
-                                );
-                              }
-                              final isPendingVideo = pending.messageKind ==
-                                  LocalOutboxMessageKind.video;
-                              final displayBytes =
-                                  pending.thumbnailBytes ?? pending.bytes;
-                              return enter(
-                                _SChatImageBubble(
-                                  key: ValueKey(pending.id),
-                                  isMe: true,
-                                  time: _formatMsgTime(pending.createdAt),
-                                  showRead: false,
-                                  avatarSeed: currentUserAvatarSeed,
-                                  avatarUrl: currentUserAvatarUrl,
-                                  mediaSize: isPendingVideo
-                                      ? chatMessageDefaultMediaSize
-                                      : chatMediaBubbleSizeFor(
-                                          width: pending.width,
-                                          height: pending.height,
+                            return timelineItem.when(
+                              outbox: (pending) {
+                                if (pending.messageKind ==
+                                    LocalOutboxMessageKind.text) {
+                                  return enter(
+                                    _SChatBubble(
+                                      key: ValueKey(pending.id),
+                                      isMe: true,
+                                      text: pending.text,
+                                      time: _formatMsgTime(pending.createdAt),
+                                      showRead: false,
+                                      avatarSeed: currentUserAvatarSeed,
+                                      avatarUrl: currentUserAvatarUrl,
+                                      outboxStatus: _InlineOutboxStatusIcon(
+                                        status: pending.status,
+                                        label: l10n?.groupChatMessageFallback ??
+                                            'Message',
+                                        onRetry: () => unawaited(
+                                          _retryFailedTextMessage(pending),
                                         ),
-                                  thumb: pending.status ==
-                                          LocalOutboxItemStatus.failed
-                                      ? FailedLocalOutboxImageThumb(
-                                          bytes: displayBytes,
-                                          placeholderIcon: isPendingVideo
-                                              ? Symbols.movie
-                                              : Symbols.image,
-                                          overlay: isPendingVideo
-                                              ? const _VideoPlayOverlay()
-                                              : null,
-                                          onRetry: () => unawaited(
-                                            _retryFailedMediaUpload(pending),
+                                      ),
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressOutboxItem(
+                                        context,
+                                        pending,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                }
+                                if (_isVoiceOutboxItem(pending)) {
+                                  final playback = _voicePlayer.playback.value;
+                                  final isPlaying =
+                                      playback.messageId == pending.id &&
+                                          playback.playing;
+                                  return enter(
+                                    _SChatVoiceBubble(
+                                      key: ValueKey(pending.id),
+                                      isMe: true,
+                                      time: _formatMsgTime(pending.createdAt),
+                                      showRead: false,
+                                      avatarSeed: currentUserAvatarSeed,
+                                      avatarUrl: currentUserAvatarUrl,
+                                      durationSeconds:
+                                          _voiceDurationSecondsFromMs(
+                                        pending.durationMs,
+                                      ),
+                                      selected: false,
+                                      multiSelect: false,
+                                      isPlaying: isPlaying,
+                                      currentPlaySeconds:
+                                          playback.position.inSeconds,
+                                      onTap: null,
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressOutboxItem(
+                                        context,
+                                        pending,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                }
+                                if (pending.messageKind ==
+                                    LocalOutboxMessageKind.file) {
+                                  return enter(
+                                    _SChatFileBubble(
+                                      key: ValueKey(pending.id),
+                                      isMe: true,
+                                      time: _formatMsgTime(pending.createdAt),
+                                      showRead: false,
+                                      avatarSeed: currentUserAvatarSeed,
+                                      avatarUrl: currentUserAvatarUrl,
+                                      leadingIcon: Symbols.description,
+                                      fileName: pending.filename,
+                                      sizeLabel: outboxFileSizeLabel(pending),
+                                      trailing: _FileOutboxStatusIcon(
+                                        status: pending.status,
+                                        label: '文件',
+                                        onRetry: () => unawaited(
+                                          _retryFailedMediaUpload(pending),
+                                        ),
+                                      ),
+                                      selected: false,
+                                      multiSelect: false,
+                                      onTap: null,
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressOutboxItem(
+                                        context,
+                                        pending,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                }
+                                final isPendingVideo = pending.messageKind ==
+                                    LocalOutboxMessageKind.video;
+                                final displayBytes =
+                                    pending.thumbnailBytes ?? pending.bytes;
+                                return enter(
+                                  _SChatImageBubble(
+                                    key: ValueKey(pending.id),
+                                    isMe: true,
+                                    time: _formatMsgTime(pending.createdAt),
+                                    showRead: false,
+                                    avatarSeed: currentUserAvatarSeed,
+                                    avatarUrl: currentUserAvatarUrl,
+                                    mediaSize: isPendingVideo
+                                        ? chatMessageDefaultMediaSize
+                                        : chatMediaBubbleSizeFor(
+                                            width: pending.width,
+                                            height: pending.height,
                                           ),
-                                        )
-                                      : PendingLocalOutboxImageThumb(
-                                          bytes: displayBytes!,
-                                          overlay: isPendingVideo
-                                              ? const _VideoPlayOverlay()
-                                              : null,
-                                        ),
-                                  selected: false,
-                                  multiSelect: false,
-                                  onTap: () {
-                                    final bytes = pending.bytes;
-                                    if (bytes == null) return;
-                                    if (isPendingVideo) return;
-                                    _openImgPreview(
+                                    thumb: pending.status ==
+                                            LocalOutboxItemStatus.failed
+                                        ? FailedLocalOutboxImageThumb(
+                                            bytes: displayBytes,
+                                            placeholderIcon: isPendingVideo
+                                                ? Symbols.movie
+                                                : Symbols.image,
+                                            overlay: isPendingVideo
+                                                ? const _VideoPlayOverlay()
+                                                : null,
+                                            onRetry: () => unawaited(
+                                              _retryFailedMediaUpload(pending),
+                                            ),
+                                          )
+                                        : PendingLocalOutboxImageThumb(
+                                            bytes: displayBytes!,
+                                            overlay: isPendingVideo
+                                                ? const _VideoPlayOverlay()
+                                                : null,
+                                          ),
+                                    selected: false,
+                                    multiSelect: false,
+                                    onTap: () {
+                                      final bytes = pending.bytes;
+                                      if (bytes == null) return;
+                                      if (isPendingVideo) return;
+                                      _openImgPreview(
+                                        context,
+                                        provider: MemoryImage(bytes),
+                                        meta:
+                                            '我 · ${_formatMsgTime(pending.createdAt)}',
+                                      );
+                                    },
+                                    onLongPressAt: (pos) =>
+                                        _onLongPressOutboxItem(
                                       context,
-                                      provider: MemoryImage(bytes),
-                                      meta:
-                                          '我 · ${_formatMsgTime(pending.createdAt)}',
-                                    );
-                                  },
-                                  onLongPressAt: (pos) =>
-                                      _onLongPressOutboxItem(
-                                    context,
-                                    pending,
-                                    pos,
-                                    placement: contextMenuPlacement,
+                                      pending,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
                                   ),
-                                ),
-                                isMe: true,
-                                id: pending.id,
-                              );
-                            },
-                            asCall: (session) {
-                              debugPrint(
-                                'chat direct call history render '
-                                'call_id=${session.callId} '
-                                'state=${session.state} '
-                                'duration_ms=${session.durationMs} '
-                                'answered_at=${session.answeredAt?.toIso8601String() ?? ""} '
-                                'ended_at=${session.endedAt?.toIso8601String() ?? ""} '
-                                'text=${asCallSessionRecordText(session, l10n: l10n)}',
-                              );
-                              final callerId = session.createdByMxid.trim();
-                              final isMe = authUserId != null &&
-                                  callerId.isNotEmpty &&
-                                  callerId == authUserId.trim();
-                              final callerName = isMe
-                                  ? (currentUserProfile?.displayName
-                                              ?.toString()
-                                              .trim()
-                                              .isNotEmpty ==
-                                          true
-                                      ? currentUserProfile!.displayName!
-                                          .toString()
-                                          .trim()
-                                      : '我')
-                                  : name;
-                              final callerAvatarUrl = isMe
-                                  ? profileAvatarHttpUrl(
-                                      currentUserProfile,
-                                      room.client,
-                                    )
-                                  : peerAvatarUrl;
-                              final callerAvatarAsset =
-                                  isAgent && !isMe ? agentAvatarAsset : null;
-                              return enter(
-                                _SChatCallRecordBubble(
+                                  isMe: true,
+                                  id: pending.id,
+                                );
+                              },
+                              asCall: (session) {
+                                debugPrint(
+                                  'chat direct call history render '
+                                  'call_id=${session.callId} '
+                                  'state=${session.state} '
+                                  'duration_ms=${session.durationMs} '
+                                  'answered_at=${session.answeredAt?.toIso8601String() ?? ""} '
+                                  'ended_at=${session.endedAt?.toIso8601String() ?? ""} '
+                                  'text=${asCallSessionRecordText(session, l10n: l10n)}',
+                                );
+                                final callerId = session.createdByMxid.trim();
+                                final isMe = authUserId != null &&
+                                    callerId.isNotEmpty &&
+                                    callerId == authUserId.trim();
+                                final callerName = isMe
+                                    ? (currentUserProfile?.displayName
+                                                ?.toString()
+                                                .trim()
+                                                .isNotEmpty ==
+                                            true
+                                        ? currentUserProfile!.displayName!
+                                            .toString()
+                                            .trim()
+                                        : '我')
+                                    : name;
+                                final callerAvatarUrl = isMe
+                                    ? profileAvatarHttpUrl(
+                                        currentUserProfile,
+                                        room.client,
+                                      )
+                                    : peerAvatarUrl;
+                                final callerAvatarAsset =
+                                    isAgent && !isMe ? agentAvatarAsset : null;
+                                return enter(
+                                  _SChatCallRecordBubble(
+                                    isMe: isMe,
+                                    isVideo:
+                                        asCallSessionRecordIsVideo(session),
+                                    text: asCallSessionRecordText(
+                                      session,
+                                      l10n: l10n,
+                                    ),
+                                    time: _formatMsgTime(
+                                      asCallSessionStableTimestamp(session),
+                                    ),
+                                    showRead: false,
+                                    avatarSeed: callerName,
+                                    avatarUrl: callerAvatarUrl,
+                                    avatarAsset: callerAvatarAsset,
+                                    onAvatarTap: isMe || isAgent
+                                        ? null
+                                        : () => _openContactInfo(mxid),
+                                    selected: false,
+                                    multiSelect: false,
+                                  ),
                                   isMe: isMe,
-                                  isVideo: asCallSessionRecordIsVideo(session),
-                                  text: asCallSessionRecordText(
-                                    session,
-                                    l10n: l10n,
-                                  ),
-                                  time: _formatMsgTime(
-                                    asCallSessionStableTimestamp(session),
-                                  ),
-                                  showRead: false,
-                                  avatarSeed: callerName,
-                                  avatarUrl: callerAvatarUrl,
-                                  avatarAsset: callerAvatarAsset,
-                                  onAvatarTap: isMe || isAgent
+                                  id: 'as-call-${session.callId}',
+                                );
+                              },
+                              event: (e) {
+                                if (isCallRecordEvent(e)) {
+                                  final selected =
+                                      _selected.contains(e.eventId);
+                                  void toggle() => setState(() {
+                                        if (selected) {
+                                          _selected.remove(e.eventId);
+                                        } else {
+                                          _selected.add(e.eventId);
+                                        }
+                                      });
+                                  final asCallId = asCallIdForCallRecord(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final asCallSession = asCallId == null
                                       ? null
-                                      : () => _openContactInfo(mxid),
-                                  selected: false,
-                                  multiSelect: false,
-                                ),
-                                isMe: isMe,
-                                id: 'as-call-${session.callId}',
-                              );
-                            },
-                            event: (e) {
-                              if (isCallRecordEvent(e)) {
+                                      : _asCallSessionCache[asCallId];
+                                  final callerEvent = callRecordSenderEvent(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final callerId = callRecordSenderId(
+                                    e,
+                                    callRecordContextEvents,
+                                  );
+                                  final isMe = callerId.trim().isNotEmpty &&
+                                      _isEventFromCurrentUser(
+                                        callerEvent ?? e,
+                                        authUserId,
+                                      );
+                                  final callerName = callerEvent
+                                          ?.senderFromMemoryOrFallback
+                                          .calcDisplayname() ??
+                                      e.senderFromMemoryOrFallback
+                                          .calcDisplayname();
+                                  final callerAvatarUrl = _senderAvatarUrl(
+                                    callerEvent ?? e,
+                                    currentUserProfile,
+                                    fallbackUserId: authUserId,
+                                  );
+                                  final callerAvatarAsset = isAgent && !isMe
+                                      ? agentAvatarAsset
+                                      : null;
+                                  final avatarTap = isMe
+                                      ? null
+                                      : _senderAvatarTap(
+                                          callerEvent ?? e,
+                                          isMe,
+                                          isAgentRoom: isAgent,
+                                        );
+                                  return enter(
+                                    _SChatCallRecordBubble(
+                                      isMe: isMe,
+                                      isVideo: callRecordIsVideo(
+                                        e,
+                                        callRecordContextEvents,
+                                        asCallSession: asCallSession,
+                                      ),
+                                      text: callRecordText(
+                                        e,
+                                        callRecordContextEvents,
+                                        asCallSession: asCallSession,
+                                        asCallSessionPending:
+                                            asCallId != null &&
+                                                asCallSession == null,
+                                        l10n: l10n,
+                                      ),
+                                      time: _formatMsgTime(e.originServerTs),
+                                      showRead: false,
+                                      avatarSeed: callerName,
+                                      avatarUrl: callerAvatarUrl,
+                                      avatarAsset: callerAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect ? toggle : null,
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                  );
+                                }
+                                final isMe = _isEventFromCurrentUser(
+                                  e,
+                                  authUserId,
+                                );
+                                final anchorKey = _messageAnchorKey(e.eventId);
+                                final flashing =
+                                    _flashingMessageEventId == e.eventId.trim();
                                 final selected = _selected.contains(e.eventId);
+                                final agentMessageContent = isAgent && !isMe
+                                    ? agentMessageProjection?.contentForEvent(e)
+                                    : null;
+                                final senderName = _eventSenderDisplayName(
+                                  e,
+                                  isMe: isMe,
+                                  peerDisplayName: name,
+                                );
+                                final senderAvatarUrl = _senderAvatarUrl(
+                                  e,
+                                  currentUserProfile,
+                                  fallbackUserId: authUserId,
+                                );
+                                final senderAvatarAsset =
+                                    isAgent && !isMe ? agentAvatarAsset : null;
+                                final localOrder = messageOrder.entryForEvent(
+                                  e.eventId,
+                                );
+                                final time = _formatMsgTime(
+                                  localOrder?.createdAt ?? e.originServerTs,
+                                );
+                                final avatarTap = _senderAvatarTap(
+                                  e,
+                                  isMe,
+                                  isAgentRoom: isAgent,
+                                );
                                 void toggle() => setState(() {
                                       if (selected) {
                                         _selected.remove(e.eventId);
@@ -3671,424 +3901,411 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         _selected.add(e.eventId);
                                       }
                                     });
-                                final asCallId = asCallIdForCallRecord(
-                                  e,
-                                  callRecordContextEvents,
-                                );
-                                final asCallSession = asCallId == null
-                                    ? null
-                                    : _asCallSessionCache[asCallId];
-                                final callerEvent = callRecordSenderEvent(
-                                  e,
-                                  callRecordContextEvents,
-                                );
-                                final callerId = callRecordSenderId(
-                                  e,
-                                  callRecordContextEvents,
-                                );
-                                final isMe = callerId.trim().isNotEmpty &&
-                                    _isEventFromCurrentUser(
-                                      callerEvent ?? e,
-                                      authUserId,
-                                    );
-                                final callerName = callerEvent
-                                        ?.senderFromMemoryOrFallback
-                                        .calcDisplayname() ??
-                                    e.senderFromMemoryOrFallback
-                                        .calcDisplayname();
-                                final callerAvatarUrl = _senderAvatarUrl(
-                                  callerEvent ?? e,
-                                  currentUserProfile,
-                                  fallbackUserId: authUserId,
-                                );
-                                final callerAvatarAsset =
-                                    isAgent && !isMe ? agentAvatarAsset : null;
-                                final avatarTap = isMe
-                                    ? null
-                                    : _senderAvatarTap(
-                                        callerEvent ?? e,
-                                        isMe,
-                                        isAgentRoom: isAgent,
-                                      );
-                                return enter(
-                                  _SChatCallRecordBubble(
-                                    isMe: isMe,
-                                    isVideo: callRecordIsVideo(
-                                      e,
-                                      callRecordContextEvents,
-                                      asCallSession: asCallSession,
-                                    ),
-                                    text: callRecordText(
-                                      e,
-                                      callRecordContextEvents,
-                                      asCallSession: asCallSession,
-                                      asCallSessionPending: asCallId != null &&
-                                          asCallSession == null,
-                                      l10n: l10n,
-                                    ),
-                                    time: _formatMsgTime(e.originServerTs),
-                                    showRead: false,
-                                    avatarSeed: callerName,
-                                    avatarUrl: callerAvatarUrl,
-                                    avatarAsset: callerAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect ? toggle : null,
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                );
-                              }
-                              final isMe = _isEventFromCurrentUser(
-                                e,
-                                authUserId,
-                              );
-                              final anchorKey = _messageAnchorKey(e.eventId);
-                              final flashing =
-                                  _flashingMessageEventId == e.eventId.trim();
-                              final selected = _selected.contains(e.eventId);
-                              final agentMessageContent = isAgent && !isMe
-                                  ? agentMessageProjection?.contentForEvent(e)
-                                  : null;
-                              final senderName = _eventSenderDisplayName(
-                                e,
-                                isMe: isMe,
-                                peerDisplayName: name,
-                              );
-                              final senderAvatarUrl = _senderAvatarUrl(
-                                e,
-                                currentUserProfile,
-                                fallbackUserId: authUserId,
-                              );
-                              final senderAvatarAsset =
-                                  isAgent && !isMe ? agentAvatarAsset : null;
-                              final localOrder = messageOrder.entryForEvent(
-                                e.eventId,
-                              );
-                              final time = _formatMsgTime(
-                                localOrder?.createdAt ?? e.originServerTs,
-                              );
-                              final avatarTap = _senderAvatarTap(
-                                e,
-                                isMe,
-                                isAgentRoom: isAgent,
-                              );
-                              void toggle() => setState(() {
-                                    if (selected) {
-                                      _selected.remove(e.eventId);
-                                    } else {
-                                      _selected.add(e.eventId);
-                                    }
-                                  });
 
-                              final groupInvite = GroupInviteContent.tryParse(
-                                Map<String, Object?>.from(e.content),
-                                eventId: e.eventId,
-                                directRoomId: widget.roomId,
-                              );
-                              if (groupInvite != null) {
-                                final alreadyJoined = _isJoinedGroupRoom(
-                                      groupInvite.groupRoomId,
-                                    ) ||
-                                    isMe;
-                                return enter(
-                                  _SGroupInviteBubble(
-                                    isMe: isMe,
-                                    invite: groupInvite,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    inviterDisplayName: isMe ? '我' : senderName,
-                                    joining: _joiningGroupInviteEventIds
-                                        .contains(e.eventId),
-                                    alreadyJoined: alreadyJoined,
-                                    onJoin: () => unawaited(
-                                      _joinGroupInvite(groupInvite),
-                                    ),
-                                    onTap: _multiSelect ? toggle : null,
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
+                                final groupInvite = GroupInviteContent.tryParse(
+                                  Map<String, Object?>.from(e.content),
+                                  eventId: e.eventId,
+                                  directRoomId: widget.roomId,
                                 );
-                              }
-
-                              if (e.messageType == MessageTypes.Notice) {
-                                return _SChatSystemNotice(text: e.body);
-                              }
-
-                              final channelSharePayload =
-                                  channelSharePayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                              );
-                              final redPacketPayload =
-                                  redPacketPayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                                body: e.body,
-                              );
-                              if (redPacketPayload != null) {
-                                return enter(
-                                  _SBusinessCardBubble(
-                                    isMe: isMe,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openRedPacketDetail(
-                                              redPacketPayload,
-                                            ),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                    child: RedPacketMessageCard(
-                                      payload: redPacketPayload,
+                                if (groupInvite != null) {
+                                  final alreadyJoined = _isJoinedGroupRoom(
+                                        groupInvite.groupRoomId,
+                                      ) ||
+                                      isMe;
+                                  return enter(
+                                    _SGroupInviteBubble(
                                       isMe: isMe,
+                                      invite: groupInvite,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
                                       selected: selected,
+                                      multiSelect: _multiSelect,
+                                      inviterDisplayName:
+                                          isMe ? '我' : senderName,
+                                      joining: _joiningGroupInviteKeys.contains(
+                                        _groupInviteJoinKey(groupInvite),
+                                      ),
+                                      alreadyJoined: alreadyJoined,
+                                      onJoin: () => unawaited(
+                                        _joinGroupInvite(groupInvite),
+                                      ),
+                                      onTap: _multiSelect ? toggle : null,
                                     ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-                              if (channelSharePayload != null) {
-                                final shareKey = channelShareJoinKey(
-                                  channelSharePayload,
-                                );
-                                return enter(
-                                  _SChannelShareBubble(
                                     isMe: isMe,
-                                    payload: channelSharePayload,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    joining: _joiningChannelShareIds.contains(
-                                      shareKey,
-                                    ),
-                                    alreadyJoined: channelShareIsJoined(
-                                          ref.read(asSyncCacheProvider),
-                                          channelSharePayload,
-                                        ) ||
-                                        isMe,
-                                    alreadyRequested: _requestedChannelShareIds
-                                        .contains(shareKey),
-                                    onJoin: () => unawaited(
-                                      _joinChannelShare(channelSharePayload),
-                                    ),
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => context.push(
-                                              channelShareOpenRoute(
-                                                ref.read(asSyncCacheProvider),
-                                                channelSharePayload,
-                                                productConversations: ref
-                                                        .read(
-                                                          productConversationsProvider,
-                                                        )
-                                                        .valueOrNull ??
-                                                    const [],
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                if (e.messageType == MessageTypes.Notice) {
+                                  return _SChatSystemNotice(text: e.body);
+                                }
+
+                                final channelSharePayload =
+                                    channelSharePayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                );
+                                final redPacketPayload =
+                                    redPacketPayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                  body: e.body,
+                                );
+                                if (redPacketPayload != null) {
+                                  return enter(
+                                    _SBusinessCardBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openRedPacketDetail(
+                                                redPacketPayload,
                                               ),
-                                              extra: channelSharePayload,
-                                            ),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-
-                              final chatRecordPayload =
-                                  chatRecordPayloadFromContent(
-                                Map<String, Object?>.from(e.content),
-                              );
-                              if (chatRecordPayload != null) {
-                                return enter(
-                                  _SChatRecordBubble(
-                                    isMe: isMe,
-                                    payload: chatRecordPayload,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openChatRecordDetail(
-                                              context,
-                                              chatRecordPayload,
-                                            ),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-
-                              // 图片消息 → 缩略图气泡，点击全屏预览
-                              if (e.messageType == MessageTypes.Image &&
-                                  e.hasAttachment) {
-                                final deliveredOutbox =
-                                    deliveredPendingMediaByEventId[
-                                        e.eventId.trim()];
-                                return enter(
-                                  _SChatImageBubble(
-                                    isMe: isMe,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    mediaSize: chatMediaBubbleSizeForEvent(e),
-                                    thumb: _MatrixThumb(
-                                      key: ValueKey(
-                                        'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
                                       ),
-                                      event: e,
-                                      initialBytes:
-                                          deliveredOutbox?.thumbnailBytes ??
-                                              deliveredOutbox?.bytes,
-                                    ),
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openImageEvent(
-                                              e,
-                                              '${isMe ? '我' : senderName} · $time',
-                                            ),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-
-                              if (e.messageType == MessageTypes.Video &&
-                                  e.hasAttachment) {
-                                final eventId = e.eventId.trim();
-                                final deliveredOutbox =
-                                    deliveredPendingMediaByEventId[eventId];
-                                return enter(
-                                  _SChatImageBubble(
-                                    isMe: isMe,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    mediaSize: chatMessageDefaultMediaSize,
-                                    thumb: _MatrixThumb(
-                                      key: ValueKey(
-                                        'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                      child: RedPacketMessageCard(
+                                        payload: redPacketPayload,
+                                        isMe: isMe,
+                                        selected: selected,
                                       ),
-                                      event: e,
-                                      initialBytes:
-                                          deliveredOutbox?.thumbnailBytes,
-                                      fallbackIcon: Symbols.movie,
-                                      fit: BoxFit.cover,
                                     ),
-                                    statusOverlay: _multiSelect
-                                        ? null
-                                        : _ImageDownloadStatusBadge(
-                                            label: '视频',
-                                            downloading:
-                                                _downloadingFileEventIds
-                                                    .contains(eventId),
-                                            downloaded: _downloadedFileEventIds
-                                                .contains(eventId),
-                                            onDownload: () => unawaited(
-                                              _downloadFileEvent(e),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+                                if (channelSharePayload != null) {
+                                  final shareKey = channelShareJoinKey(
+                                    channelSharePayload,
+                                  );
+                                  return enter(
+                                    _SChannelShareBubble(
+                                      isMe: isMe,
+                                      payload: channelSharePayload,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      joining: _joiningChannelShareIds.contains(
+                                        shareKey,
+                                      ),
+                                      alreadyJoined: channelShareIsJoined(
+                                            ref.read(asSyncCacheProvider),
+                                            channelSharePayload,
+                                          ) ||
+                                          isMe,
+                                      alreadyRequested:
+                                          _requestedChannelShareIds
+                                              .contains(shareKey),
+                                      onJoin: () => unawaited(
+                                        _joinChannelShare(channelSharePayload),
+                                      ),
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => context.push(
+                                                channelShareOpenRoute(
+                                                  ref.read(asSyncCacheProvider),
+                                                  channelSharePayload,
+                                                  productConversations: ref
+                                                          .read(
+                                                            productConversationsProvider,
+                                                          )
+                                                          .valueOrNull ??
+                                                      const [],
+                                                ),
+                                                extra: channelSharePayload,
+                                              ),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                final chatRecordPayload =
+                                    chatRecordPayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                );
+                                if (chatRecordPayload != null) {
+                                  return enter(
+                                    _SChatRecordBubble(
+                                      isMe: isMe,
+                                      payload: chatRecordPayload,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openChatRecordDetail(
+                                                context,
+                                                chatRecordPayload,
+                                              ),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                // 图片消息 → 缩略图气泡，点击全屏预览
+                                if (e.messageType == MessageTypes.Image &&
+                                    e.hasAttachment) {
+                                  final deliveredOutbox =
+                                      deliveredPendingMediaByEventId[
+                                          e.eventId.trim()];
+                                  return enter(
+                                    _SChatImageBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      mediaSize: chatMediaBubbleSizeForEvent(e),
+                                      thumb: _MatrixThumb(
+                                        key: ValueKey(
+                                          'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                        ),
+                                        event: e,
+                                        initialBytes:
+                                            deliveredOutbox?.thumbnailBytes ??
+                                                deliveredOutbox?.bytes,
+                                      ),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openImageEvent(
+                                                e,
+                                                '${isMe ? '我' : senderName} · $time',
+                                              ),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                if (e.messageType == MessageTypes.Video &&
+                                    e.hasAttachment) {
+                                  final eventId = e.eventId.trim();
+                                  final deliveredOutbox =
+                                      deliveredPendingMediaByEventId[eventId];
+                                  return enter(
+                                    _SChatImageBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      mediaSize: chatMessageDefaultMediaSize,
+                                      thumb: _MatrixThumb(
+                                        key: ValueKey(
+                                          'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                        ),
+                                        event: e,
+                                        initialBytes:
+                                            deliveredOutbox?.thumbnailBytes,
+                                        fallbackIcon: Symbols.movie,
+                                        fit: BoxFit.cover,
+                                      ),
+                                      statusOverlay: _multiSelect
+                                          ? null
+                                          : _ImageDownloadStatusBadge(
+                                              label: '视频',
+                                              downloading:
+                                                  _downloadingFileEventIds
+                                                      .contains(eventId),
+                                              downloaded:
+                                                  _downloadedFileEventIds
+                                                      .contains(eventId),
+                                              onDownload: () => unawaited(
+                                                _downloadFileEvent(e),
+                                              ),
                                             ),
-                                          ),
-                                    centerOverlay: const _VideoPlayOverlay(),
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openVideoEvent(e),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
+                                      centerOverlay: const _VideoPlayOverlay(),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openVideoEvent(e),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
                                     ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-
-                              if (_isVoiceEvent(e)) {
-                                final playback = _voicePlayer.playback.value;
-                                final eventId = e.eventId.trim();
-                                final isPlaying =
-                                    playback.messageId == eventId &&
-                                        playback.playing;
-                                return enter(
-                                  _SChatVoiceBubble(
                                     isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                if (_isVoiceEvent(e)) {
+                                  final playback = _voicePlayer.playback.value;
+                                  final eventId = e.eventId.trim();
+                                  final isPlaying =
+                                      playback.messageId == eventId &&
+                                          playback.playing;
+                                  return enter(
+                                    _SChatVoiceBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      durationSeconds:
+                                          _voiceDurationSecondsForEvent(e),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      isPlaying: isPlaying,
+                                      currentPlaySeconds:
+                                          playback.position.inSeconds,
+                                      onSeek: isPlaying
+                                          ? (seconds) =>
+                                              _seekVoiceEvent(e, seconds)
+                                          : null,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openFileEvent(e),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                // 文件附件 → 文件卡片，点击预览，右侧下载。
+                                if (e.messageType == MessageTypes.File &&
+                                    !_isVoiceEvent(e) &&
+                                    e.hasAttachment) {
+                                  final size = e.infoMap['size'];
+                                  final sizeBytes = size is int ? size : 0;
+                                  final kind = fileKindLabel(
+                                    e.attachmentMimetype,
+                                    e.body,
+                                  );
+                                  final sizeLabel = sizeBytes > 0
+                                      ? '$kind · ${formatByteSize(sizeBytes)}'
+                                      : kind;
+                                  return enter(
+                                    _SChatFileBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe &&
+                                          peerReadEventIds.contains(e.eventId),
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      avatarAsset: senderAvatarAsset,
+                                      onAvatarTap: avatarTap,
+                                      leadingIcon: Symbols.description,
+                                      fileName: e.body,
+                                      sizeLabel: sizeLabel,
+                                      trailing: _FileDownloadStatusIcon(
+                                        label: '文件',
+                                        downloading: _downloadingFileEventIds
+                                            .contains(e.eventId.trim()),
+                                        downloaded: _downloadedFileEventIds
+                                            .contains(e.eventId.trim()),
+                                        onDownload: () =>
+                                            unawaited(_downloadFileEvent(e)),
+                                      ),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openFileEvent(e),
+                                      onLongPressAt: (pos) => _onLongPressEvent(
+                                        context,
+                                        e,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
+                                  );
+                                }
+
+                                return enter(
+                                  _SChatBubble(
+                                    isMe: isMe,
+                                    text: _messageDisplayText(e),
+                                    agentContent: agentMessageContent,
+                                    quote: _replyPreviewForEvent(
+                                      e,
+                                      messageEvents,
+                                    ),
+                                    onTapQuote: _scrollToQuotedEvent,
                                     time: time,
                                     showRead: isMe &&
                                         peerReadEventIds.contains(e.eventId),
@@ -4096,20 +4313,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     avatarUrl: senderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
-                                    durationSeconds:
-                                        _voiceDurationSecondsForEvent(e),
                                     selected: selected,
                                     multiSelect: _multiSelect,
-                                    isPlaying: isPlaying,
-                                    currentPlaySeconds:
-                                        playback.position.inSeconds,
-                                    onSeek: isPlaying
-                                        ? (seconds) =>
-                                            _seekVoiceEvent(e, seconds)
-                                        : null,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openFileEvent(e),
+                                    onTap: _multiSelect ? toggle : null,
                                     onLongPressAt: (pos) => _onLongPressEvent(
                                       context,
                                       e,
@@ -4122,222 +4328,135 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   anchorKey: anchorKey,
                                   flashing: flashing,
                                 );
-                              }
-
-                              // 文件附件 → 文件卡片，点击预览，右侧下载。
-                              if (e.messageType == MessageTypes.File &&
-                                  !_isVoiceEvent(e) &&
-                                  e.hasAttachment) {
-                                final size = e.infoMap['size'];
-                                final sizeBytes = size is int ? size : 0;
-                                final kind = fileKindLabel(
-                                  e.attachmentMimetype,
-                                  e.body,
-                                );
-                                final sizeLabel = sizeBytes > 0
-                                    ? '$kind · ${formatByteSize(sizeBytes)}'
-                                    : kind;
-                                return enter(
-                                  _SChatFileBubble(
-                                    isMe: isMe,
-                                    time: time,
-                                    showRead: isMe &&
-                                        peerReadEventIds.contains(e.eventId),
-                                    avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
-                                    avatarAsset: senderAvatarAsset,
-                                    onAvatarTap: avatarTap,
-                                    leadingIcon: Symbols.description,
-                                    fileName: e.body,
-                                    sizeLabel: sizeLabel,
-                                    trailing: _FileDownloadStatusIcon(
-                                      label: '文件',
-                                      downloading: _downloadingFileEventIds
-                                          .contains(e.eventId.trim()),
-                                      downloaded: _downloadedFileEventIds
-                                          .contains(e.eventId.trim()),
-                                      onDownload: () =>
-                                          unawaited(_downloadFileEvent(e)),
-                                    ),
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : () => _openFileEvent(e),
-                                    onLongPressAt: (pos) => _onLongPressEvent(
-                                      context,
-                                      e,
-                                      pos,
-                                      placement: contextMenuPlacement,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              }
-
-                              return enter(
-                                _SChatBubble(
-                                  isMe: isMe,
-                                  text: _messageDisplayText(e),
-                                  agentContent: agentMessageContent,
-                                  quote: _replyPreviewForEvent(
-                                    e,
-                                    messageEvents,
-                                  ),
-                                  onTapQuote: _scrollToQuotedEvent,
-                                  time: time,
-                                  showRead: isMe &&
-                                      peerReadEventIds.contains(e.eventId),
-                                  avatarSeed: senderName,
-                                  avatarUrl: senderAvatarUrl,
-                                  avatarAsset: senderAvatarAsset,
-                                  onAvatarTap: avatarTap,
-                                  selected: selected,
-                                  multiSelect: _multiSelect,
-                                  onTap: _multiSelect ? toggle : null,
-                                  onLongPressAt: (pos) => _onLongPressEvent(
-                                    context,
-                                    e,
-                                    pos,
-                                    placement: contextMenuPlacement,
-                                  ),
-                                ),
-                                isMe: isMe,
-                                id: e.eventId,
-                                anchorKey: anchorKey,
-                                flashing: flashing,
-                              );
-                            },
-                          );
-                        },
+                              },
+                            );
+                          },
+                        ),
                       ),
                     ),
+            ),
+            bottomOverlay: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_replyTo != null)
+                  _ReplyBar(
+                    text: _replyTo!.body,
+                    sender:
+                        _replyTo!.senderFromMemoryOrFallback.calcDisplayname(),
+                    onClose: () => setState(() => _replyTo = null),
                   ),
-          ),
-          bottomOverlay: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_replyTo != null)
-                _ReplyBar(
-                  text: _replyTo!.body,
-                  sender:
-                      _replyTo!.senderFromMemoryOrFallback.calcDisplayname(),
-                  onClose: () => setState(() => _replyTo = null),
-                ),
-              if (_multiSelect)
-                ChatRecordSelectionBar(
-                  count: _selected.length,
-                  compact: true,
-                  onExit: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                  onFavorite: () =>
-                      unawaited(_favoriteSelectedEvents(visibleEvents)),
-                  onForward: () => unawaited(
-                    _forwardSelectedEvents(
-                      visibleEvents,
-                      sourceName: name,
-                      sourceRoomType: _favoriteRoomType(room),
+                if (_multiSelect)
+                  ChatRecordSelectionBar(
+                    count: _selected.length,
+                    compact: true,
+                    onExit: () => setState(() {
+                      _multiSelect = false;
+                      _selected.clear();
+                    }),
+                    onFavorite: () =>
+                        unawaited(_favoriteSelectedEvents(visibleEvents)),
+                    onForward: () => unawaited(
+                      _forwardSelectedEvents(
+                        visibleEvents,
+                        sourceName: name,
+                        sourceRoomType: _favoriteRoomType(room),
+                      ),
                     ),
+                    onDelete: () =>
+                        unawaited(_deleteSelectedEventsForMe(visibleEvents)),
+                  )
+                else
+                  ChatCapsuleInputBar(
+                    ctrl: _msgCtrl,
+                    onSend: _send,
+                    onPlus: canSendMedia
+                        ? _togglePlus
+                        : () => _showPendingContactToast(context),
+                    onEmoji: canSendMessages
+                        ? _toggleEmoji
+                        : () => _showPendingContactToast(context),
+                    plusActive: _showPlusPanel,
+                    emojiActive: _showEmojiPanel,
+                    onVoiceRecordStart: _startVoiceRecording,
+                    onVoiceRecordStop: _stopVoiceRecording,
+                    onVoiceRecordCancel: _cancelVoiceRecording,
+                    suggestionItems: agentSlashSuggestions,
+                    suggestionsLabel: agentSlashCommandPickerLabel(locale),
+                    onPickSuggestion: _pickAgentSlashCommand,
+                    onTextChanged: _handleComposerTextChanged,
+                    enabled: canSendMessages,
+                    hintText: isWaitingForAccept
+                        ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
+                        : '',
                   ),
-                  onDelete: () =>
-                      unawaited(_deleteSelectedEventsForMe(visibleEvents)),
-                )
-              else
-                ChatCapsuleInputBar(
-                  ctrl: _msgCtrl,
-                  onSend: _send,
-                  onPlus: canSendMedia
-                      ? _togglePlus
-                      : () => _showPendingContactToast(context),
-                  onEmoji: canSendMessages
-                      ? _toggleEmoji
-                      : () => _showPendingContactToast(context),
-                  plusActive: _showPlusPanel,
-                  emojiActive: _showEmojiPanel,
-                  onVoiceRecordStart: _startVoiceRecording,
-                  onVoiceRecordStop: _stopVoiceRecording,
-                  onVoiceRecordCancel: _cancelVoiceRecording,
-                  suggestionItems: agentSlashSuggestions,
-                  suggestionsLabel: agentSlashCommandPickerLabel(locale),
-                  onPickSuggestion: _pickAgentSlashCommand,
-                  onTextChanged: _handleComposerTextChanged,
-                  enabled: canSendMessages,
-                  hintText: isWaitingForAccept
-                      ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
-                      : '',
-                ),
-              if (_showPlusPanel)
-                ChatAttachmentPanel(
-                  room: room,
-                  roomId: widget.roomId,
-                  canSend: canSendMedia,
-                  useAsProductMedia: isProductDirect && !isAgent,
-                  onClose: () => setState(() => _showPlusPanel = false),
-                  onCannotSend: _showPendingContactToast,
-                  onImageUploadStarted: _addPendingImageUpload,
-                  onImageUploadsStarted: _addPendingImageUploads,
-                  onImageUploadDelivered: _recordDeliveredMediaUpload,
-                  onImageUploadFinished: _removePendingMediaUpload,
-                  onImageUploadFailed: _failPendingMediaUpload,
-                  onFileUploadStarted: _addPendingFileUpload,
-                  onFileUploadDelivered: _recordDeliveredMediaUpload,
-                  onFileUploadFinished: _removePendingMediaUpload,
-                  onFileUploadFailed: _failPendingMediaUpload,
-                  onVideoUploadStarted: _addPendingVideoUpload,
-                  onVideoUploadDelivered: _recordDeliveredMediaUpload,
-                  onVideoUploadFinished: _removePendingMediaUpload,
-                  onVideoUploadFailed: _failPendingMediaUpload,
-                  onVoiceCall: isAgent
-                      ? null
-                      : () {
-                          if (!canStartCall) {
-                            _showPendingContactToast(context);
-                            return;
-                          }
-                          context.push(
-                            _privateVoiceCallRoute(
-                              widget.roomId,
-                              mxid,
-                              name,
-                              peerAvatarUrl,
-                            ),
-                          );
-                        },
-                  onVideoCall: isAgent
-                      ? null
-                      : () {
-                          if (!canStartCall) {
-                            _showPendingContactToast(context);
-                            return;
-                          }
-                          context.push(
-                            _privateVideoCallRoute(
-                              widget.roomId,
-                              mxid,
-                              name,
-                              peerAvatarUrl,
-                            ),
-                          );
-                        },
-                ),
-              if (showEmojiPanelContent)
-                ChatEmojiPanel(
-                  height: _emojiPanelHeight,
-                  onPick: (e) {
-                    final c = _msgCtrl;
-                    final base = c.text;
-                    c.text = base + e;
-                    c.selection = TextSelection.collapsed(
-                      offset: c.text.length,
-                    );
-                  },
-                ),
-            ],
+                if (_showPlusPanel)
+                  ChatAttachmentPanel(
+                    room: room,
+                    roomId: widget.roomId,
+                    canSend: canSendMedia,
+                    useAsProductMedia: isProductDirect && !isAgent,
+                    onClose: () => setState(() => _showPlusPanel = false),
+                    onCannotSend: _showPendingContactToast,
+                    onImageUploadStarted: _addPendingImageUpload,
+                    onImageUploadsStarted: _addPendingImageUploads,
+                    onImageUploadDelivered: _recordDeliveredMediaUpload,
+                    onImageUploadFinished: _removePendingMediaUpload,
+                    onImageUploadFailed: _failPendingMediaUpload,
+                    onFileUploadStarted: _addPendingFileUpload,
+                    onFileUploadDelivered: _recordDeliveredMediaUpload,
+                    onFileUploadFinished: _removePendingMediaUpload,
+                    onFileUploadFailed: _failPendingMediaUpload,
+                    onVideoUploadStarted: _addPendingVideoUpload,
+                    onVideoUploadDelivered: _recordDeliveredMediaUpload,
+                    onVideoUploadFinished: _removePendingMediaUpload,
+                    onVideoUploadFailed: _failPendingMediaUpload,
+                    onVoiceCall: isAgent
+                        ? null
+                        : () {
+                            if (!canStartCall) {
+                              _showPendingContactToast(context);
+                              return;
+                            }
+                            context.push(
+                              _privateVoiceCallRoute(
+                                widget.roomId,
+                                mxid,
+                                name,
+                                peerAvatarUrl,
+                              ),
+                            );
+                          },
+                    onVideoCall: isAgent
+                        ? null
+                        : () {
+                            if (!canStartCall) {
+                              _showPendingContactToast(context);
+                              return;
+                            }
+                            context.push(
+                              _privateVideoCallRoute(
+                                widget.roomId,
+                                mxid,
+                                name,
+                                peerAvatarUrl,
+                              ),
+                            );
+                          },
+                  ),
+                if (showEmojiPanelContent)
+                  ChatEmojiPanel(
+                    height: _emojiPanelHeight,
+                    onPick: (e) {
+                      final c = _msgCtrl;
+                      final base = c.text;
+                      c.text = base + e;
+                      c.selection = TextSelection.collapsed(
+                        offset: c.text.length,
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),

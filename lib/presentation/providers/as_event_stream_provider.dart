@@ -27,6 +27,29 @@ typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
 typedef AsEventSeqRead = Future<int> Function();
 typedef AsEventSeqWrite = Future<void> Function(int seq);
+typedef AsEventSeqAck = Future<void> Function(int seq);
+typedef AsLifecycleReport = Future<void> Function(
+  bool foreground, {
+  String? appState,
+  required bool hidden,
+  required Map<String, bool> flags,
+});
+typedef AsFocusedRoomReport = Future<void> Function(String roomId);
+typedef AsReadMarkerReport = Future<void> Function(
+  String roomId,
+  String eventId,
+  int originServerTs,
+  String action,
+  String channelId,
+);
+
+Future<void> _noopReadMarkerReport(
+  String roomId,
+  String eventId,
+  int originServerTs,
+  String action,
+  String channelId,
+) async {}
 typedef ProductCacheClear = Future<void> Function();
 typedef AsProductEventApply = FutureOr<AsProductEventHandling> Function(
   AsEventStreamEvent event,
@@ -36,23 +59,26 @@ enum AsProductEventHandling { handled, bootstrapRequired }
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
-  final auth = ref.watch(authStateNotifierProvider).valueOrNull;
-  if (auth?.hasUsablePortalSession != true) return null;
+  final auth = ref.watch(asClientSessionSnapshotProvider);
+  final matrixClient = ref.watch(matrixClientProvider);
+  final hasMatrixSession =
+      auth.isLoggedIn && (matrixClient.accessToken?.trim().isNotEmpty ?? false);
+  if (!auth.hasUsablePortalSession && !hasMatrixSession) return null;
 
-  final asClient = ref.watch(asClientProvider);
+  final realtimeTransport = ref.watch(asRealtimeTransportProvider);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);
   final cursorStore = DeferredAsEventCursorStore(
     () => ref.read(asEventCursorStoreProvider.future),
   );
-  final matrixClient = ref.watch(matrixClientProvider);
   final callSessionStore = ref.watch(asCallSessionStoreProvider.future);
   final voiceCallController = ref.watch(voiceCallControllerProvider);
   final controller = AsEventStreamRefreshController(
-    openEvents: asClient.streamEvents,
+    openEvents: realtimeTransport.streamEvents,
     syncMatrixConversations: () => syncMatrixForegroundLight(matrixClient),
     loadBootstrap: bootstrapRepository.refresh,
     readLastSeq: cursorStore.readLastSeq,
     writeLastSeq: cursorStore.writeLastSeq,
+    ackEventSeq: realtimeTransport.ackEventSeq,
     clearLastSeq: cursorStore.clear,
     clearProductCache: () async {
       await bootstrapRepository.clear();
@@ -83,6 +109,17 @@ final asEventStreamRefreshProvider =
           );
       ref.invalidate(productConversationsProvider);
     },
+    reportLifecycle: realtimeTransport.reportLifecycle,
+    reportFocusedRoom: realtimeTransport.reportFocusedRoom,
+    updateReadMarker: (roomId, eventId, originServerTs, action, channelId) {
+      return realtimeTransport.updateReadMarker(
+        roomId: roomId,
+        eventId: eventId,
+        originServerTs: originServerTs,
+        action: action,
+        channelId: channelId,
+      );
+    },
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');
     },
@@ -90,6 +127,7 @@ final asEventStreamRefreshProvider =
   controller.start();
   ref.onDispose(() {
     unawaited(controller.stop());
+    unawaited(realtimeTransport.close());
   });
   return controller;
 });
@@ -102,10 +140,14 @@ class AsEventStreamRefreshController {
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
     AsEventSeqRead? readLastSeq,
     AsEventSeqWrite? writeLastSeq,
+    AsEventSeqAck? ackEventSeq,
     Future<void> Function()? clearLastSeq,
     ProductCacheClear? clearProductCache,
     AsProductEventApply? applyProductEvent,
     AsCallChanged? onCallChanged,
+    AsLifecycleReport? reportLifecycle,
+    AsFocusedRoomReport? reportFocusedRoom,
+    AsReadMarkerReport? updateReadMarker,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -114,10 +156,15 @@ class AsEventStreamRefreshController {
         _onBootstrapLoaded = onBootstrapLoaded,
         _readLastSeq = readLastSeq ?? (() async => 0),
         _writeLastSeq = writeLastSeq ?? ((_) async {}),
+        _ackEventSeq = ackEventSeq ?? ((_) async {}),
         _clearLastSeq = clearLastSeq ?? (() async {}),
         _clearProductCache = clearProductCache ?? (() async {}),
         _applyProductEvent = applyProductEvent,
         _onCallChanged = onCallChanged,
+        _reportLifecycle = reportLifecycle ??
+            ((_, {appState, required hidden, required flags}) async {}),
+        _reportFocusedRoom = reportFocusedRoom ?? ((_) async {}),
+        _updateReadMarker = updateReadMarker ?? _noopReadMarkerReport,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -127,10 +174,14 @@ class AsEventStreamRefreshController {
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
   final AsEventSeqRead _readLastSeq;
   final AsEventSeqWrite _writeLastSeq;
+  final AsEventSeqAck _ackEventSeq;
   final Future<void> Function() _clearLastSeq;
   final ProductCacheClear _clearProductCache;
   final AsProductEventApply? _applyProductEvent;
   final AsCallChanged? _onCallChanged;
+  final AsLifecycleReport _reportLifecycle;
+  final AsFocusedRoomReport _reportFocusedRoom;
+  final AsReadMarkerReport _updateReadMarker;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -144,6 +195,44 @@ class AsEventStreamRefreshController {
   int _refreshTargetSeq = 0;
 
   int get lastSeq => _lastSeq;
+
+  Future<void> reportLifecycle({
+    required bool foreground,
+    String? appState,
+    bool hidden = false,
+    Map<String, bool> flags = const {},
+  }) {
+    return _reportLifecycle(
+      foreground,
+      appState: appState,
+      hidden: hidden,
+      flags: flags,
+    );
+  }
+
+  Future<void> reportFocusedRoom(String roomId) {
+    return _reportFocusedRoom(roomId.trim());
+  }
+
+  Future<void> clearFocusedRoom() {
+    return _reportFocusedRoom('');
+  }
+
+  Future<void> updateReadMarker(
+    String roomId,
+    String eventId, {
+    required int originServerTs,
+    String action = 'sync.read_marker',
+    String channelId = '',
+  }) {
+    return _updateReadMarker(
+      roomId,
+      eventId,
+      originServerTs,
+      action,
+      channelId,
+    );
+  }
 
   void start() {
     if (_started) return;
@@ -282,6 +371,7 @@ class AsEventStreamRefreshController {
     if (seq <= 0) return;
     if (seq > _lastSeq) _lastSeq = seq;
     await _writeLastSeq(_lastSeq);
+    await _ackEventSeq(_lastSeq);
   }
 }
 
@@ -336,9 +426,6 @@ Future<AsProductEventHandling> _applyProductEvent(
       return AsProductEventHandling.handled;
     case 'room.member_policy.projected':
     case 'channel.join_request.changed':
-    case 'agent_room.message':
-      ref.invalidate(productConversationsProvider);
-      return AsProductEventHandling.handled;
     default:
       return AsProductEventHandling.bootstrapRequired;
   }

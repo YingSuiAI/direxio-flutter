@@ -304,6 +304,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
   DateTime? _lastAccessTokenAppliedAt;
+  String? _pendingMatrixAccessToken;
+  DateTime? _pendingMatrixAccessTokenAt;
   String? _portalRestoreInFlightKey;
   Future<AuthState?>? _portalRestoreInFlight;
 
@@ -691,6 +693,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             deviceId: requestedDeviceId,
             httpClient: client.httpClient,
           );
+    _rememberPendingMatrixAccessToken(session.accessToken);
     final storedUserId = await _storage.read(key: 'matrix_user_id');
     final storedHomeserver = await _storage.read(key: 'matrix_homeserver');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
@@ -770,6 +773,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
               deviceId: freshDeviceId,
               httpClient: client.httpClient,
             );
+      _rememberPendingMatrixAccessToken(session.accessToken);
       effectivePortalToken = session.accessToken.trim();
       final retryMatrixUri = _resolveClientHomeserver(
         inputUri,
@@ -859,7 +863,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
   }) async {
     try {
-      final ownerProfile = await HttpAsClient.fromPortalSession(
+      final ownerProfile = await WsAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
@@ -914,7 +918,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String portalToken,
   ) async {
     try {
-      final bootstrap = await HttpAsClient.fromPortalSession(
+      final bootstrap = await WsAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
@@ -988,6 +992,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       newPassword: cleanToken,
       deviceId: await _localMatrixDeviceId(client),
     );
+    _rememberPendingMatrixAccessToken(session.accessToken);
     var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     var deviceId = await _resolveSessionDeviceId(
       httpClient: client.httpClient,
@@ -1024,7 +1029,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId = recovered.userId;
       deviceId = recovered.deviceId;
     }
-    final profileClient = HttpAsClient.fromPortalSession(
+    final profileClient = WsAsClient.fromPortalSession(
       client,
       portalToken: session.accessToken,
       baseUri: HttpAsClient.defaultProductBaseUri(matrixUri),
@@ -1167,6 +1172,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       newPassword: cleanNewPassword,
       deviceId: await _localMatrixDeviceId(client),
     );
+    _rememberPendingMatrixAccessToken(session.accessToken);
     var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     var userId = session.userId.trim().isNotEmpty
         ? session.userId
@@ -1245,6 +1251,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       newPassword: cleanNewToken,
       deviceId: await _localMatrixDeviceId(client),
     );
+    _rememberPendingMatrixAccessToken(session.accessToken);
     final matrixUri = _resolveClientHomeserver(
       result.homeserver,
       session.homeserver,
@@ -1410,6 +1417,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         deviceId: requestedDeviceId,
         httpClient: client.httpClient,
       );
+      _rememberPendingMatrixAccessToken(session.accessToken);
       var effectivePortalToken = session.accessToken.trim();
       var matrixUri = _resolveClientHomeserver(
         homeserverUri,
@@ -1536,6 +1544,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       deviceId: freshDeviceId,
       httpClient: client.httpClient,
     );
+    _rememberPendingMatrixAccessToken(session.accessToken);
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
@@ -1590,6 +1599,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String? loginPortalToken,
     bool? initialized,
   }) async {
+    _rememberPendingMatrixAccessToken(session.accessToken);
     final matrixUri = _resolveClientHomeserver(
       currentHomeserver,
       session.homeserver,
@@ -2038,6 +2048,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return;
     }
     _sessionExpiredLocally = true;
+    _pendingMatrixAccessToken = null;
+    _pendingMatrixAccessTokenAt = null;
     debugPrint('access token rejected; expiring local session');
     await _clearUserScopedLocalState(
       client,
@@ -2063,7 +2075,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   void _configureMatrixTokenFailureHandler(Client client) {
     final httpClient = _matrixTokenRefreshingHttpClient(client);
     if (httpClient == null) return;
-    httpClient.refreshAccessToken = null;
+    httpClient.refreshAccessToken = () async {
+      if (_sessionExpiredLocally) return null;
+      final pendingToken = _freshPendingMatrixAccessToken();
+      if (pendingToken != null) return pendingToken;
+      final currentToken = client.accessToken?.trim();
+      if (currentToken != null && currentToken.isNotEmpty) {
+        return currentToken;
+      }
+      return (await _storage.read(key: accessTokenKey))?.trim();
+    };
     httpClient.onAuthenticationFailed = () async {
       if (await _shouldIgnoreRecentAnonymousMatrixAuthFailure(client)) {
         debugPrint(
@@ -2088,6 +2109,27 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return httpClient.inner as MatrixTokenRefreshingHttpClient;
     }
     return null;
+  }
+
+  void _rememberPendingMatrixAccessToken(String token) {
+    final cleanToken = token.trim();
+    if (cleanToken.isEmpty) return;
+    final now = DateTime.now();
+    _pendingMatrixAccessToken = cleanToken;
+    _pendingMatrixAccessTokenAt = now;
+    _lastAccessTokenAppliedAt = now;
+  }
+
+  String? _freshPendingMatrixAccessToken() {
+    final token = _pendingMatrixAccessToken?.trim();
+    final startedAt = _pendingMatrixAccessTokenAt;
+    if (token == null || token.isEmpty || startedAt == null) return null;
+    if (DateTime.now().difference(startedAt) > const Duration(seconds: 15)) {
+      _pendingMatrixAccessToken = null;
+      _pendingMatrixAccessTokenAt = null;
+      return null;
+    }
+    return token;
   }
 
   Future<bool> _shouldIgnoreRecentAnonymousMatrixAuthFailure(

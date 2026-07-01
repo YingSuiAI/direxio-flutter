@@ -15,6 +15,7 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/in_flight_action_gate.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
@@ -43,6 +44,7 @@ class RequestsPage extends ConsumerStatefulWidget {
 class _RequestsPageState extends ConsumerState<RequestsPage> {
   StreamSubscription<SyncUpdate>? _syncSub;
   final _searchCtrl = TextEditingController();
+  final _actionGate = InFlightActionGate();
   bool _busy = false;
   String? _notice;
   bool _noticeIsError = false;
@@ -81,6 +83,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   }
 
   Future<void> _accept(Room room) async {
+    final actionKey = _pendingActionKey('contacts.requests.accept', room.id);
+    if (!_actionGate.begin(actionKey)) return;
     setState(() => _busy = true);
     final l10n = _requestsL10n(context);
     try {
@@ -126,11 +130,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         });
       }
     } finally {
+      _actionGate.end(actionKey);
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _reject(Room room) async {
+    final actionKey = _pendingActionKey('contacts.requests.reject', room.id);
+    if (!_actionGate.begin(actionKey)) return;
     setState(() => _busy = true);
     final l10n = _requestsL10n(context);
     try {
@@ -175,11 +182,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         });
       }
     } finally {
+      _actionGate.end(actionKey);
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _acceptContact(AsSyncContact pending) async {
+    final actionKey = _pendingActionKey(
+        'contacts.requests.accept', _pendingContactKey(pending));
+    if (!_actionGate.begin(actionKey)) return;
     setState(() => _busy = true);
     final l10n = _requestsL10n(context);
     try {
@@ -220,11 +231,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         });
       }
     } finally {
+      _actionGate.end(actionKey);
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _rejectContact(AsSyncContact pending) async {
+    final actionKey = _pendingActionKey(
+        'contacts.requests.reject', _pendingContactKey(pending));
+    if (!_actionGate.begin(actionKey)) return;
     setState(() => _busy = true);
     final l10n = _requestsL10n(context);
     try {
@@ -262,6 +277,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         });
       }
     } finally {
+      _actionGate.end(actionKey);
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -1378,6 +1394,16 @@ String _contactRequestMessage(
           l10n?.requestsIncomingRequestMessage ??
           '请求添加你为朋友'
       : normalizedFallback;
+}
+
+String _pendingActionKey(String action, String id) {
+  return '${action.trim()}:${id.trim()}';
+}
+
+String _pendingContactKey(AsSyncContact contact) {
+  final roomId = contact.roomId.trim();
+  if (roomId.isNotEmpty) return roomId;
+  return contact.userId.trim();
 }
 
 String _roomNoticeMessage(

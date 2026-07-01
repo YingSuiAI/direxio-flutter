@@ -100,6 +100,43 @@ void main() {
     expect(entries.single.unread, 3);
   });
 
+  test('keeps newer cached preview when live refresh is older', () {
+    final entries = mergeConversationSummaryEntries(
+      cachedEntries: const [
+        ConversationSummaryEntry(
+          conversationId: 'conv_a',
+          roomId: '!a:p2p-im.com',
+          kind: 'direct',
+          name: 'Alice',
+          lastMessage: '问题',
+          previewTs: 200,
+          unread: 0,
+          isGroup: false,
+          isAgent: false,
+        ),
+      ],
+      liveEntries: const [
+        ConversationSummaryEntry(
+          conversationId: 'conv_a',
+          roomId: '!a:p2p-im.com',
+          kind: 'direct',
+          name: 'Alice',
+          lastMessage: '😀',
+          previewTs: 100,
+          unread: 1,
+          isGroup: false,
+          isAgent: false,
+        ),
+      ],
+      includeCachedOnlyEntries: false,
+      pinnedConversationIds: const {},
+    );
+
+    expect(entries.single.lastMessage, '问题');
+    expect(entries.single.previewTs, 200);
+    expect(entries.single.unread, 1);
+  });
+
   test('keeps open ProductCore conversations without message previews', () {
     final snapshot = ConversationSummarySnapshot(
       userId: '@owner:p2p-im.com',

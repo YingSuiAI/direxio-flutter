@@ -442,7 +442,7 @@ void main() {
         result.productConversationsByRoomId['!agent-room:p2p-im.com'];
     expect(entry.name, 'Agent');
     expect(entry.isAgent, isTrue);
-    expect(entry.lastMessage, defaultAgentConversationPreview);
+    expect(entry.lastMessage, isEmpty);
     expect(conversation?.isAgent, isTrue);
     expect(conversation?.canOpen, isTrue);
     expect(
@@ -451,7 +451,7 @@ void main() {
     );
   });
 
-  test('uses localized Agent empty preview for default Agent conversation', () {
+  test('does not persist localized Agent empty preview as summary message', () {
     final client = Client('ConversationSummaryWriterLocalizedAgentPreviewTest')
       ..setUserId('@owner:p2p-im.com');
     final result = buildHomeConversationSummaryProjection(
@@ -485,7 +485,7 @@ void main() {
       agentEmptyPreview: 'Start our chat',
     );
 
-    expect(result.displayEntries.single.lastMessage, 'Start our chat');
+    expect(result.displayEntries.single.lastMessage, isEmpty);
   });
 
   test('does not build legacy Agent pseudo room without synced agent room', () {
@@ -517,6 +517,47 @@ void main() {
       result.productConversationsByRoomId.containsKey('!agent:p2p-im.com'),
       isFalse,
     );
+  });
+
+  test('keeps cached Agent row while bootstrap is temporarily unavailable', () {
+    final client = Client('ConversationSummaryWriterCachedAgentTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: false,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [
+          ConversationSummaryEntry(
+            conversationId: 'conv_agent',
+            roomId: '!agent-room:p2p-im.com',
+            kind: asConversationKindAgent,
+            name: 'Agent',
+            lastMessage: defaultAgentConversationPreview,
+            previewTs: 0,
+            unread: 0,
+            isGroup: false,
+            isAgent: true,
+            canOpen: true,
+          ),
+        ],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      includeDefaultAgentConversation: true,
+    );
+
+    expect(result.displayEntries.single.roomId, '!agent-room:p2p-im.com');
+    expect(result.displayEntries.single.isAgent, isTrue);
   });
 
   test('does not duplicate fallback Agent when ProductCore Agent exists', () {

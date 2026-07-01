@@ -22,6 +22,7 @@ import '../chat/product_media_outbox_flow.dart';
 import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
@@ -471,13 +472,32 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
             );
       }
       try {
-        await ref.read(asClientProvider).updateChannelReadMarker(
-              channel.id,
-              eventId: eventId,
-              originServerTs: latest.originServerTs,
-            );
+        final realtime = ref.read(asEventStreamRefreshProvider);
+        if (realtime != null) {
+          await realtime.updateReadMarker(
+            roomId,
+            eventId,
+            originServerTs: latest.originServerTs,
+            action: 'channels.read_marker',
+            channelId: channel.id,
+          );
+        } else {
+          await ref.read(asClientProvider).updateChannelReadMarker(
+                channel.id,
+                eventId: eventId,
+                originServerTs: latest.originServerTs,
+              );
+        }
       } catch (_) {
-        // Read marker failure should not block the channel reader UI.
+        try {
+          await ref.read(asClientProvider).updateChannelReadMarker(
+                channel.id,
+                eventId: eventId,
+                originServerTs: latest.originServerTs,
+              );
+        } catch (_) {
+          // Read marker failure should not block the channel reader UI.
+        }
       }
     });
   }

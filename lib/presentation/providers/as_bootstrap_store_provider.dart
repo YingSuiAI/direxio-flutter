@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/as_bootstrap_store.dart';
 import 'as_client_provider.dart';
@@ -9,6 +11,10 @@ import 'as_sync_cache_provider.dart';
 import 'auth_provider.dart';
 
 final asBootstrapStoreProvider = FutureProvider<AsBootstrapStore>((ref) async {
+  if (kIsWeb) {
+    final preferences = await SharedPreferences.getInstance();
+    return SharedPreferencesAsBootstrapStore(preferences);
+  }
   final dir = await getApplicationSupportDirectory();
   return FileAsBootstrapStore(
     File('${dir.path}/direxio_p2p_bootstrap.json'),

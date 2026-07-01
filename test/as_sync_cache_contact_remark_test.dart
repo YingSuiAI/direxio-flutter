@@ -52,6 +52,37 @@ void main() {
     expect(next.bootstrap?.agentRoomId, isEmpty);
   });
 
+  test('local unread clear preserves bootstrap agent room id', () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        agentRoomId: '!agent-room:example.com',
+        rooms: const [
+          AsSyncRoomSummary(
+            roomId: '!agent-room:example.com',
+            name: 'Agent',
+            avatarUrl: '',
+            unreadCount: 3,
+            lastActivityAt: null,
+          ),
+        ],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    final next = state.withRoomUnreadCleared(
+      '!agent-room:example.com',
+      readAt: DateTime.utc(2026, 6, 30),
+    );
+
+    expect(next.bootstrap?.agentRoomId, '!agent-room:example.com');
+    expect(next.bootstrap?.rooms.single.unreadCount, 0);
+  });
+
   test('withContactDisplayName updates bootstrap contact name', () {
     final state = AsSyncCacheState(
       bootstrap: AsSyncBootstrap(

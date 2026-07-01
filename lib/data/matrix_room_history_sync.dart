@@ -1,20 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
-
 import 'package:matrix/matrix.dart';
 
 Map<String, Object?> matrixRoomHistorySyncFilterJson({
   required String roomId,
   required int timelineLimit,
 }) {
-  final limit = max(1, timelineLimit);
   return {
     'room': {
       'rooms': [roomId],
       'state': {'lazy_load_members': true},
       'timeline': {
-        'limit': limit,
+        'limit': timelineLimit < 0 ? 0 : timelineLimit,
         'lazy_load_members': true,
       },
       'ephemeral': {

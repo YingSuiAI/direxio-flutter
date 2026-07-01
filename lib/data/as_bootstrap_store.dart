@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'as_client.dart';
 
 typedef AsBootstrapLoader = Future<AsSyncBootstrap> Function();
@@ -62,6 +64,37 @@ class FileAsBootstrapStore implements AsBootstrapStore {
       await file.delete();
     }
   }
+}
+
+class SharedPreferencesAsBootstrapStore implements AsBootstrapStore {
+  const SharedPreferencesAsBootstrapStore(
+    this.preferences, {
+    this.key = 'direxio_p2p_bootstrap',
+  });
+
+  final SharedPreferences preferences;
+  final String key;
+
+  @override
+  Future<AsSyncBootstrap?> read() async {
+    try {
+      final content = preferences.getString(key);
+      if (content == null || content.trim().isEmpty) return null;
+      return AsSyncBootstrap.fromJson(
+        jsonDecode(content) as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(AsSyncBootstrap bootstrap) {
+    return preferences.setString(key, jsonEncode(bootstrap.toJson()));
+  }
+
+  @override
+  Future<void> clear() => preferences.remove(key);
 }
 
 class AsBootstrapRepository {

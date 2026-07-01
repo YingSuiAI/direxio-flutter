@@ -55,6 +55,69 @@ void main() {
     );
   });
 
+  test('camera constraints prefer an explicit front camera device', () {
+    final constraints = preferCameraDeviceForFacing(
+      const {
+        'audio': true,
+        'video': {
+          'width': 1280,
+          'height': 720,
+          'facingMode': 'user',
+        },
+      },
+      [
+        MediaDeviceInfo(
+          deviceId: 'rear-device',
+          label: '后置相机',
+          kind: 'videoinput',
+        ),
+        MediaDeviceInfo(
+          deviceId: 'front-device',
+          label: '前置相机',
+          kind: 'videoinput',
+        ),
+      ],
+    );
+
+    expect(
+      constraints['video'],
+      containsPair('deviceId', 'front-device'),
+    );
+    expect(
+      constraints['video'],
+      containsPair('facingMode', 'user'),
+    );
+  });
+
+  test('camera constraints keep user facing fallback without front device', () {
+    final constraints = preferCameraDeviceForFacing(
+      const {
+        'audio': true,
+        'video': {
+          'width': 1280,
+          'height': 720,
+          'facingMode': 'user',
+        },
+      },
+      [
+        MediaDeviceInfo(
+          deviceId: 'rear-device',
+          label: '后置相机',
+          kind: 'videoinput',
+        ),
+      ],
+    );
+
+    expect(
+      constraints['video'],
+      isNot(containsPair('deviceId', 'rear-device')),
+    );
+    expect(
+      constraints['video'],
+      containsPair('facingMode', 'user'),
+    );
+  });
+
   test('camera stream binding token changes when video track changes',
       () async {
     final oldTrack = _FakeMediaStreamTrack(id: 'front-track', kind: 'video');
@@ -64,6 +127,25 @@ void main() {
     final before = cameraStreamBindingToken(stream);
     await stream.removeTrack(oldTrack);
     await stream.addTrack(newTrack);
+
+    expect(cameraStreamBindingToken(stream), isNot(before));
+  });
+
+  test('camera stream binding token changes when camera device changes', () {
+    final settings = <String, dynamic>{
+      'deviceId': 'front-device',
+      'facingMode': 'user',
+    };
+    final track = _FakeMediaStreamTrack(
+      id: 'video-track',
+      kind: 'video',
+      settings: settings,
+    );
+    final stream = _FakeMediaStream(videoTracks: [track]);
+
+    final before = cameraStreamBindingToken(stream);
+    settings['deviceId'] = 'rear-device';
+    settings['facingMode'] = 'environment';
 
     expect(cameraStreamBindingToken(stream), isNot(before));
   });

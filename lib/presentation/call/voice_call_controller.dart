@@ -4511,12 +4511,16 @@ class _RecentCallIntent {
 }
 
 class _MatrixWebRtcDelegate implements WebRTCDelegate {
-  _MatrixWebRtcDelegate(this.controller);
+  _MatrixWebRtcDelegate(this.controller)
+      : _mediaDevices = _PreferredCameraMediaDevices(
+          webrtc.navigator.mediaDevices,
+        );
 
   final MatrixVoiceCallController controller;
+  final rtc.MediaDevices _mediaDevices;
 
   @override
-  rtc.MediaDevices get mediaDevices => webrtc.navigator.mediaDevices;
+  rtc.MediaDevices get mediaDevices => _mediaDevices;
 
   @override
   Future<rtc.RTCPeerConnection> createPeerConnection(
@@ -4566,4 +4570,69 @@ class _MatrixWebRtcDelegate implements WebRTCDelegate {
 
   @override
   EncryptionKeyProvider? get keyProvider => null;
+}
+
+class _PreferredCameraMediaDevices implements rtc.MediaDevices {
+  _PreferredCameraMediaDevices(this._delegate);
+
+  final rtc.MediaDevices _delegate;
+
+  @override
+  Future<rtc.MediaStream> getUserMedia(
+    Map<String, dynamic> mediaConstraints,
+  ) async {
+    var constraints = mediaConstraints;
+    try {
+      constraints = preferCameraDeviceForFacing(
+        mediaConstraints,
+        await _delegate.enumerateDevices(),
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('p2p-call-camera-prefer-front failed: $error');
+      }
+    }
+    if (kDebugMode && constraints != mediaConstraints) {
+      debugPrint('p2p-call-camera-prefer-front constraints=$constraints');
+    }
+    return _delegate.getUserMedia(constraints);
+  }
+
+  @override
+  Future<rtc.MediaStream> getDisplayMedia(
+    Map<String, dynamic> mediaConstraints,
+  ) {
+    return _delegate.getDisplayMedia(mediaConstraints);
+  }
+
+  @override
+  Future<List<dynamic>> getSources() {
+    // ignore: deprecated_member_use
+    return _delegate.getSources();
+  }
+
+  @override
+  Future<List<rtc.MediaDeviceInfo>> enumerateDevices() {
+    return _delegate.enumerateDevices();
+  }
+
+  @override
+  rtc.MediaTrackSupportedConstraints getSupportedConstraints() {
+    return _delegate.getSupportedConstraints();
+  }
+
+  @override
+  Future<rtc.MediaDeviceInfo> selectAudioOutput([
+    rtc.AudioOutputOptions? options,
+  ]) {
+    return _delegate.selectAudioOutput(options);
+  }
+
+  @override
+  Function(dynamic event)? get ondevicechange => _delegate.ondevicechange;
+
+  @override
+  set ondevicechange(Function(dynamic event)? handler) {
+    _delegate.ondevicechange = handler;
+  }
 }

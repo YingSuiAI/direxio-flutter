@@ -964,10 +964,9 @@ class _LocalVideoPreview extends StatelessWidget {
     final placeholderLabel = isCameraMuted
         ? l10n?.callCameraOffState ?? '摄像头已关'
         : l10n?.callCameraStarting ?? '摄像头打开中';
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _callText.withValues(alpha: 0.22)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.42),
@@ -976,15 +975,21 @@ class _LocalVideoPreview extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
+      foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          key: const Key('video-call-local-preview'),
-          width: _ConnectedVideoCallScreenState._previewWidth,
-          height: _ConnectedVideoCallScreenState._previewHeight,
-          child: hasActiveVideo
-              ? _RtcVideoSurface(stream: stream, mirror: true)
-              : ColoredBox(
+        border: Border.all(color: _callText.withValues(alpha: 0.22)),
+      ),
+      child: SizedBox(
+        key: const Key('video-call-local-preview'),
+        width: _ConnectedVideoCallScreenState._previewWidth,
+        height: _ConnectedVideoCallScreenState._previewHeight,
+        child: hasActiveVideo
+            ? RepaintBoundary(
+                child: _RtcVideoSurface(stream: stream, mirror: true),
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ColoredBox(
                   color: const Color(0xFF1C1C1E),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1005,7 +1010,7 @@ class _LocalVideoPreview extends StatelessWidget {
                     ],
                   ),
                 ),
-        ),
+              ),
       ),
     );
   }
@@ -1153,6 +1158,7 @@ class _RtcVideoSurfaceState extends State<_RtcVideoSurface> {
   late final webrtc.RTCVideoRenderer _renderer;
   bool _ready = false;
   String _boundStreamToken = '';
+  int _bindGeneration = 0;
 
   @override
   void initState() {
@@ -1164,8 +1170,8 @@ class _RtcVideoSurfaceState extends State<_RtcVideoSurface> {
   Future<void> _initialize() async {
     await _renderer.initialize();
     if (!mounted) return;
-    _renderer.srcObject = widget.stream;
-    _boundStreamToken = cameraStreamBindingToken(widget.stream);
+    await _bindRendererStream(widget.stream, reason: 'init');
+    if (!mounted) return;
     setState(() => _ready = true);
   }
 
@@ -1182,9 +1188,30 @@ class _RtcVideoSurfaceState extends State<_RtcVideoSurface> {
           'new_token=$nextStreamToken stream=${widget.stream?.id}',
         );
       }
-      _renderer.srcObject = widget.stream;
-      _boundStreamToken = nextStreamToken;
+      unawaited(_bindRendererStream(widget.stream, reason: 'update'));
     }
+  }
+
+  Future<void> _bindRendererStream(
+    webrtc.MediaStream? stream, {
+    required String reason,
+  }) async {
+    final generation = ++_bindGeneration;
+    final token = cameraStreamBindingToken(stream);
+    final trackId = cameraPrimaryVideoTrackId(stream);
+    try {
+      await _renderer.setSrcObject(stream: stream, trackId: trackId);
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-renderer-bind-fallback reason=$reason '
+          'token=$token track_id=${trackId ?? ""} error=$error',
+        );
+      }
+      _renderer.srcObject = stream;
+    }
+    if (!mounted || generation != _bindGeneration) return;
+    _boundStreamToken = token;
   }
 
   @override

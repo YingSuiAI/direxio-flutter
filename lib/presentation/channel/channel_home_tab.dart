@@ -31,6 +31,7 @@ import 'channel_avatar_cache.dart';
 import 'channel_inbox_data.dart';
 import 'channel_post_media.dart';
 import 'create_channel_sheet.dart';
+import '../widgets/center_toast.dart';
 
 export 'channel_avatar_cache.dart'
     show
@@ -719,7 +720,8 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       ref.invalidate(_channelListProvider);
     } catch (err) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             status == _ReviewStatus.approved
@@ -2160,7 +2162,8 @@ class _ChannelInboxMenuCard extends StatelessWidget {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  showTopSnackBar(
+    context,
     SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
   );
 }
@@ -2178,15 +2181,14 @@ void _openChannelInboxItem(
       context,
       AppLocalizations,
     );
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n?.channelDissolved ?? 'Channel has been dissolved',
-          ),
+    showTopSnackBar(
+      context,
+      SnackBar(
+        content: Text(
+          l10n?.channelDissolved ?? 'Channel has been dissolved',
         ),
-      );
+      ),
+    );
     return;
   }
   final route = _channelRoute(channel);
@@ -2195,15 +2197,14 @@ void _openChannelInboxItem(
       context,
       AppLocalizations,
     );
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n?.channelOpenSyncing ?? 'Channel is syncing. Try again later.',
-          ),
+    showTopSnackBar(
+      context,
+      SnackBar(
+        content: Text(
+          l10n?.channelOpenSyncing ?? 'Channel is syncing. Try again later.',
         ),
-      );
+      ),
+    );
     return;
   }
   context.push(route);

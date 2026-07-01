@@ -28,6 +28,7 @@ import '../utils/product_conversation_navigation.dart';
 import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 AppLocalizations? _searchL10n(BuildContext context) {
   return Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -577,7 +578,8 @@ class _SearchResultTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: targetRoute == null
-            ? () => ScaffoldMessenger.of(context).showSnackBar(
+            ? () => showTopSnackBar(
+                  context,
                   SnackBar(
                     content: Text(
                       l10n?.globalSearchChannelDetailPending ?? '频道详情功能待接入',

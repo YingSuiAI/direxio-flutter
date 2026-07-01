@@ -21,6 +21,7 @@ import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../widgets/async_image_preview.dart';
+import '../widgets/center_toast.dart';
 
 typedef ChannelPostImageUploader = Future<Uri> Function(
   Uint8List file, {
@@ -100,7 +101,8 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.channelPostPublishFailed('$err') ?? '发表失败：$err'),
         ),
@@ -162,7 +164,8 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
           context,
           AppLocalizations,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               l10n?.channelPostImageUploadFailed('$failedCount') ??
@@ -177,7 +180,8 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.channelPostImageUploadFailed('$err') ?? '图片上传失败：$err',

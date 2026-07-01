@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../qr/qr_scan_parser.dart';
+import '../widgets/center_toast.dart';
 
 class QrScannerPage extends StatefulWidget {
   const QrScannerPage({super.key});
@@ -96,7 +97,8 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
   void _showErrorAndResume(String message) {
     _logQrScan('error message=$message');
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(message)),
     );
     Future<void>.delayed(const Duration(milliseconds: 900), () {

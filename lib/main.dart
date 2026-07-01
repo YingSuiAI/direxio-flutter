@@ -25,6 +25,7 @@ import 'presentation/providers/push_context_provider.dart';
 import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/call/active_call_mini_window.dart';
 import 'presentation/widgets/app_glass_background.dart';
+import 'presentation/widgets/center_toast.dart';
 
 bool _sessionExpiredDialogShowing = false;
 bool _startupSplashFirstFrameDeferred = false;
@@ -155,7 +156,7 @@ class PortalApp extends ConsumerWidget {
         ).whenComplete(
           () => _sessionExpiredDialogShowing = false,
         );
-        ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+        hideTopToast();
       });
     });
     return MaterialApp.router(

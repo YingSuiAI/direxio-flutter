@@ -12,6 +12,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../widgets/center_toast.dart';
 
 class AddContactVerificationPage extends ConsumerStatefulWidget {
   const AddContactVerificationPage({
@@ -71,7 +72,8 @@ class _AddContactVerificationPageState
       }
       if (!mounted) return;
       setState(() => _requested = true);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(_requestSentText(context)),
           duration: const Duration(milliseconds: 900),
@@ -84,7 +86,8 @@ class _AddContactVerificationPageState
       debugPrint(
           'send add-contact verification request failed: $e\n$stackTrace');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(_requestFailedText(context, e))),
       );
     } finally {

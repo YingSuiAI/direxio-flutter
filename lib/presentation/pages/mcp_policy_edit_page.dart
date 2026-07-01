@@ -12,6 +12,7 @@ import '../../l10n/app_localizations.dart';
 import '../mcp/mcp_policy.dart';
 import '../mcp/mcp_audit.dart';
 import '../providers/product_conversations_provider.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 
@@ -46,9 +47,10 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(
+      showTopSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n?.mcpPolicySaved ?? '已保存')));
+        SnackBar(content: Text(l10n?.mcpPolicySaved ?? '已保存')),
+      );
       context.pop();
     }
   }

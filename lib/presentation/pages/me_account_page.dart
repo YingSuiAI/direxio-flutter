@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
+import '../widgets/center_toast.dart';
 
 /// `s-me-account` — 账号与安全 (index.html L1167-1224)
 class MeAccountPage extends StatefulWidget {
@@ -134,7 +135,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
     });
     final navigator = Navigator.of(context);
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     try {
       await ref.read(authStateNotifierProvider.notifier).changePortalPassword(
             oldPassword: oldPassword,

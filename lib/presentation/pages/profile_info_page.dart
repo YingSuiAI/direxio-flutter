@@ -91,7 +91,8 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               l10n?.profileInfoAvatarUpdateFailed('$e') ?? '头像更新失败: $e',
@@ -258,7 +259,8 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     if (_profileBusy) return;
     final cleanDisplayName = displayName?.trim();
     if (displayName != null && cleanDisplayName!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.profileInfoDisplayNameEmpty ?? '用户名不能为空'),
         ),
@@ -268,7 +270,8 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     if (cleanDisplayName != null &&
         cleanDisplayName.toLowerCase() ==
             _localpartFromMxid(userId).toLowerCase()) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.profileInfoDisplayNameSystemName ?? '请设置一个不同于系统账号的用户名',
@@ -317,13 +320,15 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
       ref.invalidate(appWarmupProvider);
       unawaited(ref.read(appWarmupProvider.future));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(content: Text(successMessage)),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               l10n?.profileInfoFieldUpdateFailed(failureLabel, '$e') ??

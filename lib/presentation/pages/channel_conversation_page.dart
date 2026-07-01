@@ -12,6 +12,7 @@ import '../../l10n/app_localizations.dart';
 import '../channel/channel_info_data.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 class ChannelConversationPage extends ConsumerStatefulWidget {
   const ChannelConversationPage({super.key, required this.channelId});
@@ -153,7 +154,8 @@ class _ChannelConversationPageState
   }
 
   void _showSnack(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(text), duration: const Duration(seconds: 1)),
     );
   }

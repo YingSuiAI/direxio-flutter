@@ -526,7 +526,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final peerMxid = member.id.trim();
     if (_removingMember || peerMxid.isEmpty) return;
     final l10n = _groupInfoL10n(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
     final displayName = _groupMemberDisplayName(
       room: room,
@@ -757,7 +757,8 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       if (context.mounted) context.go('/home');
     } on Object catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupInfoLeaveFailed(action, '$e'))),
       );
     } finally {

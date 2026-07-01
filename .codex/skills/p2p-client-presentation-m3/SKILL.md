@@ -35,6 +35,11 @@ Prefer existing components in `lib/presentation/widgets/m3/`, including `GlassHe
 
 For logged-in empty states, show real empty states. Do not display demo contacts, channels, messages, or posts after login.
 
+Transient user feedback must use the shared top toast in
+`lib/presentation/widgets/center_toast.dart`: top centered, Figma toast colors,
+and a 2-second display. Do not add bottom `ScaffoldMessenger.showSnackBar`
+prompts for ordinary app feedback.
+
 ## State And Boundaries
 
 Keep Riverpod state in `lib/presentation/providers/`.

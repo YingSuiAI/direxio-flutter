@@ -93,6 +93,7 @@ import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../call/voice_call_controller.dart';
+import '../widgets/center_toast.dart';
 
 void _chatGestureLog(String message) {
   debugPrint('[chat gesture] $message');
@@ -694,7 +695,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _showQuotedMessageUnavailable() {
     if (!mounted) return;
     final l10n = _l10n;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
           content:
               Text(l10n?.groupChatOriginalMessageUnavailable ?? '原消息暂不可见')),
@@ -1346,7 +1348,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
     if (!capabilityPolicy.canSendText) {
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(l10n?.chatPeerAcceptBeforeSend ?? '对方接受好友请求后才能发送消息')),
       );
@@ -1412,7 +1415,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     }
@@ -1492,7 +1496,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await _voiceRecorder.start();
     } on ChatVoiceRecorderException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(e.message),
           duration: const Duration(seconds: 2),
@@ -1501,7 +1506,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (e) {
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.groupChatVoiceRecordFailed('$e') ?? '语音录制失败：$e'),
           duration: const Duration(seconds: 2),
@@ -1523,7 +1529,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (recording.durationMs < 700) {
         if (!mounted) return;
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(l10n?.groupChatRecordingTooShort ?? '说话时间太短'),
             duration: const Duration(seconds: 1),
@@ -1567,7 +1574,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         !isPortalAgentDirectRoom(room)) {
       final l10n = _l10n;
       await sendProductMediaWithPendingState(
-        messenger: ScaffoldMessenger.of(context),
+        messenger: AppToastMessenger(context),
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: ref.read(matrixClientProvider),
@@ -1596,7 +1603,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       setState(() => _replyTo = replyTo);
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     }
@@ -1631,7 +1639,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await Clipboard.setData(ClipboardData(text: e.body));
         if (mounted) {
           final l10n = _l10n;
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n?.groupChatCopied ?? '已复制'),
               duration: const Duration(seconds: 1),
@@ -1691,7 +1700,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await Clipboard.setData(ClipboardData(text: _outboxCopyText(item)));
         if (mounted) {
           final l10n = _l10n;
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n?.groupChatCopied ?? '已复制'),
               duration: const Duration(seconds: 1),
@@ -1703,7 +1713,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await ref.read(localOutboxProvider.notifier).completeItem(item.id);
         if (mounted) {
           final l10n = _l10n;
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n?.groupChatDeleted ?? '已删除'),
               duration: const Duration(seconds: 1),
@@ -1714,7 +1725,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'fav':
         if (mounted) {
           final l10n = _l10n;
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content:
                   Text(l10n?.groupChatCannotFavoriteSending ?? '发送中的消息暂不能收藏'),
@@ -1729,7 +1741,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'recall':
         if (mounted) {
           final l10n = _l10n;
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(
                   l10n?.groupChatActionAvailableAfterSent ?? '消息发送完成后可使用该操作'),
@@ -1744,7 +1757,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _recallEvent(Event event) async {
     final l10n = _l10n;
     if (!event.canRedact) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(l10n?.groupChatNoRecallPermission ?? '没有权限撤回该消息')),
       );
@@ -1795,13 +1809,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         debugPrint('post-redaction Matrix sync failed: $e');
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.groupChatRecalled ?? '消息已撤回')),
       );
     } on Object catch (err) {
       debugPrint('recall message failed: $err');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content:
                 Text(l10n?.groupChatRecallFailed('$err') ?? '撤回消息失败：$err')),
@@ -1855,7 +1871,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (mounted) {
       final l10n = _l10n;
       setState(() => _favoritingEventIds.add(eventId));
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.groupChatFavoriting ?? '正在收藏到我的节点…'),
           duration: const Duration(milliseconds: 900),
@@ -1867,7 +1884,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await ref.read(asClientProvider).favoriteMessage(draft);
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.groupChatFavorited ?? '已收藏'),
           duration: const Duration(seconds: 1),
@@ -1877,7 +1895,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('favorite message failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatFavoriteFailed('$err') ?? '收藏失败：$err')),
@@ -1959,13 +1978,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _selected.clear();
       });
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatRecordForwarded ?? '已转发聊天记录')),
       );
     } on Object catch (err) {
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content:
                 Text(l10n?.chatRecordForwardFailed('$err') ?? '转发失败：$err')),
@@ -2117,7 +2138,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('delete message for me failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatDeleteFailed('$err') ?? '删除消息失败：$err')),
@@ -2180,7 +2202,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final route = productConversationRoute(group.productConversation);
       if (route == null) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.chatGroupSyncingRetryLater ?? '群聊正在同步，请稍后重试')),
@@ -2190,7 +2213,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       context.push(route);
     } on Object catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(_joinGroupInviteFailureMessage(e))),
       );
     } finally {
@@ -2251,7 +2275,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _requestedChannelShareIds.add(key));
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               channelJoinStatusText(joined.memberStatus, l10n: _l10n),
@@ -2274,7 +2299,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.channelJoinFailed('$e') ?? '加入频道失败：$e')),
       );
     } finally {
@@ -2365,7 +2391,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           });
         }
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(content: Text(l10n?.chatImageSavedToAlbum ?? '已保存原图到相册')),
         );
       }
@@ -2373,7 +2400,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('download image failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatDownloadFailed('$err') ?? '下载失败：$err')),
@@ -2426,7 +2454,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('open file failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content: Text(l10n?.groupChatOpenFailed('$err') ?? '打开失败：$err')),
         );
@@ -2461,7 +2490,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('open video failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatPlaybackFailed('$err') ?? '播放失败：$err')),
@@ -2482,7 +2512,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('play voice failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatPlaybackFailed('$err') ?? '播放失败：$err')),
@@ -2516,7 +2547,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           });
         }
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               l10n?.groupChatDownloadSaved(file.uri.pathSegments.last) ??
@@ -2529,7 +2561,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('download file failed: $err');
       if (mounted) {
         final l10n = _l10n;
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
               content:
                   Text(l10n?.groupChatDownloadFailed('$err') ?? '下载失败：$err')),
@@ -2722,15 +2755,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         LocalOutboxMessageKind.video => l10n?.groupChatVideo ?? '视频',
         _ => l10n?.groupChatFile ?? '文件',
       };
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(l10n?.groupChatLocalMediaMissing(label) ??
-                '本地原$label已丢失，请重新选择$label'),
-            duration: const Duration(seconds: 2),
+      showTopSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            l10n?.groupChatLocalMediaMissing(label) ??
+                '本地原$label已丢失，请重新选择$label',
           ),
-        );
+        ),
+      );
       return;
     }
 
@@ -2774,7 +2807,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
       };
       await sendProductMediaWithPendingState(
-        messenger: ScaffoldMessenger.of(context),
+        messenger: AppToastMessenger(context),
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: matrixClient,
@@ -2840,7 +2873,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await ref.read(localOutboxProvider.notifier).failItem(item.id);
       if (!mounted) return;
       final l10n = _l10n;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(productSendFailureMessage(e, l10n: l10n))),
       );
     } finally {
@@ -6378,7 +6412,8 @@ Future<void> _openImgPreview(
 void _showPendingContactToast(BuildContext context) {
   if (!context.mounted) return;
   final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-  ScaffoldMessenger.of(context).showSnackBar(
+  showTopSnackBar(
+    context,
     SnackBar(
         content: Text(l10n?.chatPeerAcceptBeforeSend ?? '对方接受好友请求后才能发送消息')),
   );

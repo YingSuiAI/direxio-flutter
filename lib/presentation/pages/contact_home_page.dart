@@ -20,6 +20,7 @@ import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 enum _FriendButtonState { none, pending, accepted }
 
@@ -117,7 +118,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             next
@@ -174,7 +176,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             restored
@@ -191,7 +194,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.contactFriendRequestFailed('$e') ?? '发送好友请求失败: $e',
@@ -241,7 +245,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.contactDeleteMissingRoom ?? '删除好友失败: 缺少联系人房间信息',
@@ -274,7 +279,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.contactDeletedName(home.displayName) ??
@@ -289,7 +295,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(l10n?.contactDeleteFailed('$e') ?? '删除好友失败: $e')),
       );

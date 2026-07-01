@@ -21,6 +21,7 @@ import '../providers/local_created_channels_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_avatar_cache.dart';
+import '../widgets/center_toast.dart';
 
 Future<void> showCreateChannelDialog(
   BuildContext context,
@@ -125,7 +126,8 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       setState(() => _avatarUrl = uploaded.toString());
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.createChannelAvatarUploadFailed('$e') ?? '频道头像上传失败：$e',
@@ -247,7 +249,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       await widget.onCreated?.call();
       if (!mounted) return;
       const duration = Duration(milliseconds: 700);
-      final messenger = ScaffoldMessenger.of(context);
+      final messenger = AppToastMessenger(context);
       messenger.showSnackBar(
         SnackBar(
           content: Text(l10n?.createChannelCreated ?? '频道已创建'),
@@ -261,7 +263,8 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _creating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.createChannelFailed('$e') ?? '创建频道失败：$e'),
         ),

@@ -22,6 +22,7 @@ import '../utils/avatar_url.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 class ChannelDetailInfoPage extends ConsumerStatefulWidget {
   const ChannelDetailInfoPage({
@@ -322,7 +323,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       if (!mounted) return;
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
         setState(() => _joining = false);
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               channelJoinStatusText(
@@ -336,7 +338,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _requested = true);
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content:
                 Text(_channelJoinWaitingText(context, joined.memberStatus)),
@@ -394,7 +397,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       );
       if (!mounted) return;
       setState(() => _joining = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             _channelInfoL10n(context)?.channelJoinFailed('$err') ??
@@ -470,13 +474,15 @@ Future<void> _shareChannelDetail(
     );
     if (!context.mounted || !sent) return;
     final l10n = _channelInfoL10n(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(l10n?.channelInfoShared ?? '已分享频道')),
     );
   } catch (err) {
     if (!context.mounted) return;
     final l10n = _channelInfoL10n(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           l10n?.channelInfoShareFailed('$err') ?? '分享频道失败：$err',
@@ -606,7 +612,8 @@ class _DetailTopBar extends StatelessWidget {
 Future<void> _copyChannelId(BuildContext context, String channelId) async {
   await Clipboard.setData(ClipboardData(text: channelId));
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
+  showTopSnackBar(
+    context,
     SnackBar(
       content: Text(
         _channelInfoL10n(context)?.channelDetailCopiedId ?? '已复制频道 ID',

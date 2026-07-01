@@ -10,6 +10,7 @@ import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_inbox_data.dart';
 import '../channel/channel_leave_flow.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../widgets/center_toast.dart';
 
 enum ChannelManagementSection {
   overview,
@@ -1412,7 +1413,8 @@ String _compactCount(int value) {
 
 void _showComingSoon(BuildContext context, String label) {
   final l10n = AppLocalizations.of(context);
-  ScaffoldMessenger.of(context).showSnackBar(
+  showTopSnackBar(
+    context,
     SnackBar(content: Text(l10n.channelManageComingSoon(label))),
   );
 }
@@ -1431,13 +1433,15 @@ Future<void> _confirmDissolveChannel(
   try {
     await dissolveChannelThroughAs(ref, channelId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(l10n.channelInfoDissolved)),
     );
     _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(l10n.channelInfoDissolveFailed('$err'))),
     );
   }

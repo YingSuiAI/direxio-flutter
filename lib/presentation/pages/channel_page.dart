@@ -37,6 +37,7 @@ import '../utils/room_read_state.dart';
 import '../utils/user_profile_directory.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_info_page.dart';
+import '../widgets/center_toast.dart';
 
 class ChannelPage extends ConsumerStatefulWidget {
   const ChannelPage({super.key, required this.channelId});
@@ -174,13 +175,15 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
       if (!mounted || !sent) return;
       _cancelSelection();
       final l10n = _l10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatRecordForwarded ?? '已转发聊天记录')),
       );
     } on Object catch (err) {
       if (!mounted) return;
       final l10n = _l10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.chatRecordForwardFailed('$err') ?? '转发失败：$err'),
         ),
@@ -525,13 +528,15 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
       );
       if (!mounted) return;
       final l10n = _l10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.channelPostDeleted ?? 'Post deleted')),
       );
     } catch (error) {
       if (!mounted) return;
       final l10n = _l10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.channelPostDeleteFailed('$error') ??
@@ -705,7 +710,8 @@ class _PublicChannelScaffoldState
           _joining = false;
           _future = Future.value(joined);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               channelJoinStatusText(joined.memberStatus, l10n: _l10n(context)),
@@ -716,7 +722,8 @@ class _PublicChannelScaffoldState
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _future = Future.value(joined));
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content:
                 Text(_channelJoinWaitingText(context, joined.memberStatus)),
@@ -764,7 +771,8 @@ class _PublicChannelScaffoldState
       if (!mounted) return;
       setState(() => _joining = false);
       final l10n = _l10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(l10n?.channelJoinFailed('$err') ?? '加入频道失败：$err')),
       );

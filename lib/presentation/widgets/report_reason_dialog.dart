@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/im_public_client.dart';
 import '../../l10n/app_localizations.dart';
+import './center_toast.dart';
 
 class ReportReasonResult {
   const ReportReasonResult({
@@ -86,7 +87,8 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
       });
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.reportReasonPickImageFailed('$error') ?? '图片选择失败: $error',

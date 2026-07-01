@@ -19,6 +19,7 @@ import '../utils/contact_display_name.dart';
 import '../utils/group_avatar_members.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
+import '../widgets/center_toast.dart';
 
 /// GROUP INFO 屏 —— 1:1 复刻 P2P-APP-UI/index.html 中 #s-group-info（678-808 行）。
 /// 保留 Riverpod / Matrix client 数据查询；widget 树严格对齐设计稿。
@@ -547,7 +548,8 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       context.go('/home');
     } on Object catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.groupDetailLeaveOrDissolveFailed(
@@ -642,7 +644,8 @@ String _fallbackDisplayNameFromMxid(String mxid) {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  showTopSnackBar(
+    context,
     SnackBar(content: Text(message)),
   );
 }

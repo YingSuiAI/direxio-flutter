@@ -20,6 +20,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     required this.surfaceHigh,
     required this.secondaryContainer,
     required this.tertiaryFixed,
+    required this.toastBackground,
+    required this.onToastBackground,
   });
 
   // —— 历史稳定字段 ——
@@ -40,6 +42,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
   final Color surfaceHigh; // surface-container-high（对方气泡背景等）
   final Color secondaryContainer; // secondary-container（nav pill 等）
   final Color tertiaryFixed; // tertiary-fixed（在线状态绿点）
+  final Color toastBackground; // toast background
+  final Color onToastBackground; // toast text
 
   /// 全局品牌主色。换产品主色时优先改这里。
   static const brandPrimary = Color(0xFF3DCFFF);
@@ -61,6 +65,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     surfaceHigh: Color(0xFFE8E8ED),
     secondaryContainer: Color(0xFFE0DFE4),
     tertiaryFixed: Color(0xFF72FE88),
+    toastBackground: Color(0x4D000000),
+    onToastBackground: Color(0xFFFAFAFA),
   );
 
   // M3 dark palette; accent keeps the Direxio product blue.
@@ -80,6 +86,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     surfaceHigh: Color(0xFF30313A),
     secondaryContainer: Color(0xFF152F3E),
     tertiaryFixed: Color(0xFF72FE88),
+    toastBackground: Color(0x4D000000),
+    onToastBackground: Color(0xFFFAFAFA),
   );
 
   @override
@@ -99,6 +107,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     Color? surfaceHigh,
     Color? secondaryContainer,
     Color? tertiaryFixed,
+    Color? toastBackground,
+    Color? onToastBackground,
   }) =>
       PortalTokens(
         bg: bg ?? this.bg,
@@ -116,6 +126,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
         surfaceHigh: surfaceHigh ?? this.surfaceHigh,
         secondaryContainer: secondaryContainer ?? this.secondaryContainer,
         tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
+        toastBackground: toastBackground ?? this.toastBackground,
+        onToastBackground: onToastBackground ?? this.onToastBackground,
       );
 
   @override
@@ -149,6 +161,16 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
         t,
       )!,
       tertiaryFixed: Color.lerp(tertiaryFixed, other.tertiaryFixed, t)!,
+      toastBackground: Color.lerp(
+        toastBackground,
+        other.toastBackground,
+        t,
+      )!,
+      onToastBackground: Color.lerp(
+        onToastBackground,
+        other.onToastBackground,
+        t,
+      )!,
     );
   }
 }

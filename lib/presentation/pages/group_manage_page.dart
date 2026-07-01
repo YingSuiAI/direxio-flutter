@@ -20,6 +20,7 @@ import '../utils/contact_display_name.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 /// `s-group-manage` — 群管理 (index.html L809-841)
 class GroupManagePage extends ConsumerStatefulWidget {
@@ -460,7 +461,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
   }
 
   void _showSnack(String message) {
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(SnackBar(content: Text(message)));
   }
@@ -516,7 +517,8 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
       await onConfirm();
     } on Object catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text('$failurePrefix: $e')),
       );
     }

@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 class BlacklistPage extends StatefulWidget {
   const BlacklistPage({super.key});
@@ -34,7 +35,8 @@ class _BlacklistPageState extends State<BlacklistPage> {
       context,
       AppLocalizations,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           l10n?.blacklistRemovedMessage(entry.name) ?? '已移除 ${entry.name}',

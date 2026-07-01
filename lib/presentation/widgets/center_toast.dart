@@ -8,48 +8,75 @@ import '../../core/theme/design_tokens.dart';
 OverlayEntry? _activeCenterToast;
 Timer? _activeCenterToastTimer;
 
+const Duration appToastDuration = Duration(seconds: 2);
+
+class AppToastMessenger {
+  const AppToastMessenger(this.context);
+
+  final BuildContext context;
+
+  bool get mounted => context.mounted;
+
+  void hideCurrentSnackBar() => hideTopToast();
+
+  void showSnackBar(SnackBar snackBar) => showTopSnackBar(context, snackBar);
+}
+
 void showCenterToast(
   BuildContext context,
   String message, {
-  Duration duration = const Duration(milliseconds: 1400),
+  Duration duration = appToastDuration,
 }) {
+  showTopToast(context, message, duration: duration);
+}
+
+void showTopToast(
+  BuildContext context,
+  String message, {
+  Duration duration = appToastDuration,
+}) {
+  if (!context.mounted) return;
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null || message.trim().isEmpty) return;
-  _activeCenterToastTimer?.cancel();
-  _activeCenterToast?.remove();
+  hideTopToast();
 
   final t = context.tk;
   final entry = OverlayEntry(
     builder: (context) {
-      return Positioned.fill(
+      final top = MediaQuery.paddingOf(context).top + 78;
+      return Positioned(
+        top: top,
+        left: 16,
+        right: 16,
         child: IgnorePointer(
           child: Center(
             child: Material(
-              color: Colors.transparent,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: t.text.withValues(alpha: 0.88),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: t.text.withValues(alpha: 0.18),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+              type: MaterialType.transparency,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: 130,
+                  minHeight: 35,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: t.toastBackground,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: AppTheme.sans(
-                      size: 15,
-                      weight: FontWeight.w500,
-                      color: t.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      message.trim(),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: t.onToastBackground,
+                      ),
                     ),
                   ),
                 ),
@@ -70,4 +97,24 @@ void showCenterToast(
     }
     entry.remove();
   });
+}
+
+void showTopSnackBar(BuildContext context, SnackBar snackBar) {
+  final text = _snackBarText(snackBar.content);
+  if (text == null) return;
+  showTopToast(context, text);
+}
+
+void hideTopToast() {
+  _activeCenterToastTimer?.cancel();
+  _activeCenterToastTimer = null;
+  _activeCenterToast?.remove();
+  _activeCenterToast = null;
+}
+
+String? _snackBarText(Widget content) {
+  if (content is Text) {
+    return content.data ?? content.textSpan?.toPlainText();
+  }
+  return null;
 }

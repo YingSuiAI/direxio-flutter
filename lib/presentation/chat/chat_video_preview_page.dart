@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../widgets/center_toast.dart';
 
 typedef VideoPreviewAction = Future<void> Function();
 
@@ -100,7 +101,8 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatVideoSavedToAlbum ?? '已保存原视频到相册')),
       );
     } on Object catch (err) {
@@ -109,7 +111,8 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatSaveFailed('$err') ?? '保存失败：$err')),
       );
     } finally {

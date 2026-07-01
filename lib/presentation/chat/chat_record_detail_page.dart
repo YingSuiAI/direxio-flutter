@@ -17,6 +17,7 @@ import '../widgets/async_image_preview.dart';
 import 'chat_glass_background.dart';
 import 'chat_message_cards.dart';
 import 'chat_record_forwarding.dart';
+import '../widgets/center_toast.dart';
 
 const _chatRecordFileActionsChannel = MethodChannel('p2p_im/file_actions');
 
@@ -538,7 +539,8 @@ Future<void> _openChatRecordMedia(
       context,
       AppLocalizations,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(l10n?.chatRecordOpenFailed('$err') ?? '打开失败：$err'),
       ),

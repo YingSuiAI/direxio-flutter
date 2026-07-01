@@ -25,6 +25,7 @@ import '../groups/group_invite_content.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
 
@@ -112,12 +113,14 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.groupCreateCreated ?? '群聊已创建')),
       );
       final route = productConversationRoute(resolvedConversation);
       if (route == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               l10n?.chatGroupSyncingRetryLater ?? '群聊正在同步，请稍后重试',
@@ -134,7 +137,8 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       context,
       AppLocalizations,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(l10n?.groupCreateFailed('$e') ?? '创建失败: $e')),
     );
   }
@@ -548,8 +552,7 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                     Expanded(
                       child: widget.contacts.isEmpty
                           ? _CreateGroupEmptyState(
-                              title: l10n?.createGroupEmptyTitle ??
-                                  '暂无可邀请联系人',
+                              title: l10n?.createGroupEmptyTitle ?? '暂无可邀请联系人',
                               subtitle: l10n?.createGroupEmptySubtitle ??
                                   '先添加好友后再发起群聊',
                             )
@@ -557,9 +560,9 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                               ? _CreateGroupEmptyState(
                                   title: l10n?.createGroupNoResultsTitle ??
                                       '没有找到好友',
-                                  subtitle: l10n
-                                          ?.createGroupNoResultsSubtitle ??
-                                      '换个 ID、昵称或邮箱试试',
+                                  subtitle:
+                                      l10n?.createGroupNoResultsSubtitle ??
+                                          '换个 ID、昵称或邮箱试试',
                                 )
                               : ListView(
                                   padding:

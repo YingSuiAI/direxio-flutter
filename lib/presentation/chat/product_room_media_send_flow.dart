@@ -10,6 +10,7 @@ import '../../data/media_thumbnail_cache.dart';
 import '../../l10n/app_localizations.dart';
 import 'chat_media_send_flow.dart';
 import 'product_media_outbox_flow.dart';
+import '../widgets/center_toast.dart';
 
 String productSendFailureMessage(Object error, {AppLocalizations? l10n}) {
   final statusCode = error is AsClientException
@@ -165,7 +166,7 @@ Future<void> writeSentMediaThumbnail(
 }
 
 Future<void> sendProductMediaWithPendingState({
-  required ScaffoldMessengerState messenger,
+  required AppToastMessenger messenger,
   required ChatMediaAttachment attachment,
   required ChatMediaAttachmentSender sendAttachment,
   required Future<MediaThumbnailCache>? thumbnailCacheFuture,

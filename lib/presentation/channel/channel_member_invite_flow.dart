@@ -18,6 +18,7 @@ import '../utils/contact_identity_label.dart';
 import '../widgets/portal_avatar.dart';
 import 'channel_info_data.dart';
 import 'channel_share.dart';
+import '../widgets/center_toast.dart';
 
 Future<void> showInviteChannelMembersFlow(
   BuildContext context,
@@ -98,7 +99,8 @@ Future<void> showInviteChannelMembersFlow(
       unawaited(matrixClient.oneShotSync());
     }
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           _channelInviteResultMessage(
@@ -111,7 +113,8 @@ Future<void> showInviteChannelMembersFlow(
     );
   } on Object catch (e) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(_channelInviteFailureMessage(e))),
     );
   }

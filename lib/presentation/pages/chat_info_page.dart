@@ -475,7 +475,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
             clearedBeforeTs: clearedBeforeTs,
           );
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n?.chatInfoClearHistoryCleared ?? '聊天记录已清空'),
         ),
@@ -483,7 +484,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       Navigator.of(context).maybePop();
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.chatInfoClearHistoryFailed('$e') ?? '清空聊天记录失败: $e',

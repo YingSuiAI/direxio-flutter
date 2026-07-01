@@ -13,6 +13,7 @@ import '../providers/app_locale_provider.dart';
 import '../providers/app_theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/message_notification_preferences_provider.dart';
+import '../widgets/center_toast.dart';
 
 /// Settings page matching the Direxio settings design.
 class SettingsPage extends ConsumerStatefulWidget {
@@ -59,12 +60,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await ref.read(authStateNotifierProvider.notifier).clearChatHistory();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.settingsClearChatsSuccess ?? '聊天记录已清空')),
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.settingsClearChatsFailure ?? '清空聊天记录失败，请稍后重试',

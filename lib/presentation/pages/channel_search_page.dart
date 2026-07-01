@@ -23,6 +23,7 @@ import '../utils/avatar_url.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 AppLocalizations? _channelSearchL10n(BuildContext context) {
   return Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -138,7 +139,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       });
       if (!mounted) return;
       if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content:
                 Text(_channelJoinWaitingText(context, joined.memberStatus)),
@@ -147,7 +149,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         return;
       }
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content:
                 Text(_channelJoinWaitingText(context, joined.memberStatus)),
@@ -156,7 +159,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               _channelSearchL10n(context)?.channelJoinProcessing ??
@@ -179,7 +183,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         discoveredChannel: channel,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             _channelSearchL10n(context)?.channelJoinFailed('$err') ??
@@ -212,7 +217,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       channelId: channelId,
     );
     if (route == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             _channelSearchL10n(context)?.channelSearchSyncing ?? '频道正在同步，请稍后重试',

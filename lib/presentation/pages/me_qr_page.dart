@@ -22,6 +22,7 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 class MeQrPage extends ConsumerWidget {
   const MeQrPage({super.key});
@@ -399,7 +400,8 @@ class _QrCardState extends State<_QrCard> {
     } catch (err) {
       if (kDebugMode) debugPrint('share QR card failed: $err');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.meQrSaveFailed)),
       );
     } finally {
@@ -419,13 +421,15 @@ class _QrCardState extends State<_QrCard> {
         fileName: 'p2p_im_qr_${_safeFileName(widget.uid)}.png',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.meQrSaveSuccess)),
       );
     } catch (err) {
       if (kDebugMode) debugPrint('save QR card failed: $err');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.meQrSaveFailed)),
       );
     } finally {

@@ -115,6 +115,10 @@ Choose the integration boundary before adding or changing client behavior:
 - Do not reintroduce `flutter_lucide`; icons come from `material_symbols_icons` via `Symbols.*`.
 - `GlassHeader` is not a `PreferredSizeWidget`; place it at the top of the body rather than in `Scaffold.appBar`.
 - For empty states, show the real empty state. Do not show placeholder contacts/channels/messages.
+- Transient user feedback uses the shared top toast in
+  `lib/presentation/widgets/center_toast.dart`: top centered, Figma toast
+  colors, and a 2-second display. Do not add bottom
+  `ScaffoldMessenger.showSnackBar` prompts for ordinary app feedback.
 
 ## Privacy Rules
 

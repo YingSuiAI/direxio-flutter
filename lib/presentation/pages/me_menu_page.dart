@@ -27,6 +27,7 @@ import '../widgets/async_image_preview.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 const double _favoriteMediaPreviewSize = 109;
 
@@ -217,7 +218,8 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
         _removedFavoriteIds.add(favorite.id);
         _future = _load();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(_l10n(context)?.meFavoriteDeleted ?? '已删除收藏'),
         ),
@@ -225,7 +227,8 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       return true;
     } on Object catch (err) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             _l10n(context)?.meFavoriteDeleteFailed('$err') ?? '删除收藏失败：$err',
@@ -1202,7 +1205,8 @@ class _FavoriteAudioContentState extends ConsumerState<_FavoriteAudioContent> {
 
   void _showAudioError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(message)),
     );
   }
@@ -1983,7 +1987,8 @@ Future<void> _openFavoriteImage(
   final fullLoader = _favoriteImageProviderLoader(ref, favorite);
   if (fullLoader == null) {
     final l10n = _l10n(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           l10n?.meFavoriteImagePreviewUrlMissing ?? '收藏图片地址为空，无法预览',

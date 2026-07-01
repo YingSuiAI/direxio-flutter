@@ -515,7 +515,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       );
       if (!context.mounted) return;
       final l10n = _contactDetailL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             contact.status.trim() == 'accepted'
@@ -529,7 +530,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           'send friend request from contact detail failed: $e\n$stackTrace');
       if (!context.mounted) return;
       final l10n = _contactDetailL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.addContactRequestFailed('$e') ?? '发送好友请求失败: $e',
@@ -662,13 +664,15 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           );
       if (!context.mounted) return;
       final l10n = _contactDetailL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.contactReportSubmitted ?? '举报已提交')),
       );
     } catch (error) {
       if (!context.mounted) return;
       final l10n = _contactDetailL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.contactReportSubmitFailed('$error') ?? '举报提交失败: $error',
@@ -781,13 +785,15 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       final room = client.getRoomById(roomId);
       if (room != null) client.rooms.remove(room);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(successMessage)),
       );
       context.go('/home');
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(failureMessage('$e'))),
       );
     }

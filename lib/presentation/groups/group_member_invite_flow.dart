@@ -19,6 +19,7 @@ import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import 'group_invite_content.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/center_toast.dart';
 
 Future<void> showInviteGroupMembersFlow(
   BuildContext context,
@@ -109,7 +110,8 @@ Future<void> showInviteGroupMembersFlow(
     }
     unawaited(_refreshBootstrapAfterInvite(ref));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           _groupInviteResultMessage(
@@ -123,7 +125,8 @@ Future<void> showInviteGroupMembersFlow(
     );
   } on Object catch (e) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(_groupInviteFailureMessage(e))),
     );
   }

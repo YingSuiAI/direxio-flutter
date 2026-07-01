@@ -18,6 +18,7 @@ import 'ordered_chat_image_picker.dart';
 import 'product_media_outbox_flow.dart';
 import 'product_room_media_send_flow.dart';
 import 'video_thumbnailer.dart';
+import '../widgets/center_toast.dart';
 
 class ChatAttachmentPanel extends ConsumerWidget {
   const ChatAttachmentPanel({
@@ -75,7 +76,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
   final VoidCallback? onVideoCall;
 
   void _showMediaSnack(
-    ScaffoldMessengerState messenger,
+    AppToastMessenger messenger,
     String message, {
     Duration duration = const Duration(seconds: 2),
   }) {
@@ -87,7 +88,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
   }
 
   Future<void> _sendProductAttachment(
-    ScaffoldMessengerState messenger,
+    AppToastMessenger messenger,
     ChatMediaAttachment attachment,
     ChatMediaAttachmentSender sendAttachment,
     Future<MediaThumbnailCache>? thumbnailCacheFuture,
@@ -206,7 +207,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
       onCannotSend(context);
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -286,7 +287,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
       onCannotSend(context);
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -359,7 +360,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
       onCannotSend(context);
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToastMessenger(context);
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,

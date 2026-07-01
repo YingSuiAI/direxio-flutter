@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/center_toast.dart';
 
 /// 登录页 —— 对齐 Agent P2P 设计稿 s-login。
 class LoginPage extends ConsumerStatefulWidget {
@@ -148,7 +149,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n?.loginTermsOpenFailed ?? '无法打开用户协议与隐私条款',

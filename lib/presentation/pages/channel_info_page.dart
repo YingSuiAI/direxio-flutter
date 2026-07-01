@@ -30,6 +30,7 @@ import '../utils/user_profile_directory.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
+import '../widgets/center_toast.dart';
 
 class ChannelInfoPage extends ConsumerStatefulWidget {
   const ChannelInfoPage({super.key, required this.channelId});
@@ -1302,7 +1303,7 @@ Future<void> _shareChannel(
 }
 
 void _showSnack(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
+  final messenger = AppToastMessenger(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(SnackBar(content: Text(message)));
 }

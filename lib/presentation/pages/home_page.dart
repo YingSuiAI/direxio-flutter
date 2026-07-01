@@ -49,6 +49,7 @@ import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../../data/matrix_sync_timeouts.dart';
 import 'me_home_tab.dart';
+import '../widgets/center_toast.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
@@ -1629,7 +1630,8 @@ Future<void> _deleteHomeConversation(
     await ref.read(matrixMessageVisibilityClientProvider).clearRoom(trimmed);
     hideHomeConversation(ref, trimmed);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(l10n?.homeConversationDeleted(name) ?? '已删除「$name」')),
       );
@@ -1644,7 +1646,8 @@ Future<void> _deleteHomeConversation(
     }
   } catch (error) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
           content:
               Text(l10n?.homeDeleteChatFailed('$error') ?? '删除聊天记录失败: $error')),
@@ -2137,7 +2140,8 @@ class _ChatCtxMenuCard extends StatelessWidget {
   }
 
   void _toast(BuildContext ctx, String msg) {
-    ScaffoldMessenger.of(ctx).showSnackBar(
+    showTopSnackBar(
+      ctx,
       SnackBar(content: Text(msg), duration: const Duration(seconds: 1)),
     );
   }
@@ -2310,7 +2314,8 @@ Future<void> _openAgentContactChat(
   if (roomId.isEmpty) {
     if (!context.mounted) return;
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(
           l10n?.homeAgentConversationNotSynced ?? 'Agent 会话还未同步',

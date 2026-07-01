@@ -83,6 +83,7 @@ import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/realtime_room_focus.dart';
+import '../widgets/center_toast.dart';
 
 void _groupChatGestureLog(String message) {
   debugPrint('[group chat gesture] $message');
@@ -448,14 +449,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       await _voiceRecorder.start();
     } on ChatVoiceRecorderException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
             content: Text(e.message), duration: const Duration(seconds: 2)),
       );
     } on Object catch (e) {
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n.groupChatVoiceRecordFailed('$e')),
           duration: const Duration(seconds: 2),
@@ -477,7 +480,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (recording.durationMs < 700) {
         if (!mounted) return;
         final l10n = _groupChatL10n(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(l10n.groupChatRecordingTooShort),
             duration: const Duration(seconds: 1),
@@ -517,7 +521,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     setState(() => _replyTo = null);
     final l10n = _groupChatL10n(context);
     await sendProductMediaWithPendingState(
-      messenger: ScaffoldMessenger.of(context),
+      messenger: AppToastMessenger(context),
       attachment: attachment,
       sendAttachment: createProductRoomMediaSender(
         matrixClient: ref.read(matrixClientProvider),
@@ -633,7 +637,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!mounted) return;
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         setState(() => _requestedChannelShareIds.add(key));
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(
             content: Text(
               channelJoinStatusText(
@@ -659,7 +664,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.channelJoinFailed('$e'))),
       );
     } finally {
@@ -788,7 +794,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   void _showQuotedMessageUnavailable() {
     if (!mounted) return;
     final l10n = _groupChatL10n(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(content: Text(l10n.groupChatOriginalMessageUnavailable)),
     );
   }
@@ -997,7 +1004,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatImageSavedToAlbum ?? '已保存原图到相册')),
       );
     } on Object catch (err) {
@@ -1007,7 +1015,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         context,
         AppLocalizations,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n?.chatSaveFailed('$err') ?? '保存失败：$err')),
       );
     }
@@ -1051,7 +1060,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('open group file failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatOpenFailed('$err'))),
       );
     } finally {
@@ -1084,7 +1094,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('open group video failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
     }
@@ -1102,7 +1113,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('play group voice failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
     }
@@ -1131,7 +1143,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         setState(() => _downloadedFileEventIds.add(eventId));
       }
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(
             l10n.groupChatDownloadSaved(file.uri.pathSegments.last),
@@ -1142,7 +1155,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('download group file failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatDownloadFailed('$err'))),
       );
     } finally {
@@ -1803,7 +1817,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
     }
@@ -2001,7 +2016,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (!context.mounted) return;
     final l10n = _groupChatL10n(context);
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
-    ScaffoldMessenger.of(context).showSnackBar(
+    showTopSnackBar(
+      context,
       SnackBar(
         content: Text(isChannelConversation
             ? l10n.groupChatCannotSendChannel
@@ -2177,14 +2193,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         LocalOutboxMessageKind.video => l10n.groupChatVideo,
         _ => l10n.groupChatFile,
       };
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(l10n.groupChatLocalMediaMissing(label)),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+      showTopSnackBar(
+        context,
+        SnackBar(content: Text(l10n.groupChatLocalMediaMissing(label))),
+      );
       return;
     }
 
@@ -2228,7 +2240,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               ),
       };
       await sendProductMediaWithPendingState(
-        messenger: ScaffoldMessenger.of(context),
+        messenger: AppToastMessenger(context),
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: ref.read(matrixClientProvider),
@@ -2285,7 +2297,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       await ref.read(localOutboxProvider.notifier).failItem(item.id);
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
     } finally {
@@ -2322,7 +2335,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         await Clipboard.setData(ClipboardData(text: event.body));
         if (mounted) {
           final l10n = _groupChatL10n(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n.groupChatCopied),
               duration: const Duration(seconds: 1),
@@ -2385,7 +2399,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         );
         if (mounted) {
           final l10n = _groupChatL10n(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n.groupChatCopied),
               duration: const Duration(seconds: 1),
@@ -2397,7 +2412,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         await ref.read(localOutboxProvider.notifier).completeItem(item.id);
         if (mounted) {
           final l10n = _groupChatL10n(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n.groupChatDeleted),
               duration: const Duration(seconds: 1),
@@ -2408,7 +2424,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'fav':
         if (mounted) {
           final l10n = _groupChatL10n(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n.groupChatCannotFavoriteSending),
               duration: const Duration(seconds: 1),
@@ -2422,7 +2439,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'recall':
         if (mounted) {
           final l10n = _groupChatL10n(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          showTopSnackBar(
+            context,
             SnackBar(
               content: Text(l10n.groupChatActionAvailableAfterSent),
               duration: const Duration(seconds: 1),
@@ -2436,7 +2454,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<void> _recallEvent(Event event) async {
     if (!event.canRedact) {
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatNoRecallPermission)),
       );
       return;
@@ -2487,13 +2506,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         debugPrint('post-redaction group Matrix sync failed: $e');
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatRecalled)),
       );
     } on Object catch (err) {
       debugPrint('recall group message failed: $err');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatRecallFailed('$err'))),
       );
     }
@@ -2522,7 +2543,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('delete group message for me failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
     }
@@ -2560,7 +2582,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('delete selected group messages for me failed: $err');
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
     }
@@ -2583,7 +2606,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (mounted) {
       final l10n = _groupChatL10n(context);
       setState(() => _favoritingEventIds.add(eventId));
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n.groupChatFavoriting),
           duration: const Duration(milliseconds: 900),
@@ -2595,7 +2619,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       await ref.read(asClientProvider).favoriteMessage(draft);
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(
           content: Text(l10n.groupChatFavorited),
           duration: const Duration(seconds: 1),
@@ -2605,7 +2630,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('favorite group message failed: $err');
       if (mounted) {
         final l10n = _groupChatL10n(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        showTopSnackBar(
+          context,
           SnackBar(content: Text(l10n.groupChatFavoriteFailed('$err'))),
         );
       }
@@ -2713,13 +2739,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         _selected.clear();
       });
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatForwardedRecord)),
       );
     } on Object catch (err) {
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      showTopSnackBar(
+        context,
         SnackBar(content: Text(l10n.groupChatForwardFailed('$err'))),
       );
     }

@@ -121,13 +121,31 @@ Future<List<_ReviewItem>> _loadPendingReviewItems(
     ref.read(asSyncCacheProvider),
     auth?.userId,
   );
+  final asClient = ref.read(asClientProvider);
   final listedChannels = await ref.watch(_channelListProvider(scope).future);
   final ownedChannels = listedChannels.where(_canReviewChannel).toList(
         growable: false,
       );
   if (ownedChannels.isEmpty) return const <_ReviewItem>[];
 
-  final asClient = ref.read(asClientProvider);
+  final items = await _loadPendingReviewItemsForChannels(
+    asClient,
+    syncCache,
+    ownedChannels,
+  );
+  if (items.isNotEmpty ||
+      !ownedChannels.any((channel) => channel.pendingJoinCount > 0)) {
+    return items;
+  }
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+  return _loadPendingReviewItemsForChannels(asClient, syncCache, ownedChannels);
+}
+
+Future<List<_ReviewItem>> _loadPendingReviewItemsForChannels(
+  AsClient asClient,
+  AsSyncCacheState syncCache,
+  List<AsChannel> ownedChannels,
+) async {
   final items = <_ReviewItem>[];
   const maxConcurrentRequests = 4;
   for (var start = 0;
@@ -603,7 +621,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   @override
   void initState() {
     super.initState();
-    _future = _loadAndSetReviewItems();
+    _future = Future<List<_ReviewItem>>(_loadAndSetReviewItems);
   }
 
   Future<List<_ReviewItem>> _loadAndSetReviewItems() async {
@@ -621,7 +639,9 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       ref.read(matrixClientProvider),
       auth,
     );
-    return ref.read(_channelPendingReviewItemsProvider(scope).future);
+    final provider = _channelPendingReviewItemsProvider(scope);
+    ref.invalidate(provider);
+    return ref.read(provider.future);
   }
 
   @override

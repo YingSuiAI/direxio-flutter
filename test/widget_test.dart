@@ -1045,6 +1045,21 @@ class _EmptyAsClient implements AsClient {
   Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
 }
 
+class _AgentConfigAsClient extends _EmptyAsClient {
+  _AgentConfigAsClient(this.config);
+
+  AgentConfig config;
+
+  @override
+  Future<AgentConfig> getAgentConfig() async => config;
+
+  @override
+  Future<AgentConfig> updateAgentConfig(AgentConfig next) async {
+    config = next;
+    return config;
+  }
+}
+
 class _WidgetImPublicClient extends ImPublicClient {
   _WidgetImPublicClient()
       : super(
@@ -1115,9 +1130,12 @@ class _MissingPublicChannelAsClient extends _EmptyAsClient {
 class _PendingChannelReviewAsClient extends _EmptyAsClient {
   _PendingChannelReviewAsClient({
     this.approveStatus = asChannelMemberStatusJoined,
+    this.emptyFirstMembersLoad = false,
   });
 
   final String approveStatus;
+  final bool emptyFirstMembersLoad;
+  int _memberLoads = 0;
 
   @override
   Future<AsSyncBootstrap> syncBootstrap() async => AsSyncBootstrap(
@@ -1147,18 +1165,23 @@ class _PendingChannelReviewAsClient extends _EmptyAsClient {
   Future<List<AsChannelMember>> getChannelMembers(
     String channelId, {
     String status = '',
-  }) async =>
-      const [
-        AsChannelMember(
-          channelId: 'ch_review',
-          userMxid: '@pending:p2p-im.com',
-          displayName: 'pending',
-          avatarUrl: '',
-          status: asChannelMemberStatusPending,
-          role: asChannelRoleMember,
-          joinedAtMs: 1760000000000,
-        ),
-      ];
+  }) async {
+    _memberLoads++;
+    if (emptyFirstMembersLoad && _memberLoads == 1) {
+      return const [];
+    }
+    return const [
+      AsChannelMember(
+        channelId: 'ch_review',
+        userMxid: '@pending:p2p-im.com',
+        displayName: 'pending',
+        avatarUrl: '',
+        status: asChannelMemberStatusPending,
+        role: asChannelRoleMember,
+        joinedAtMs: 1760000000000,
+      ),
+    ];
+  }
 
   @override
   Future<AsChannelJoinReviewResult> approveChannelJoin(
@@ -7304,6 +7327,78 @@ void main() {
     expect(find.text('待审核'), findsOneWidget);
     expect(find.text('通过'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);
+  });
+
+  testWidgets('channel review refreshes stale empty pending members on open',
+      (tester) async {
+    final client = Client('DirexioChannelReviewRefreshTest')
+      ..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channels/review',
+          builder: (_, __) => const ChannelReviewPage(),
+        ),
+      ],
+    );
+    final asClient = _PendingChannelReviewAsClient(
+      emptyFirstMembersLoad: true,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: AsSyncBootstrap(
+                syncedAt: DateTime.utc(2026, 6, 25),
+                user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+                rooms: const [],
+                contacts: const [
+                  AsSyncContact(
+                    userId: '@pending:p2p-im.com',
+                    displayName: '待审核用户',
+                    avatarUrl: 'https://cdn.example.com/pending-review.png',
+                    roomId: '!pending:p2p-im.com',
+                    domain: 'p2p-im.com',
+                    status: 'accepted',
+                  ),
+                ],
+                groups: const [],
+                channels: const [],
+                pending: const AsSyncPending.empty(),
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    final reviewButton = find.byKey(const ValueKey('channel_review_button'));
+    expect(
+      find.descendant(of: reviewButton, matching: find.text('1')),
+      findsOneWidget,
+    );
+    await tester.tap(reviewButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('频道审核'), findsAtLeastNWidgets(1));
+    expect(find.text('待审核用户'), findsOneWidget);
+    expect(find.text('待审核'), findsOneWidget);
   });
 
   testWidgets('channel review page follows app locale', (tester) async {
@@ -21718,6 +21813,49 @@ void main() {
       find.text('Agent is currently offline. Please wait patiently.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('agent chat header uses configured display name', (tester) async {
+    final client = Client('DirexioAgentConfiguredHeaderTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addTestRoom(
+      client,
+      roomId: '!agent-configured:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
+    );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _AgentConfigAsClient(
+              const AgentConfig(
+                displayName: 'Ops Agent',
+                contextWindow: 64,
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ChatPage(roomId: '!agent-configured:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Ops Agent'), findsOneWidget);
+    expect(find.text('Direxio AI'), findsNothing);
   });
 
   testWidgets('agent chat header localizes online status', (tester) async {

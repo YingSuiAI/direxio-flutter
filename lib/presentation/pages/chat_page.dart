@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/agent_config_provider.dart';
 import '../providers/agent_bridge_presence_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
@@ -235,6 +236,14 @@ Set<String> _agentReplyEventIds(
 String _agentMxidForChatRoom(Room room, String fallbackMxid) {
   final agentMxid = portalAgentMxidForClient(room.client)?.trim() ?? '';
   return agentMxid.isNotEmpty ? agentMxid : fallbackMxid.trim();
+}
+
+String? _agentConfigDisplayName(AgentConfig? config) {
+  final displayName = config?.displayName.trim() ?? '';
+  if (displayName == defaultAgentDisplayName || displayName == '小A') {
+    return null;
+  }
+  return displayName.isEmpty ? null : displayName;
 }
 
 Set<String> _knownAgentReplyEventIdsForRoom(Room room, Timeline? timeline) {
@@ -3229,6 +3238,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     final agentPresence =
         isAgent ? ref.watch(agentBridgePresenceProvider) : null;
+    final agentConfig =
+        isAgent ? ref.watch(agentConfigProvider).valueOrNull : null;
     final agentIsOnline = agentPresence?.bridgeConnected ?? false;
     final agentIsOffline =
         agentPresence?.state == AgentBridgePresenceState.offline;
@@ -3291,12 +3302,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : const <ChatInputSuggestion>[];
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
-        ? agentDisplayNameForRoom(room)
+        ? _agentConfigDisplayName(agentConfig) ?? agentDisplayNameForRoom(room)
         : directContactDisplayName(contact, room, peerMxid: mxid);
     final peerAvatarUrl =
         avatarHttpUrl(room.client, productConversation?.avatarUrl) ??
             localRoomMemberAvatarHttpUrl(room, mxid) ??
             avatarHttpUrl(room.client, contact?.avatarUrl);
+    final effectivePeerAvatarUrl = isAgent
+        ? avatarHttpUrl(room.client, agentConfig?.avatarUrl) ?? peerAvatarUrl
+        : peerAvatarUrl;
+    final agentMessageAvatarAsset =
+        isAgent && (effectivePeerAvatarUrl?.trim().isEmpty ?? true)
+            ? agentAvatarAsset
+            : null;
     final peerReadEventIds = _peerReadEventIds(
       room: room,
       peerMxid: mxid,
@@ -3388,7 +3406,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onBack: () => unawaited(_popChatOrHome(context)),
                     showEncryptionIcon: true,
                     actions: isAgent
-                        ? const []
+                        ? [
+                            ChatCapsuleAction(
+                              icon: Symbols.settings,
+                              tooltip: 'Agent 设置',
+                              color: t.accent,
+                              onTap: () => context.push('/agent-settings'),
+                            ),
+                          ]
                         : [
                             ChatCapsuleAction(
                               icon: Symbols.call,
@@ -3400,7 +3425,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           widget.roomId,
                                           mxid,
                                           name,
-                                          peerAvatarUrl,
+                                          effectivePeerAvatarUrl,
                                         ),
                                       )
                                   : () => _showPendingContactToast(context),
@@ -3496,8 +3521,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     text: l10n?.agentChatOfflineReply ??
                                         '目前Agent离线，请耐心等待',
                                     avatarSeed: name,
-                                    avatarUrl: peerAvatarUrl,
-                                    avatarAsset: agentAvatarAsset,
+                                    avatarUrl: effectivePeerAvatarUrl,
+                                    avatarAsset: agentMessageAvatarAsset,
                                   ),
                                 );
                               }
@@ -3513,8 +3538,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 enabled: true,
                                 child: _SAgentThinkingBubble(
                                   avatarSeed: name,
-                                  avatarUrl: peerAvatarUrl,
-                                  avatarAsset: agentAvatarAsset,
+                                  avatarUrl: effectivePeerAvatarUrl,
+                                  avatarAsset: agentMessageAvatarAsset,
                                 ),
                               );
                             }
@@ -3533,8 +3558,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   text: l10n?.agentChatOfflineReply ??
                                       '目前Agent离线，请耐心等待',
                                   avatarSeed: name,
-                                  avatarUrl: peerAvatarUrl,
-                                  avatarAsset: agentAvatarAsset,
+                                  avatarUrl: effectivePeerAvatarUrl,
+                                  avatarAsset: agentMessageAvatarAsset,
                                 ),
                               );
                             }
@@ -3777,9 +3802,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         currentUserProfile,
                                         room.client,
                                       )
-                                    : peerAvatarUrl;
-                                final callerAvatarAsset =
-                                    isAgent && !isMe ? agentAvatarAsset : null;
+                                    : effectivePeerAvatarUrl;
+                                final callerAvatarAsset = isAgent && !isMe
+                                    ? agentMessageAvatarAsset
+                                    : null;
                                 return enter(
                                   _SChatCallRecordBubble(
                                     isMe: isMe,
@@ -3847,8 +3873,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     currentUserProfile,
                                     fallbackUserId: authUserId,
                                   );
+                                  final effectiveCallerAvatarUrl =
+                                      isAgent && !isMe
+                                          ? effectivePeerAvatarUrl
+                                          : callerAvatarUrl;
                                   final callerAvatarAsset = isAgent && !isMe
-                                      ? agentAvatarAsset
+                                      ? agentMessageAvatarAsset
                                       : null;
                                   final avatarTap = isMe
                                       ? null
@@ -3877,7 +3907,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: _formatMsgTime(e.originServerTs),
                                       showRead: false,
                                       avatarSeed: callerName,
-                                      avatarUrl: callerAvatarUrl,
+                                      avatarUrl: effectiveCallerAvatarUrl,
                                       avatarAsset: callerAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
@@ -3915,8 +3945,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   currentUserProfile,
                                   fallbackUserId: authUserId,
                                 );
-                                final senderAvatarAsset =
-                                    isAgent && !isMe ? agentAvatarAsset : null;
+                                final effectiveSenderAvatarUrl =
+                                    isAgent && !isMe
+                                        ? effectivePeerAvatarUrl
+                                        : senderAvatarUrl;
+                                final senderAvatarAsset = isAgent && !isMe
+                                    ? agentMessageAvatarAsset
+                                    : null;
                                 final localOrder = messageOrder.entryForEvent(
                                   e.eventId,
                                 );
@@ -3954,7 +3989,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
@@ -3998,7 +4033,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
@@ -4038,7 +4073,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
@@ -4099,7 +4134,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
@@ -4137,7 +4172,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       mediaSize: chatMediaBubbleSizeForEvent(e),
@@ -4184,7 +4219,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       mediaSize: chatMessageDefaultMediaSize,
@@ -4245,7 +4280,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       durationSeconds:
@@ -4296,7 +4331,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       showRead: isMe &&
                                           peerReadEventIds.contains(e.eventId),
                                       avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
+                                      avatarUrl: effectiveSenderAvatarUrl,
                                       avatarAsset: senderAvatarAsset,
                                       onAvatarTap: avatarTap,
                                       leadingIcon: Symbols.description,
@@ -4344,7 +4379,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     showRead: isMe &&
                                         peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
-                                    avatarUrl: senderAvatarUrl,
+                                    avatarUrl: effectiveSenderAvatarUrl,
                                     avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
@@ -4456,7 +4491,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 widget.roomId,
                                 mxid,
                                 name,
-                                peerAvatarUrl,
+                                effectivePeerAvatarUrl,
                               ),
                             );
                           },
@@ -4472,7 +4507,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 widget.roomId,
                                 mxid,
                                 name,
-                                peerAvatarUrl,
+                                effectivePeerAvatarUrl,
                               ),
                             );
                           },

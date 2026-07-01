@@ -49,6 +49,7 @@ import '../../presentation/pages/channel_post_detail_page.dart';
 import '../../presentation/pages/channel_management_page.dart';
 import '../../presentation/channel/channel_home_tab.dart';
 import '../../presentation/channel/channel_share.dart';
+import '../../presentation/pages/agent_settings_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
 import '../../presentation/providers/as_sync_cache_provider.dart';
@@ -710,6 +711,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/mcp-permission',
         pageBuilder: (_, __) => _slidePage(const McpPermissionPage()),
+      ),
+      GoRoute(
+        path: '/agent-settings',
+        pageBuilder: (_, __) => _slidePage(const AgentSettingsPage()),
       ),
       GoRoute(
         path: '/mcp-permission/:agentId',

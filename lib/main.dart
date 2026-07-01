@@ -15,6 +15,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/design_tokens.dart';
 import 'l10n/app_localizations.dart';
+import 'presentation/notifications/local_push_notification_service.dart';
 import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/providers/app_theme_provider.dart';
 import 'presentation/providers/as_event_stream_provider.dart';
@@ -91,6 +92,7 @@ Future<void> _initializeFirebaseMessaging() async {
   if (!_firebaseMessagingSupported) return;
   try {
     await Firebase.initializeApp().timeout(const Duration(seconds: 4));
+    await LocalPushNotificationService.instance.initialize();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   } catch (error, stackTrace) {
     FlutterError.reportError(
@@ -106,6 +108,7 @@ Future<void> _initializeFirebaseMessaging() async {
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  WidgetsFlutterBinding.ensureInitialized();
   if (_firebaseMessagingSupported) {
     await Firebase.initializeApp();
   }
@@ -113,6 +116,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     '[push-notification] background data=${message.data} '
     'has_notification=${message.notification != null}',
   );
+  if (message.notification != null) {
+    debugPrint(
+      '[push-notification] background local show skip: notification payload',
+    );
+    return;
+  }
+  try {
+    await LocalPushNotificationService.instance.initialize();
+    await LocalPushNotificationService.instance.showRemoteData(message.data);
+  } catch (error) {
+    debugPrint('[push-notification] background local show failed: $error');
+  }
 }
 
 class PortalApp extends ConsumerWidget {

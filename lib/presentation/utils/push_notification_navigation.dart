@@ -113,6 +113,8 @@ class PushNotificationPayload {
     this.roomName,
     this.channelKind,
     this.suppressPushValue,
+    this.collapseId,
+    this.unreadCount,
   });
 
   final String roomId;
@@ -125,6 +127,8 @@ class PushNotificationPayload {
   final String? roomName;
   final String? channelKind;
   final String? suppressPushValue;
+  final String? collapseId;
+  final int? unreadCount;
 
   bool get isCall {
     final type = pushType?.toLowerCase();
@@ -194,6 +198,8 @@ class PushNotificationPayload {
         'suppress_push',
         'suppressPush',
       ]),
+      collapseId: _firstString(data, const ['collapse_id', 'collapseId']),
+      unreadCount: _firstInt(data, const ['unread_count', 'unread']),
     );
   }
 }
@@ -228,6 +234,19 @@ String? _firstString(Map<String, dynamic> data, List<String> keys) {
   for (final key in keys) {
     final value = _stringValue(data[key]);
     if (value != null) return value;
+  }
+  return null;
+}
+
+int? _firstInt(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed;
+    }
   }
   return null;
 }

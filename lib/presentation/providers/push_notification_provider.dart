@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/router/app_router.dart';
 import '../../data/ios_apns_token.dart';
 import '../../data/matrix_push_registration.dart';
+import '../notifications/local_push_notification_service.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/push_notification_navigation.dart';
 import 'as_sync_cache_provider.dart';
@@ -103,6 +104,33 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
       'initial',
     ),
   );
+  unawaited(
+    () async {
+      await LocalPushNotificationService.instance.initialize(
+        onOpen: (data) async {
+          await client.oneShotSync();
+          await _openPushNotificationDataRoute(
+            ref: ref,
+            data: data,
+            routerGo: router.go,
+          );
+        },
+      );
+      final launchData = await LocalPushNotificationService.instance
+          .takeLaunchNotificationData();
+      if (launchData != null) {
+        await client.oneShotSync();
+        await _openPushNotificationDataRoute(
+          ref: ref,
+          data: launchData,
+          routerGo: router.go,
+        );
+      }
+    }()
+        .catchError((Object error) {
+      debugPrint('[push-notification] local notification init failed: $error');
+    }),
+  );
   if (messaging == null) {
     return;
   }
@@ -136,6 +164,13 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
     debugPrint(
       '[push-notification] foreground data=${message.data} '
       'has_notification=${message.notification != null}',
+    );
+    unawaited(
+      LocalPushNotificationService.instance
+          .showRemoteData(message.data)
+          .catchError((Object error) {
+        debugPrint('[push-notification] local foreground show failed: $error');
+      }),
     );
   });
   final opened = FirebaseMessaging.onMessageOpenedApp.listen((message) {
@@ -238,11 +273,22 @@ Future<void> _openPushNotificationRoute({
   required RemoteMessage message,
   required void Function(String location) routerGo,
 }) async {
+  await _openPushNotificationDataRoute(
+    ref: ref,
+    data: message.data,
+    routerGo: routerGo,
+  );
+}
+
+Future<void> _openPushNotificationDataRoute({
+  required Ref ref,
+  required Map<String, dynamic> data,
+  required void Function(String location) routerGo,
+}) async {
   if (ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn != true) {
     debugPrint('[push-notification] open skip: user is not logged in');
     return;
   }
-  final data = message.data;
   final roomId = pushNotificationRoomIdFromData(data);
   if (roomId == null) {
     debugPrint('[push-notification] open skip: missing room_id data=$data');
@@ -273,5 +319,10 @@ Future<void> _openPushNotificationRoute({
     return;
   }
   debugPrint('[push-notification] open route=$route room_id=$roomId');
+  try {
+    await LocalPushNotificationService.instance.clearRoom(roomId);
+  } catch (error) {
+    debugPrint('[push-notification] local room clear failed: $error');
+  }
   routerGo(route);
 }

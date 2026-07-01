@@ -156,30 +156,30 @@ void main() {
     expect(find.text('new message'), findsOneWidget);
   });
 
-  test('initial entrance registry ignores empty preloading lists', () {
+  test('initial entrance registry keeps restored chat bubbles still', () {
     final registry = ChatInitialEntranceRegistry();
 
-    registry.seed(const []);
+    expect(registry.seed(const []), isFalse);
     expect(registry.contains('event-a'), isFalse);
 
-    registry.seed(const ['event-a', 'event-b']);
-    expect(registry.contains('event-a'), isTrue);
-    expect(registry.contains('event-b'), isTrue);
+    expect(registry.seed(const ['event-a', 'event-b']), isFalse);
+    expect(registry.contains('event-a'), isFalse);
+    expect(registry.contains('event-b'), isFalse);
 
-    registry.seed(const ['event-c']);
+    expect(registry.seed(const ['event-c']), isFalse);
     expect(registry.contains('event-c'), isFalse);
   });
 
-  test('initial entrance registry closes after first entrance window', () {
+  test('initial entrance registry remains closed for later chat entries', () {
     final registry = ChatInitialEntranceRegistry();
 
-    registry.seed(const ['event-a', 'event-b']);
-    expect(registry.contains('event-a'), isTrue);
+    expect(registry.seed(const ['event-a', 'event-b']), isFalse);
+    expect(registry.contains('event-a'), isFalse);
 
     registry.close();
     expect(registry.contains('event-a'), isFalse);
 
-    registry.seed(const ['event-c']);
+    expect(registry.seed(const ['event-c']), isFalse);
     expect(registry.contains('event-c'), isFalse);
   });
 

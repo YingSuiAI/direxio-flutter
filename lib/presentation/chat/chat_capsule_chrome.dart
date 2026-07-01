@@ -47,25 +47,11 @@ enum ChatEntranceDirection { top, bottom, left, right }
 class ChatInitialEntranceRegistry {
   static const closeDelay = Duration(milliseconds: 460);
 
-  final Set<Object> _keys = {};
-  bool _seeded = false;
-  bool _closed = false;
+  bool seed(Iterable<Object> keys) => false;
 
-  bool seed(Iterable<Object> keys) {
-    if (_seeded || _closed) return false;
-    final next = keys.toList(growable: false);
-    if (next.isEmpty) return false;
-    _seeded = true;
-    _keys.addAll(next);
-    return true;
-  }
+  void close() {}
 
-  void close() {
-    _closed = true;
-    _keys.clear();
-  }
-
-  bool contains(Object key) => !_closed && _keys.contains(key);
+  bool contains(Object key) => false;
 }
 
 const double _chatHeaderChromeClearance = 52;

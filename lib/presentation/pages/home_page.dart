@@ -1499,7 +1499,11 @@ class _HomeConversationEntryList extends ConsumerWidget {
       itemBuilder: (context, i) {
         final entry = entries[i];
         final roomId = entry.roomId.trim();
-        final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
+        final entryName =
+            entry.name.trim().isEmpty ? roomId : entry.name.trim();
+        final name = entry.isAgent
+            ? _agentConfigDisplayName(agentConfig, entryName)
+            : entryName;
         final productConversation = productConversationsByRoomId[roomId];
         final room = client.getRoomById(roomId);
         final authoritativeGroupMembers = entry.isGroup
@@ -1587,6 +1591,14 @@ String _homeConversationPreviewText(
 String _agentConfigAvatarUrl(AgentConfig? config, String fallback) {
   final avatarUrl = config?.avatarUrl.trim() ?? '';
   return avatarUrl.isNotEmpty ? avatarUrl : fallback;
+}
+
+String _agentConfigDisplayName(AgentConfig? config, String fallback) {
+  final displayName = config?.displayName.trim() ?? '';
+  if (displayName == defaultAgentDisplayName || displayName == '小A') {
+    return fallback;
+  }
+  return displayName.isNotEmpty ? displayName : fallback;
 }
 
 Future<void> _deleteHomeConversation(

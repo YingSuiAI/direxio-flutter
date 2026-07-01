@@ -9,7 +9,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/agent_config_provider.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/avatar_url.dart';
@@ -32,48 +31,18 @@ class AgentSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
-  AgentConfig? _config;
-  Object? _error;
   bool _saving = false;
   bool _avatarBusy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    try {
-      final config = await ref.read(asClientProvider).getAgentConfig();
-      if (!mounted) return;
-      setState(() {
-        _config = config;
-        _error = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error);
-    }
-  }
 
   Future<void> _save(AgentConfig config) async {
     setState(() => _saving = true);
     try {
-      final saved = await ref.read(asClientProvider).updateAgentConfig(config);
+      await ref.read(agentConfigProvider.notifier).update(config);
       if (!mounted) return;
-      ref.invalidate(agentConfigProvider);
-      setState(() {
-        _config = saved;
-        _saving = false;
-        _error = null;
-      });
+      setState(() => _saving = false);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _error = error;
-      });
+      setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('保存失败，请稍后重试')),
       );
@@ -83,7 +52,8 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final config = _config;
+    final configAsync = ref.watch(agentConfigProvider);
+    final config = configAsync.valueOrNull;
     final matrixClient = ref.watch(matrixClientProvider);
     return Scaffold(
       backgroundColor: t.bg,
@@ -93,7 +63,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
           Expanded(
             child: RefreshIndicator(
               color: t.accent,
-              onRefresh: _load,
+              onRefresh: () => ref.read(agentConfigProvider.notifier).reload(),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
                 children: [
@@ -101,9 +71,13 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                     SizedBox(
                       height: 220,
                       child: Center(
-                        child: _error == null
+                        child: configAsync.isLoading
                             ? CircularProgressIndicator(color: t.accent)
-                            : _ErrorState(onRetry: _load),
+                            : _ErrorState(
+                                onRetry: () => ref
+                                    .read(agentConfigProvider.notifier)
+                                    .reload(),
+                              ),
                       ),
                     )
                   else ...[

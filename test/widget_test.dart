@@ -1045,6 +1045,21 @@ class _EmptyAsClient implements AsClient {
   Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
 }
 
+class _AgentConfigAsClient extends _EmptyAsClient {
+  _AgentConfigAsClient(this.config);
+
+  AgentConfig config;
+
+  @override
+  Future<AgentConfig> getAgentConfig() async => config;
+
+  @override
+  Future<AgentConfig> updateAgentConfig(AgentConfig next) async {
+    config = next;
+    return config;
+  }
+}
+
 class _WidgetImPublicClient extends ImPublicClient {
   _WidgetImPublicClient()
       : super(
@@ -21454,6 +21469,49 @@ void main() {
       find.text('Agent is currently offline. Please wait patiently.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('agent chat header uses configured display name', (tester) async {
+    final client = Client('DirexioAgentConfiguredHeaderTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addTestRoom(
+      client,
+      roomId: '!agent-configured:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
+    );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _AgentConfigAsClient(
+              const AgentConfig(
+                displayName: 'Ops Agent',
+                contextWindow: 64,
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ChatPage(roomId: '!agent-configured:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Ops Agent'), findsOneWidget);
+    expect(find.text('Direxio AI'), findsNothing);
   });
 
   testWidgets('agent chat header localizes online status', (tester) async {

@@ -237,6 +237,14 @@ String _agentMxidForChatRoom(Room room, String fallbackMxid) {
   return agentMxid.isNotEmpty ? agentMxid : fallbackMxid.trim();
 }
 
+String? _agentConfigDisplayName(AgentConfig? config) {
+  final displayName = config?.displayName.trim() ?? '';
+  if (displayName == defaultAgentDisplayName || displayName == '小A') {
+    return null;
+  }
+  return displayName.isEmpty ? null : displayName;
+}
+
 Set<String> _knownAgentReplyEventIdsForRoom(Room room, Timeline? timeline) {
   final agentMxid = portalAgentMxidForClient(room.client);
   if ((agentMxid ?? '').trim().isEmpty) return const <String>{};
@@ -3260,7 +3268,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : const <ChatInputSuggestion>[];
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
-        ? agentDisplayNameForRoom(room)
+        ? _agentConfigDisplayName(agentConfig) ?? agentDisplayNameForRoom(room)
         : directContactDisplayName(contact, room, peerMxid: mxid);
     final peerAvatarUrl =
         avatarHttpUrl(room.client, productConversation?.avatarUrl) ??

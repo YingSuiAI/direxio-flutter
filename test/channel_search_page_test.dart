@@ -501,6 +501,86 @@ void main() {
     expect(find.text('分享频道'), findsNothing);
   });
 
+  testWidgets(
+      'channel search detail hides join action for locally joined result',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_joined_detail',
+          roomId: '!ch_joined_detail:p2p-im.com',
+          name: '我已加入的频道',
+          description: '目录没有带成员状态',
+        ),
+      ];
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_joined_detail',
+          roomId: '!ch_joined_detail:p2p-im.com',
+          name: '我已加入的频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const ChannelSearchPage()),
+        GoRoute(
+          path: '/channel/:channelId/detail',
+          builder: (_, state) => ChannelDetailInfoPage(
+            channelId: state.pathParameters['channelId']!,
+            sharePayload: state.extra is ChannelSharePayload
+                ? state.extra! as ChannelSharePayload
+                : null,
+            showJoinButton: state.extra is ChannelSharePayload,
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '我已加入的频道');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('申请加入'), findsNothing);
+
+    await tester.tap(find.text('我已加入的频道').last);
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedPublicRoomId, '!ch_joined_detail:p2p-im.com');
+    expect(find.text('接口返回频道（0）'), findsOneWidget);
+    expect(find.text('申请加入'), findsNothing);
+  });
+
   testWidgets('channel search opens joined chat through ProductCore route',
       (tester) async {
     final asClient = _ChannelSearchAsClient()

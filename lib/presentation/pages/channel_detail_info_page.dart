@@ -73,10 +73,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fallbackChannel = widget.sharePayload == null
-        ? _mergeRouteChannelFallback(
-            resolveChannelInfoData(ref, widget.channelId))
-        : channelInfoDataFromSharePayload(widget.sharePayload!);
+    final fallbackChannel = _resolveFallbackChannel();
     final detailFuture = _publicDetailFuture;
     if (detailFuture != null) {
       return FutureBuilder<ChannelInfoData>(
@@ -92,7 +89,21 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
     return _buildScaffold(fallbackChannel);
   }
 
+  ChannelInfoData _resolveFallbackChannel() {
+    final localChannel = _mergeRouteChannelFallback(
+      resolveChannelInfoData(ref, widget.channelId),
+    );
+    final sharePayload = widget.sharePayload;
+    if (sharePayload == null) return localChannel;
+    return _withLocalChannelState(
+      channelInfoDataFromSharePayload(sharePayload),
+      localChannel,
+    );
+  }
+
   Widget _buildScaffold(ChannelInfoData channel) {
+    final showJoinButton =
+        widget.showJoinButton && !_channelInfoAlreadyJoinedOrOwned(channel);
     final avatarUrl = avatarHttpUrl(
       ref.watch(matrixClientProvider),
       channel.avatarUrl,
@@ -112,7 +123,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 16,
                 0,
                 16,
-                widget.showJoinButton ? 120 : 32,
+                showJoinButton ? 120 : 32,
               ),
               children: [
                 _DetailTopBar(onBack: () => context.pop()),
@@ -167,7 +178,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 ),
                 const SizedBox(height: 5),
                 _IntroCard(text: _channelDescription(context, channel)),
-                if (!widget.showJoinButton) ...[
+                if (!showJoinButton) ...[
                   const SizedBox(height: 16),
                   _ShareChannelButton(
                     onTap: () => _shareChannelDetail(context, ref, channel),
@@ -175,7 +186,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 ],
               ],
             ),
-            if (widget.showJoinButton)
+            if (showJoinButton)
               Positioned(
                 left: 16,
                 right: 16,
@@ -477,6 +488,40 @@ Future<void> _shareChannelDetail(
 
 String _channelJoinWaitingText(BuildContext context, String status) {
   return channelJoinStatusText(status, l10n: _channelInfoL10n(context));
+}
+
+bool _channelInfoAlreadyJoinedOrOwned(ChannelInfoData channel) {
+  return channel.isOwned || isAsChannelMemberJoined(channel.memberStatus);
+}
+
+ChannelInfoData _withLocalChannelState(
+  ChannelInfoData display,
+  ChannelInfoData local,
+) {
+  return ChannelInfoData(
+    id: display.id,
+    roomId: display.roomId,
+    domain: display.domain,
+    name: display.name,
+    avatarUrl: display.avatarUrl,
+    description: display.description,
+    visibility: display.visibility,
+    joinPolicy: display.joinPolicy,
+    memberStatus:
+        _preferChannelInfoText(local.memberStatus, display.memberStatus),
+    isOwned: display.isOwned || local.isOwned,
+    commentsEnabled: display.commentsEnabled,
+    muted: display.muted || local.muted,
+    channelType: display.channelType,
+    tags: display.tags,
+    memberCount: display.memberCount,
+  );
+}
+
+String _preferChannelInfoText(String primary, String fallback) {
+  final first = primary.trim();
+  if (first.isNotEmpty) return first;
+  return fallback.trim();
 }
 
 bool _looksLikeMatrixRoomId(String value) {

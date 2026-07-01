@@ -108,6 +108,55 @@ void main() {
     ]);
   });
 
+  test('agent config carries avatar and MCP blocked rooms', () async {
+    final seen = <Map<String, dynamic>>[];
+    var config = <String, dynamic>{
+      'display_name': 'Ops Agent',
+      'avatar_url': 'mxc://example.com/agent',
+      'context_window': 64,
+      'mcp_blocked_room_ids': ['!blocked:p2p-im.com'],
+    };
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        seen.add(body);
+        if (body['action'] == 'agent.config.update') {
+          config = (body['params'] as Map).cast<String, dynamic>();
+        }
+        return _jsonResponse(config, 200);
+      }),
+    );
+
+    final initial = await client.getAgentConfig();
+    final updated = await client.updateAgentConfig(initial.copyWith(
+      displayName: 'New Agent',
+      avatarUrl: 'mxc://example.com/new-agent',
+      mcpBlockedRoomIds: const ['!a:p2p-im.com', '!b:p2p-im.com'],
+    ));
+
+    expect(initial.avatarUrl, 'mxc://example.com/agent');
+    expect(initial.mcpBlockedRoomIds, ['!blocked:p2p-im.com']);
+    expect(updated.displayName, 'New Agent');
+    expect(updated.avatarUrl, 'mxc://example.com/new-agent');
+    expect(updated.mcpBlockedRoomIds, ['!a:p2p-im.com', '!b:p2p-im.com']);
+    expect(seen, [
+      {'action': 'agent.config.get', 'params': <String, dynamic>{}},
+      {
+        'action': 'agent.config.update',
+        'params': {
+          'display_name': 'New Agent',
+          'avatar_url': 'mxc://example.com/new-agent',
+          'context_window': 64,
+          'mcp_blocked_room_ids': ['!a:p2p-im.com', '!b:p2p-im.com'],
+        },
+      },
+      {'action': 'agent.config.get', 'params': <String, dynamic>{}},
+    ]);
+  });
+
   test('contact list and reactivation use backend actions', () async {
     final seen = <Map<String, dynamic>>[];
     final client = HttpAsClient(

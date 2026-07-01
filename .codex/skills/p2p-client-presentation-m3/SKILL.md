@@ -86,6 +86,11 @@ fragments, typewritten appended reply updates, and `/` quick-command suggestions
 belong in the chat UI while actual sends remain ordinary Matrix text sends to
 the real `agent_room_id`.
 
+Agent settings belong behind the Agent chat header settings icon. Use the same
+M3 surfaces as other detail pages, read/write `agent.config`, and treat
+`mcp_blocked_room_ids` as backend-enforced Agent read restrictions rather than
+local-only MCP permission UI.
+
 The logged-in home conversation list is for direct, group, and Agent
 conversations. Channel conversations belong under the channel tab/detail
 surfaces and must not be written to or displayed from the home conversation

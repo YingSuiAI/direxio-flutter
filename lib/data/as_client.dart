@@ -69,25 +69,52 @@ class AsPortalSession {
 
 /// §5.2 Agent 配置
 class AgentConfig {
-  const AgentConfig({required this.displayName, required this.contextWindow});
+  const AgentConfig({
+    required this.displayName,
+    required this.contextWindow,
+    this.avatarUrl = '',
+    this.mcpBlockedRoomIds = const [],
+  });
   final String displayName;
+  final String avatarUrl;
   final int contextWindow;
+  final List<String> mcpBlockedRoomIds;
 
   factory AgentConfig.fromJson(Map<String, dynamic> j) => AgentConfig(
         displayName: j['display_name'] as String? ?? '小A',
         contextWindow: j['context_window'] as int? ?? 20,
+        avatarUrl: j['avatar_url'] as String? ?? '',
+        mcpBlockedRoomIds: _stringList(j['mcp_blocked_room_ids']),
       );
 
   Map<String, dynamic> toJson() => {
         'display_name': displayName,
+        'avatar_url': avatarUrl,
         'context_window': contextWindow,
+        'mcp_blocked_room_ids': mcpBlockedRoomIds,
       };
 
-  AgentConfig copyWith({String? displayName, int? contextWindow}) =>
+  AgentConfig copyWith({
+    String? displayName,
+    String? avatarUrl,
+    int? contextWindow,
+    List<String>? mcpBlockedRoomIds,
+  }) =>
       AgentConfig(
         displayName: displayName ?? this.displayName,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
         contextWindow: contextWindow ?? this.contextWindow,
+        mcpBlockedRoomIds: mcpBlockedRoomIds ?? this.mcpBlockedRoomIds,
       );
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<String>()
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }
 
 /// §5.4 关注列表单项

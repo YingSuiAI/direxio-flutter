@@ -3354,7 +3354,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onBack: () => unawaited(_popChatOrHome(context)),
                     showEncryptionIcon: true,
                     actions: isAgent
-                        ? const []
+                        ? [
+                            ChatCapsuleAction(
+                              icon: Symbols.settings,
+                              tooltip: 'Agent 设置',
+                              color: t.accent,
+                              onTap: () => context.push('/agent-settings'),
+                            ),
+                          ]
                         : [
                             ChatCapsuleAction(
                               icon: Symbols.call,

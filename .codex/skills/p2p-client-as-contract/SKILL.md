@@ -51,6 +51,11 @@ Agent room text and `/` commands are ordinary Matrix message sends into the
 real private `agent_room_id`. Do not add P2P command facades for chat text, and
 do not depend on legacy pseudo agent room ids.
 
+Agent settings are server-backed through `agent.config.get/update`. Keep
+`display_name`, `avatar_url`, `context_window`, and `mcp_blocked_room_ids` in
+`AgentConfig`, `HttpAsClient`, tests, and docs. `mcp_blocked_room_ids` is the
+backend-enforced MCP room blacklist, not local-only preference state.
+
 MCP permission listing and status changes are local-only in Flutter unless the
 backend exposes a new contract. Do not add or restore ProductCore helper
 methods or action mappings for server-backed MCP permission list/status

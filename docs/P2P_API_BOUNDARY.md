@@ -55,8 +55,11 @@ This document records the current P2P product API / Matrix boundary used by the 
   `online`. `sync.bootstrap` only supplies the real `agent_room_id`; it does
   not mirror the online bit, and WS `server.event` does not emit
   `agent.presence`. Typing, thinking, and streaming reply generation are
-  separate chat UI states. `agent.status` and `agents.status` are not current
-  client APIs.
+  separate chat UI states. Agent settings use `agent.config.get/update` for
+  `display_name`, `avatar_url`, `context_window`, and
+  `mcp_blocked_room_ids`; blocked rooms are backend-enforced for MCP and should
+  be presented as Agent read restrictions, not local-only UI state.
+  `agent.status` and `agents.status` are not current client APIs.
 - Sync strategy: use `sync.bootstrap` only for cold start, login recovery,
   corrupt local cache, unknown event fallback, or confirmed event gaps. Normal
   updates should create a `realtime.ws_ticket.create` ticket, connect

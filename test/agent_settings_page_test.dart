@@ -85,6 +85,35 @@ void main() {
     ]);
     expect(find.text('已屏蔽 2 个房间'), findsOneWidget);
   });
+
+  testWidgets('agent settings uploads avatar through picker result',
+      (tester) async {
+    final asClient = _AgentSettingsAsClient(
+      const AgentConfig(displayName: 'Ops Agent', contextWindow: 64),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          productConversationsProvider.overrideWith((_) async => const []),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: AgentSettingsPage(
+            pickAvatarUrl: (_, __) async => 'mxc://example.com/uploaded-agent',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('agent_profile_avatar')));
+    await tester.pumpAndSettle();
+
+    expect(asClient.config.avatarUrl, 'mxc://example.com/uploaded-agent');
+    expect(find.text('头像 URL'), findsNothing);
+  });
 }
 
 class _AgentSettingsAsClient extends MockAsClient {

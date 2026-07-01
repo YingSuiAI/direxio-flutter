@@ -2,18 +2,29 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../providers/agent_config_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
+typedef AgentAvatarPicker = Future<String?> Function(
+  BuildContext context,
+  WidgetRef ref,
+);
+
 class AgentSettingsPage extends ConsumerStatefulWidget {
-  const AgentSettingsPage({super.key});
+  const AgentSettingsPage({super.key, this.pickAvatarUrl});
+
+  final AgentAvatarPicker? pickAvatarUrl;
 
   @override
   ConsumerState<AgentSettingsPage> createState() => _AgentSettingsPageState();
@@ -23,6 +34,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
   AgentConfig? _config;
   Object? _error;
   bool _saving = false;
+  bool _avatarBusy = false;
 
   @override
   void initState() {
@@ -49,6 +61,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
     try {
       final saved = await ref.read(asClientProvider).updateAgentConfig(config);
       if (!mounted) return;
+      ref.invalidate(agentConfigProvider);
       setState(() {
         _config = saved;
         _saving = false;
@@ -94,8 +107,9 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                   else ...[
                     _AgentProfileCard(
                       config: config,
-                      saving: _saving,
-                      onTap: () => _editProfile(config),
+                      saving: _saving || _avatarBusy,
+                      onAvatarTap: () => _pickAvatar(config),
+                      onNameTap: () => _editDisplayName(config),
                     ),
                     const SizedBox(height: 12),
                     _SettingsCard(
@@ -121,9 +135,28 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
     );
   }
 
-  Future<void> _editProfile(AgentConfig config) async {
+  Future<void> _pickAvatar(AgentConfig config) async {
+    if (_avatarBusy || _saving) return;
+    setState(() => _avatarBusy = true);
+    try {
+      final picker = widget.pickAvatarUrl ?? _pickAndUploadAgentAvatar;
+      final avatarUrl = await picker(context, ref);
+      if (!mounted) return;
+      final trimmed = avatarUrl?.trim() ?? '';
+      if (trimmed.isEmpty) return;
+      await _save(config.copyWith(avatarUrl: trimmed));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('头像上传失败，请稍后重试')),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
+  }
+
+  Future<void> _editDisplayName(AgentConfig config) async {
     final nameCtrl = TextEditingController(text: config.displayName);
-    final avatarCtrl = TextEditingController(text: config.avatarUrl);
     final result = await showDialog<AgentConfig>(
       context: context,
       builder: (context) {
@@ -137,11 +170,6 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                 controller: nameCtrl,
                 autofocus: true,
                 decoration: const InputDecoration(labelText: '昵称'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: avatarCtrl,
-                decoration: const InputDecoration(labelText: '头像 URL'),
               ),
             ],
           ),
@@ -157,7 +185,6 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                   context,
                   config.copyWith(
                     displayName: name.isEmpty ? config.displayName : name,
-                    avatarUrl: avatarCtrl.text.trim(),
                   ),
                 );
               },
@@ -194,6 +221,36 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
   }
 }
 
+Future<String?> _pickAndUploadAgentAvatar(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final file = await ImagePicker().pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 92,
+    maxWidth: 2048,
+    maxHeight: 2048,
+    requestFullMetadata: false,
+  );
+  if (file == null) return null;
+  final bytes = await file.readAsBytes();
+  if (!context.mounted) return null;
+  String? uploadedAvatarUrl;
+  await showAvatarAdjustSheet(
+    context,
+    imageBytes: bytes,
+    onConfirm: (adjustedBytes) async {
+      final avatarMxc = await ref.read(matrixClientProvider).uploadContent(
+            adjustedBytes,
+            filename: 'agent-avatar.png',
+            contentType: 'image/png',
+          );
+      uploadedAvatarUrl = avatarMxc.toString();
+    },
+  );
+  return uploadedAvatarUrl;
+}
+
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.onRetry});
 
@@ -217,12 +274,14 @@ class _AgentProfileCard extends StatelessWidget {
   const _AgentProfileCard({
     required this.config,
     required this.saving,
-    required this.onTap,
+    required this.onAvatarTap,
+    required this.onNameTap,
   });
 
   final AgentConfig config;
   final bool saving;
-  final VoidCallback onTap;
+  final VoidCallback onAvatarTap;
+  final VoidCallback onNameTap;
 
   @override
   Widget build(BuildContext context) {
@@ -230,14 +289,15 @@ class _AgentProfileCard extends StatelessWidget {
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: saving ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-          child: Row(
-            children: [
-              PortalAvatar(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        child: Row(
+          children: [
+            GestureDetector(
+              key: const ValueKey('agent_profile_avatar'),
+              behavior: HitTestBehavior.opaque,
+              onTap: saving ? null : onAvatarTap,
+              child: PortalAvatar(
                 seed: config.displayName,
                 imageUrl: config.avatarUrl.trim().isEmpty
                     ? null
@@ -245,56 +305,67 @@ class _AgentProfileCard extends StatelessWidget {
                 size: 64,
                 shape: AvatarShape.squircle,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            config.displayName.trim().isEmpty
-                                ? 'Agent'
-                                : config.displayName.trim(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(
-                              size: 22,
-                              weight: FontWeight.w700,
-                              color: t.text,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: InkWell(
+                key: const ValueKey('agent_profile_name'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: saving ? null : onNameTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              config.displayName.trim().isEmpty
+                                  ? 'Agent'
+                                  : config.displayName.trim(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 22,
+                                weight: FontWeight.w700,
+                                color: t.text,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: t.textMute.withValues(alpha: 0.64),
-                            shape: BoxShape.circle,
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: t.textMute.withValues(alpha: 0.64),
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '离线',
-                          style: AppTheme.sans(size: 14, color: t.textMute),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '点击头像可更换，点击昵称可修改',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(size: 14, color: t.textMute),
-                    ),
-                  ],
+                          const SizedBox(width: 6),
+                          Text(
+                            '离线',
+                            style: AppTheme.sans(size: 14, color: t.textMute),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '点击头像可更换，点击昵称可修改',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 14, color: t.textMute),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Icon(Symbols.chevron_right, color: t.textMute, size: 24),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: Icon(Symbols.chevron_right, color: t.textMute, size: 24),
+              onPressed: saving ? null : onNameTap,
+            ),
+          ],
         ),
       ),
     );

@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../home/home_plus_menu.dart';
 import '../home/conversation_summary_writer.dart';
+import '../providers/agent_config_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -1484,6 +1485,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
+    final agentConfig = ref.watch(agentConfigProvider).valueOrNull;
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final groupAvatarMemberAvatars =
         ref.watch(groupAvatarMemberAvatarsProvider);
@@ -1538,7 +1540,12 @@ class _HomeConversationEntryList extends ConsumerWidget {
           unread: entry.unread,
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
-          avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
+          avatarUrl: _homeAvatarUrl(
+            client,
+            entry.isAgent
+                ? _agentConfigAvatarUrl(agentConfig, entry.avatarUrl)
+                : entry.avatarUrl,
+          ),
           avatarStableCacheKey: _homeAvatarStableCacheKey(entry, roomId),
           groupAvatarMembers: groupAvatarMembers?.members ??
               (entry.isGroup
@@ -1575,6 +1582,11 @@ String _homeConversationPreviewText(
     return l10n?.agentChatEmptyTitle ?? defaultAgentConversationPreview;
   }
   return '';
+}
+
+String _agentConfigAvatarUrl(AgentConfig? config, String fallback) {
+  final avatarUrl = config?.avatarUrl.trim() ?? '';
+  return avatarUrl.isNotEmpty ? avatarUrl : fallback;
 }
 
 Future<void> _deleteHomeConversation(
@@ -1753,15 +1765,23 @@ class _ConvRow extends StatelessWidget {
       width: _conversationTileAvatarSize,
       height: _conversationTileAvatarSize,
       child: isAgent
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                agentAvatarAsset,
-                width: _conversationTileAvatarSize,
-                height: _conversationTileAvatarSize,
-                fit: BoxFit.cover,
-              ),
-            )
+          ? (avatarUrl?.trim().isNotEmpty == true
+              ? PortalAvatar(
+                  seed: name,
+                  size: _conversationTileAvatarSize,
+                  imageUrl: avatarUrl,
+                  stableCacheKey: avatarStableCacheKey,
+                  shape: AvatarShape.squircle,
+                )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    agentAvatarAsset,
+                    width: _conversationTileAvatarSize,
+                    height: _conversationTileAvatarSize,
+                    fit: BoxFit.cover,
+                  ),
+                ))
           : isGroup
               ? GroupCompositeAvatar(
                   seed: name,

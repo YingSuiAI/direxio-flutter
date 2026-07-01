@@ -1365,6 +1365,7 @@ abstract class VoiceCallController {
   Future<void> hangup();
   Future<void> setMuted(bool muted);
   Future<void> setCameraMuted(bool muted);
+  Future<void> switchCamera();
   Future<void> setSpeakerOn(bool enabled);
   Future<void> startOrJoinGroupCall({
     required String roomId,
@@ -1377,6 +1378,7 @@ abstract class VoiceCallController {
   Future<void> leaveGroupCall();
   Future<void> setGroupMuted(bool muted);
   Future<void> setGroupCameraMuted(bool muted);
+  Future<void> switchGroupCamera();
   Future<void> setGroupSpeakerOn(bool enabled);
   void dispose();
 }
@@ -1832,6 +1834,29 @@ class MatrixVoiceCallController implements VoiceCallController {
   }
 
   @override
+  Future<void> switchCamera() async {
+    final session = _activeSession;
+    if (session == null || session.callHasEnded) return;
+    try {
+      final switched = await _switchFirstVideoTrack(
+        session.localUserMediaStream?.stream,
+      );
+      if (!switched) {
+        final cameraCount = await _availableVideoInputCount();
+        if (kDebugMode) {
+          debugPrint(
+            'p2p-call-camera-switch-skipped cameras=$cameraCount '
+            'call_id=${session.callId}',
+          );
+        }
+      }
+      _emit(_stateFromSession(session));
+    } catch (error) {
+      _emit(_state.copyWith(error: _callErrorText(error)));
+    }
+  }
+
+  @override
   Future<void> setSpeakerOn(bool enabled) {
     return _setSpeakerOnInternal(enabled, emitState: true);
   }
@@ -2172,6 +2197,29 @@ class MatrixVoiceCallController implements VoiceCallController {
       _emitGroup(
         _stateFromGroupSession(session).copyWith(isCameraMuted: muted),
       );
+    } catch (error) {
+      _emitGroup(_groupState.copyWith(error: _groupCallErrorText(error)));
+    }
+  }
+
+  @override
+  Future<void> switchGroupCamera() async {
+    final session = _activeGroupSession;
+    if (session == null || session.state == GroupCallState.ended) return;
+    try {
+      final switched = await _switchFirstVideoTrack(
+        session.backend.localUserMediaStream?.stream,
+      );
+      if (!switched) {
+        final cameraCount = await _availableVideoInputCount();
+        if (kDebugMode) {
+          debugPrint(
+            'p2p-group-call-camera-switch-skipped cameras=$cameraCount '
+            'room=${session.room.id}',
+          );
+        }
+      }
+      _emitGroup(_stateFromGroupSession(session));
     } catch (error) {
       _emitGroup(_groupState.copyWith(error: _groupCallErrorText(error)));
     }
@@ -2548,6 +2596,12 @@ class MatrixVoiceCallController implements VoiceCallController {
   bool _sessionHasLocalVideoTrack(CallSession session) {
     final stream = session.localUserMediaStream?.stream;
     return stream?.getVideoTracks().isNotEmpty ?? false;
+  }
+
+  Future<bool> _switchFirstVideoTrack(webrtc.MediaStream? stream) async {
+    final tracks = stream?.getVideoTracks();
+    if (tracks == null || tracks.isEmpty) return false;
+    return webrtc.Helper.switchCamera(tracks.first);
   }
 
   Future<int> _availableVideoInputCount() async {

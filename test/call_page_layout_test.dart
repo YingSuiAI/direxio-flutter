@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:portal_app/presentation/call/camera_controls.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
 import 'package:portal_app/presentation/pages/call_page.dart';
 
@@ -125,6 +126,36 @@ void main() {
   test('speaker control label reflects output route state', () {
     expect(speakerControlLabel(true), '扬声器');
     expect(speakerControlLabel(false), '听筒');
+  });
+
+  test('camera switch control is only active for live local video', () {
+    expect(cameraSwitchControlVisible(isVideoCall: true), isTrue);
+    expect(cameraSwitchControlVisible(isVideoCall: false), isFalse);
+    expect(
+      cameraSwitchControlCanToggle(
+        isVideoCall: true,
+        hasLocalVideoTrack: true,
+        isCameraMuted: false,
+      ),
+      isTrue,
+    );
+    expect(
+      cameraSwitchControlCanToggle(
+        isVideoCall: true,
+        hasLocalVideoTrack: false,
+        isCameraMuted: false,
+      ),
+      isFalse,
+    );
+    expect(
+      cameraSwitchControlCanToggle(
+        isVideoCall: true,
+        hasLocalVideoTrack: true,
+        isCameraMuted: true,
+      ),
+      isFalse,
+    );
+    expect(cameraSwitchControlLabel(), '翻转');
   });
 
   test('call ringtone plays only while waiting for an answer', () {

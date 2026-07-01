@@ -1380,6 +1380,9 @@ class _IdleVoiceCallController implements VoiceCallController {
   Future<void> setCameraMuted(bool muted) async {}
 
   @override
+  Future<void> switchCamera() async {}
+
+  @override
   Future<void> setSpeakerOn(bool enabled) async {}
 
   @override
@@ -1400,6 +1403,9 @@ class _IdleVoiceCallController implements VoiceCallController {
 
   @override
   Future<void> setGroupCameraMuted(bool muted) async {}
+
+  @override
+  Future<void> switchGroupCamera() async {}
 
   @override
   Future<void> setGroupSpeakerOn(bool enabled) async {}

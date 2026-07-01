@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../call/active_call_mini_window.dart';
+import '../call/camera_controls.dart';
 import '../call/voice_call_controller.dart';
 import '../call/voice_call_display_name.dart';
 import '../providers/auth_provider.dart';
@@ -441,6 +442,11 @@ class _CallPageState extends ConsumerState<CallPage> {
         .setCameraMuted(!state.isCameraMuted);
   }
 
+  Future<void> _switchCamera(VoiceCallUiState state) async {
+    if (!state.isVideo) return;
+    await ref.read(voiceCallControllerProvider).switchCamera();
+  }
+
   Future<void> _toggleSpeaker(VoiceCallUiState state) {
     return ref
         .read(voiceCallControllerProvider)
@@ -517,6 +523,7 @@ class _CallPageState extends ConsumerState<CallPage> {
               ),
               onToggleMute: () => unawaited(_toggleMute(state)),
               onToggleCamera: () => unawaited(_toggleCamera(state)),
+              onSwitchCamera: () => unawaited(_switchCamera(state)),
               onToggleSpeaker: () => unawaited(_toggleSpeaker(state)),
               onHangup: _hangupAndClose,
             ),
@@ -628,6 +635,8 @@ class _CallPageState extends ConsumerState<CallPage> {
                             onToggleMute: () => unawaited(_toggleMute(state)),
                             onToggleCamera: () =>
                                 unawaited(_toggleCamera(state)),
+                            onSwitchCamera: () =>
+                                unawaited(_switchCamera(state)),
                             onToggleSpeaker: () =>
                                 unawaited(_toggleSpeaker(state)),
                             onHangup: _hangupAndClose,
@@ -653,6 +662,7 @@ class _ConnectedVideoCallScreen extends StatefulWidget {
     required this.onClose,
     required this.onToggleMute,
     required this.onToggleCamera,
+    required this.onSwitchCamera,
     required this.onToggleSpeaker,
     required this.onHangup,
     this.overrideText,
@@ -667,6 +677,7 @@ class _ConnectedVideoCallScreen extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleCamera;
+  final VoidCallback onSwitchCamera;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangup;
 
@@ -802,6 +813,7 @@ class _ConnectedVideoCallScreenState extends State<_ConnectedVideoCallScreen> {
                       hasLocalVideoTrack: hasLocalVideo,
                       onToggleMute: widget.onToggleMute,
                       onToggleCamera: widget.onToggleCamera,
+                      onSwitchCamera: widget.onSwitchCamera,
                       onToggleSpeaker: widget.onToggleSpeaker,
                       onHangup: widget.onHangup,
                     ),
@@ -1439,6 +1451,7 @@ class _ActiveControls extends StatelessWidget {
     required this.hasLocalVideoTrack,
     required this.onToggleMute,
     required this.onToggleCamera,
+    required this.onSwitchCamera,
     required this.onToggleSpeaker,
     required this.onHangup,
   });
@@ -1448,6 +1461,7 @@ class _ActiveControls extends StatelessWidget {
   final bool hasLocalVideoTrack;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleCamera;
+  final VoidCallback onSwitchCamera;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangup;
 
@@ -1463,6 +1477,11 @@ class _ActiveControls extends StatelessWidget {
       AppLocalizations,
     );
     final canToggleVideo = localVideoControlCanToggle(videoState);
+    final canSwitchCamera = cameraSwitchControlCanToggle(
+      isVideoCall: isVideo,
+      hasLocalVideoTrack: hasLocalVideoTrack,
+      isCameraMuted: state.isCameraMuted,
+    );
     return Column(
       children: [
         Row(
@@ -1490,6 +1509,14 @@ class _ActiveControls extends StatelessWidget {
                     videoState == LocalVideoControlState.unavailable,
                 enabled: canToggleVideo,
                 onTap: canToggleVideo ? onToggleCamera : null,
+              ),
+            if (cameraSwitchControlVisible(isVideoCall: isVideo))
+              _ControlButton(
+                key: const Key('call-switch-camera-button'),
+                icon: Symbols.cameraswitch,
+                label: cameraSwitchControlLabel(l10n: l10n),
+                enabled: canSwitchCamera,
+                onTap: canSwitchCamera ? onSwitchCamera : null,
               ),
             _ControlButton(
               icon: state.isSpeakerOn ? Symbols.volume_up : Symbols.volume_off,
@@ -1537,6 +1564,7 @@ class _CloseButton extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   const _ControlButton({
+    super.key,
     required this.icon,
     required this.label,
     this.onTap,

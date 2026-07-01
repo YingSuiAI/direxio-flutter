@@ -10,6 +10,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../call/active_call_mini_window.dart';
+import '../call/camera_controls.dart';
 import '../call/voice_call_controller.dart';
 import '../providers/auth_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -171,6 +172,10 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
     if (mounted) unawaited(Navigator.of(context).maybePop());
   }
 
+  Future<void> _switchGroupCamera() {
+    return ref.read(voiceCallControllerProvider).switchGroupCamera();
+  }
+
   void _closePage() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -286,6 +291,7 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
                     onToggleCamera: () => unawaited(
                       controller.setGroupCameraMuted(!state.isCameraMuted),
                     ),
+                    onSwitchCamera: () => unawaited(_switchGroupCamera()),
                     onToggleSpeaker: () => unawaited(
                       controller.setGroupSpeakerOn(!state.isSpeakerOn),
                     ),
@@ -1263,6 +1269,7 @@ class _GroupCallControls extends StatelessWidget {
     required this.onAnswer,
     required this.onToggleMute,
     required this.onToggleCamera,
+    required this.onSwitchCamera,
     required this.onToggleSpeaker,
     required this.onLeave,
   });
@@ -1272,6 +1279,7 @@ class _GroupCallControls extends StatelessWidget {
   final VoidCallback? onAnswer;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleCamera;
+  final VoidCallback onSwitchCamera;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onLeave;
 
@@ -1285,6 +1293,11 @@ class _GroupCallControls extends StatelessWidget {
       AppLocalizations,
     );
     final canToggleCamera = !isVideo || hasLocalVideoTrack;
+    final canSwitchCamera = cameraSwitchControlCanToggle(
+      isVideoCall: isVideo,
+      hasLocalVideoTrack: hasLocalVideoTrack,
+      isCameraMuted: state.isCameraMuted,
+    );
     final cameraLabel = !hasLocalVideoTrack
         ? l10n?.groupCallCameraUnavailable ?? '摄像头不可用'
         : state.isCameraMuted
@@ -1318,6 +1331,7 @@ class _GroupCallControls extends StatelessWidget {
               ? l10n?.callUnmute ?? '取消静音'
               : l10n?.callMute ?? '静音',
           onTap: onToggleMute,
+          compact: isVideo,
         ),
         if (isVideo)
           _RoundCallButton(
@@ -1325,6 +1339,16 @@ class _GroupCallControls extends StatelessWidget {
             label: cameraLabel,
             onTap: onToggleCamera,
             enabled: canToggleCamera,
+            compact: true,
+          ),
+        if (cameraSwitchControlVisible(isVideoCall: isVideo))
+          _RoundCallButton(
+            key: const Key('group-call-switch-camera-button'),
+            icon: Symbols.cameraswitch,
+            label: cameraSwitchControlLabel(l10n: l10n),
+            onTap: onSwitchCamera,
+            enabled: canSwitchCamera,
+            compact: true,
           ),
         _RoundCallButton(
           icon: state.isSpeakerOn ? Symbols.volume_up : Symbols.hearing,
@@ -1332,6 +1356,7 @@ class _GroupCallControls extends StatelessWidget {
               ? l10n?.callSpeaker ?? '扬声器'
               : l10n?.callEarpiece ?? '听筒',
           onTap: onToggleSpeaker,
+          compact: isVideo,
         ),
         _RoundCallButton(
           key: const Key('group-call-leave-button'),
@@ -1339,6 +1364,7 @@ class _GroupCallControls extends StatelessWidget {
           label: l10n?.groupCallLeave ?? '离开',
           backgroundColor: _groupCallDanger,
           onTap: onLeave,
+          compact: isVideo,
         ),
       ],
     );
@@ -1353,6 +1379,7 @@ class _RoundCallButton extends StatelessWidget {
     required this.onTap,
     this.backgroundColor,
     this.enabled = true,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -1360,9 +1387,14 @@ class _RoundCallButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color? backgroundColor;
   final bool enabled;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = compact ? 46.0 : 52.0;
+    final iconSize = compact ? 23.0 : 25.0;
+    final horizontalPadding = compact ? 1.0 : 8.0;
+    final labelSize = compact ? 11.0 : 12.0;
     return Opacity(
       opacity: enabled ? 1 : 0.5,
       child: Tooltip(
@@ -1371,7 +1403,10 @@ class _RoundCallButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: enabled ? onTap : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 4,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1387,20 +1422,22 @@ class _RoundCallButton extends StatelessWidget {
                     ),
                   ),
                   child: SizedBox(
-                    width: 52,
-                    height: 52,
+                    width: buttonSize,
+                    height: buttonSize,
                     child: Icon(
                       icon,
                       color: _groupCallText,
-                      size: 25,
+                      size: iconSize,
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
-                    size: 12,
+                    size: labelSize,
                     color: _groupCallText.withValues(alpha: 0.66),
                   ),
                 ),

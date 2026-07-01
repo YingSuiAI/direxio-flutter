@@ -176,6 +176,38 @@ void main() {
     expect(find.text('等待群成员视频画面'), findsNothing);
   });
 
+  testWidgets('group video call page switches local camera from controls',
+      (tester) async {
+    final controller = _FakeGroupCallController(
+      initialGroupState: const GroupCallUiState(
+        status: GroupCallStatus.connected,
+        callType: ProductCallType.video,
+        roomId: '!group:p2p-im.com',
+        roomName: '测试群',
+        participantCount: 1,
+        videoStreams: [
+          GroupCallVideoStreamInfo(
+            userId: '@owner:p2p-im.com',
+            isLocal: true,
+            hasVideo: true,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(_wrap(controller, isVideo: true));
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('group-call-switch-camera-button')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('group-call-switch-camera-button')));
+    await tester.pump();
+
+    expect(controller.groupCameraSwitchCalls, 1);
+  });
+
   testWidgets('group video call page distinguishes unavailable camera',
       (tester) async {
     final controller = _FakeGroupCallController(
@@ -843,6 +875,7 @@ class _FakeGroupCallController implements VoiceCallController {
   bool joinExistingInvite = false;
   String? existingCallId;
   final groupCameraMutedValues = <bool>[];
+  int groupCameraSwitchCalls = 0;
 
   @override
   VoiceCallUiState get currentState => VoiceCallUiState.idle;
@@ -889,6 +922,9 @@ class _FakeGroupCallController implements VoiceCallController {
   Future<void> setCameraMuted(bool muted) async {}
 
   @override
+  Future<void> switchCamera() async {}
+
+  @override
   Future<void> setSpeakerOn(bool enabled) async {}
 
   @override
@@ -926,6 +962,11 @@ class _FakeGroupCallController implements VoiceCallController {
   @override
   Future<void> setGroupCameraMuted(bool muted) async {
     groupCameraMutedValues.add(muted);
+  }
+
+  @override
+  Future<void> switchGroupCamera() async {
+    groupCameraSwitchCalls += 1;
   }
 
   @override

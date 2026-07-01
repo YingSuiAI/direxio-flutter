@@ -9,6 +9,7 @@ import 'package:webrtc_interface/webrtc_interface.dart' as rtc;
 import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import 'camera_switching.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/room_read_state.dart';
@@ -1838,9 +1839,28 @@ class MatrixVoiceCallController implements VoiceCallController {
     final session = _activeSession;
     if (session == null || session.callHasEnded) return;
     try {
-      final switched = await _switchFirstVideoTrack(
-        session.localUserMediaStream?.stream,
-      );
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-start scope=direct '
+          'platform=${defaultTargetPlatform.name} call_id=${session.callId} '
+          'stream=${cameraTrackDebugSummary(
+            session.localUserMediaStream?.stream,
+          )}',
+        );
+      }
+      final switched = defaultTargetPlatform == TargetPlatform.iOS
+          ? await _replaceDirectCameraTrack(session)
+          : await switchFirstLocalVideoTrack(
+              session.localUserMediaStream?.stream,
+            );
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-end scope=direct switched=$switched '
+          'call_id=${session.callId} stream=${cameraTrackDebugSummary(
+            session.localUserMediaStream?.stream,
+          )}',
+        );
+      }
       if (!switched) {
         final cameraCount = await _availableVideoInputCount();
         if (kDebugMode) {
@@ -1852,6 +1872,12 @@ class MatrixVoiceCallController implements VoiceCallController {
       }
       _emit(_stateFromSession(session));
     } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-failed scope=direct '
+          'call_id=${session.callId} error=$error',
+        );
+      }
       _emit(_state.copyWith(error: _callErrorText(error)));
     }
   }
@@ -2207,9 +2233,25 @@ class MatrixVoiceCallController implements VoiceCallController {
     final session = _activeGroupSession;
     if (session == null || session.state == GroupCallState.ended) return;
     try {
-      final switched = await _switchFirstVideoTrack(
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-start scope=group '
+          'room=${session.room.id} stream=${cameraTrackDebugSummary(
+            session.backend.localUserMediaStream?.stream,
+          )}',
+        );
+      }
+      final switched = await switchFirstLocalVideoTrack(
         session.backend.localUserMediaStream?.stream,
       );
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-end scope=group switched=$switched '
+          'room=${session.room.id} stream=${cameraTrackDebugSummary(
+            session.backend.localUserMediaStream?.stream,
+          )}',
+        );
+      }
       if (!switched) {
         final cameraCount = await _availableVideoInputCount();
         if (kDebugMode) {
@@ -2221,6 +2263,12 @@ class MatrixVoiceCallController implements VoiceCallController {
       }
       _emitGroup(_stateFromGroupSession(session));
     } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-switch-failed scope=group '
+          'room=${session.room.id} error=$error',
+        );
+      }
       _emitGroup(_groupState.copyWith(error: _groupCallErrorText(error)));
     }
   }
@@ -2598,10 +2646,128 @@ class MatrixVoiceCallController implements VoiceCallController {
     return stream?.getVideoTracks().isNotEmpty ?? false;
   }
 
-  Future<bool> _switchFirstVideoTrack(webrtc.MediaStream? stream) async {
-    final tracks = stream?.getVideoTracks();
-    if (tracks == null || tracks.isEmpty) return false;
-    return webrtc.Helper.switchCamera(tracks.first);
+  Future<bool> _replaceDirectCameraTrack(CallSession session) async {
+    final currentStream = session.localUserMediaStream?.stream;
+    final pc = session.pc;
+    if (currentStream == null || pc == null) return false;
+    final currentVideoTracks = currentStream.getVideoTracks();
+    if (currentVideoTracks.isEmpty) return false;
+
+    final currentFacing = cameraFacingForTrack(
+      currentVideoTracks.first,
+      fallback: LocalCameraFacing.user,
+    );
+    final nextFacing = oppositeCameraFacing(currentFacing);
+    if (kDebugMode) {
+      debugPrint(
+        'p2p-call-camera-ios-replace-start call_id=${session.callId} '
+        'current_facing=${currentFacing.name} next_facing=${nextFacing.name} '
+        'constraints=${videoConstraintsForCameraFacing(nextFacing)} '
+        'devices=${await _debugVideoInputDevicesSummary()} '
+        'current=${cameraTrackDebugSummary(currentStream)}',
+      );
+    }
+    final replacementStream = await _delegate.mediaDevices.getUserMedia(
+      videoConstraintsForCameraFacing(nextFacing),
+    );
+    final replacementVideoTracks = replacementStream.getVideoTracks();
+    if (kDebugMode) {
+      debugPrint(
+        'p2p-call-camera-ios-replace-captured call_id=${session.callId} '
+        'replacement=${cameraTrackDebugSummary(replacementStream)}',
+      );
+    }
+    if (replacementVideoTracks.isEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-ios-replace-empty call_id=${session.callId}',
+        );
+      }
+      await replacementStream.dispose();
+      return false;
+    }
+    final replacementTrack = replacementVideoTracks.first;
+    try {
+      final transceivers = await pc.getTransceivers();
+      var attachedToSender = false;
+      for (final transceiver in transceivers) {
+        final senderTrack = transceiver.sender.track;
+        if (senderTrack?.kind != 'video') continue;
+        await transceiver.sender.replaceTrack(replacementTrack);
+        if (kDebugMode) {
+          debugPrint(
+            'p2p-call-camera-ios-replace-sender call_id=${session.callId} '
+            'via=transceiver old_track=${senderTrack?.id} '
+            'new_track=${replacementTrack.id}',
+          );
+        }
+        attachedToSender = true;
+        break;
+      }
+      if (!attachedToSender) {
+        final senders = await pc.getSenders();
+        for (final sender in senders) {
+          if (sender.track?.kind != 'video') continue;
+          await sender.replaceTrack(replacementTrack);
+          if (kDebugMode) {
+            debugPrint(
+              'p2p-call-camera-ios-replace-sender call_id=${session.callId} '
+              'via=sender old_track=${sender.track?.id} '
+              'new_track=${replacementTrack.id}',
+            );
+          }
+          attachedToSender = true;
+          break;
+        }
+      }
+      if (!attachedToSender) {
+        await pc.addTrack(replacementTrack, currentStream);
+        if (kDebugMode) {
+          debugPrint(
+            'p2p-call-camera-ios-replace-sender call_id=${session.callId} '
+            'via=addTrack new_track=${replacementTrack.id}',
+          );
+        }
+      }
+
+      await removeAndStopVideoTracks(currentStream);
+      await currentStream.addTrack(replacementTrack);
+      session.localUserMediaStream?.setVideoMuted(false);
+      session.localUserMediaStream?.onStreamChanged.add(currentStream);
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-ios-replace-updated call_id=${session.callId} '
+          'current=${cameraTrackDebugSummary(currentStream)}',
+        );
+      }
+      return true;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-ios-replace-failed call_id=${session.callId} '
+          'error=$error',
+        );
+      }
+      await replacementTrack.stop();
+      rethrow;
+    }
+  }
+
+  Future<String> _debugVideoInputDevicesSummary() async {
+    if (!kDebugMode) return '';
+    try {
+      final devices = await _delegate.mediaDevices.enumerateDevices();
+      final cameras = devices
+          .where((device) => device.kind?.toLowerCase() == 'videoinput')
+          .toList(growable: false);
+      if (cameras.isEmpty) return '[]';
+      return cameras.map((device) {
+        return '{id=${device.deviceId}, label=${device.label}, '
+            'group=${device.groupId ?? ""}, kind=${device.kind ?? ""}}';
+      }).join(';');
+    } catch (error) {
+      return 'error=$error';
+    }
   }
 
   Future<int> _availableVideoInputCount() async {

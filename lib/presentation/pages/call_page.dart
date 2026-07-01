@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
@@ -12,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../call/active_call_mini_window.dart';
 import '../call/camera_controls.dart';
+import '../call/camera_switching.dart';
 import '../call/voice_call_controller.dart';
 import '../call/voice_call_display_name.dart';
 import '../providers/auth_provider.dart';
@@ -1150,6 +1152,7 @@ class _RtcVideoSurface extends StatefulWidget {
 class _RtcVideoSurfaceState extends State<_RtcVideoSurface> {
   late final webrtc.RTCVideoRenderer _renderer;
   bool _ready = false;
+  String _boundStreamToken = '';
 
   @override
   void initState() {
@@ -1162,14 +1165,25 @@ class _RtcVideoSurfaceState extends State<_RtcVideoSurface> {
     await _renderer.initialize();
     if (!mounted) return;
     _renderer.srcObject = widget.stream;
+    _boundStreamToken = cameraStreamBindingToken(widget.stream);
     setState(() => _ready = true);
   }
 
   @override
   void didUpdateWidget(covariant _RtcVideoSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.stream != widget.stream && _ready) {
+    final nextStreamToken = cameraStreamBindingToken(widget.stream);
+    if (_ready &&
+        (oldWidget.stream != widget.stream ||
+            nextStreamToken != _boundStreamToken)) {
+      if (kDebugMode) {
+        debugPrint(
+          'p2p-call-camera-renderer-rebind old_token=$_boundStreamToken '
+          'new_token=$nextStreamToken stream=${widget.stream?.id}',
+        );
+      }
       _renderer.srcObject = widget.stream;
+      _boundStreamToken = nextStreamToken;
     }
   }
 

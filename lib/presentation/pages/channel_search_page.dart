@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_avatar_cache.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
@@ -16,9 +17,12 @@ import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/im_public_client_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
+import '../widgets/portal_avatar.dart';
 
 AppLocalizations? _channelSearchL10n(BuildContext context) {
   return Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -583,13 +587,29 @@ String _channelJoinLabel(
   return l10n?.channelJoinAction ?? '加入';
 }
 
-class _SearchChannelAvatar extends StatelessWidget {
+class _SearchChannelAvatar extends ConsumerWidget {
   const _SearchChannelAvatar({required this.channel});
 
   final AsChannel channel;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final avatarUrl = avatarHttpUrl(
+      ref.watch(matrixClientProvider),
+      channel.avatarUrl,
+    );
+    if (avatarUrl != null) {
+      return PortalAvatar(
+        seed: _searchChannelAvatarSeed(channel),
+        size: 48,
+        imageUrl: avatarUrl,
+        stableCacheKey: channelAvatarStableCacheKey(
+          channelId: channel.channelId,
+          roomId: channel.roomId,
+        ),
+        shape: AvatarShape.squircle,
+      );
+    }
     final t = context.tk;
     return Container(
       width: 48,
@@ -602,6 +622,14 @@ class _SearchChannelAvatar extends StatelessWidget {
       child: Icon(Symbols.campaign, color: t.accent, size: 25, fill: 1),
     );
   }
+}
+
+String _searchChannelAvatarSeed(AsChannel channel) {
+  final name = channel.name.trim();
+  if (name.isNotEmpty) return name;
+  final channelId = channel.channelId.trim();
+  if (channelId.isNotEmpty) return channelId;
+  return channel.roomId.trim();
 }
 
 Color _channelSearchShadowColor(BuildContext context) {

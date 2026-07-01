@@ -14,6 +14,7 @@ import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
+import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
   testWidgets('channel search uses localized empty state and actions',
@@ -83,6 +84,46 @@ void main() {
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsWidgets);
+  });
+
+  testWidgets('channel search result renders channel avatar', (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_avatar',
+          roomId: '!ch_avatar:p2p-im.com',
+          name: '头像频道',
+          description: '带头像',
+          avatarUrl: 'https://cdn.example.com/channel-avatar.png',
+        ),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '头像频道');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(imPublicClient.lastName, '头像频道');
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.imageUrl == 'https://cdn.example.com/channel-avatar.png',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('channel search hides join action for owned public channels',
@@ -936,6 +977,7 @@ ImPublicChannelListing _publicChannelListing({
   required String description,
   String role = '',
   String memberStatus = '',
+  String avatarUrl = '',
 }) {
   return ImPublicChannelListing(
     id: 1,
@@ -949,6 +991,7 @@ ImPublicChannelListing _publicChannelListing({
       homeDomain: 'p2p-im.com',
       name: name,
       description: description,
+      avatarUrl: avatarUrl,
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyApproval,
       commentsEnabled: true,

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/pages/agent_settings_page.dart';
+import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/product_conversations_provider.dart';
+import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 import 'support/mock_as_client.dart';
 
@@ -113,6 +116,38 @@ void main() {
 
     expect(asClient.config.avatarUrl, 'mxc://example.com/uploaded-agent');
     expect(find.text('头像 URL'), findsNothing);
+  });
+
+  testWidgets('agent settings renders current mxc avatar as media URL',
+      (tester) async {
+    final client = Client('AgentSettingsAvatarTest')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final asClient = _AgentSettingsAsClient(
+      const AgentConfig(
+        displayName: 'Ops Agent',
+        avatarUrl: 'mxc://p2p-im.com/agent-avatar',
+        contextWindow: 64,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          productConversationsProvider.overrideWith((_) async => const []),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AgentSettingsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar).first);
+    expect(avatar.imageUrl, isNot('mxc://p2p-im.com/agent-avatar'));
+    expect(avatar.imageUrl, startsWith('https://p2p-im.com'));
   });
 }
 

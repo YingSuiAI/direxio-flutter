@@ -12,6 +12,7 @@ import '../providers/agent_config_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/avatar_url.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -83,6 +84,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final config = _config;
+    final matrixClient = ref.watch(matrixClientProvider);
     return Scaffold(
       backgroundColor: t.bg,
       body: Column(
@@ -107,6 +109,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                   else ...[
                     _AgentProfileCard(
                       config: config,
+                      avatarUrl: avatarHttpUrl(matrixClient, config.avatarUrl),
                       saving: _saving || _avatarBusy,
                       onAvatarTap: () => _pickAvatar(config),
                       onNameTap: () => _editDisplayName(config),
@@ -273,12 +276,14 @@ class _ErrorState extends StatelessWidget {
 class _AgentProfileCard extends StatelessWidget {
   const _AgentProfileCard({
     required this.config,
+    required this.avatarUrl,
     required this.saving,
     required this.onAvatarTap,
     required this.onNameTap,
   });
 
   final AgentConfig config;
+  final String? avatarUrl;
   final bool saving;
   final VoidCallback onAvatarTap;
   final VoidCallback onNameTap;
@@ -299,9 +304,7 @@ class _AgentProfileCard extends StatelessWidget {
               onTap: saving ? null : onAvatarTap,
               child: PortalAvatar(
                 seed: config.displayName,
-                imageUrl: config.avatarUrl.trim().isEmpty
-                    ? null
-                    : config.avatarUrl.trim(),
+                imageUrl: avatarUrl,
                 size: 64,
                 shape: AvatarShape.squircle,
               ),

@@ -12684,6 +12684,71 @@ void main() {
     expect(find.text('Alice'), findsNothing);
   });
 
+  testWidgets('group detail shows scanned qr group item without local room',
+      (tester) async {
+    final client = Client('DirexioGroupDetailScannedQrFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const GroupDetailPage(
+            roomId: '!scanned:p2p-im.com',
+            displayName: '扫码群',
+            avatarUrl: 'mxc://p2p-im.com/group',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('扫码群'), findsOneWidget);
+    expect(find.text('群 ID !scanned:p2p-im.com'), findsOneWidget);
+    expect(find.text('群组不存在'), findsNothing);
+    expect(find.byType(PortalAvatar), findsOneWidget);
+  });
+
+  testWidgets('group detail shows room id item for legacy scanned group qr',
+      (tester) async {
+    final client = Client('DirexioGroupDetailLegacyQrFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const GroupDetailPage(
+            roomId: '!legacy:p2p-im.com',
+            scannedQr: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('!legacy:p2p-im.com'), findsOneWidget);
+    expect(find.text('群 ID !legacy:p2p-im.com'), findsOneWidget);
+    expect(find.text('群组不存在'), findsNothing);
+    expect(find.byType(PortalAvatar), findsOneWidget);
+  });
+
   testWidgets('group detail keeps management visible for group owner',
       (tester) async {
     final client = Client('DirexioGroupDetailOwnerTest')
@@ -13333,29 +13398,8 @@ void main() {
     );
   });
 
-  testWidgets('group info identity header shows and copies room uid',
+  testWidgets('group info identity header opens group qr instead of room uid',
       (tester) async {
-    var clipboardText = '';
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        switch (call.method) {
-          case 'Clipboard.setData':
-            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
-            return null;
-          case 'Clipboard.getData':
-            return {'text': clipboardText};
-        }
-        return null;
-      },
-    );
-    addTearDown(() {
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      );
-    });
-
     final client = Client('DirexioGroupInfoHeaderUidTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
@@ -13365,32 +13409,87 @@ void main() {
       creatorMxid: '@owner:p2p-im.com',
       members: const {'@alice:p2p-im.com': 'Alice'},
     );
+    final router = GoRouter(
+      initialLocation:
+          '/group-info/${Uri.encodeComponent('!group:p2p-im.com')}',
+      routes: [
+        GoRoute(
+          path: '/group-info/:roomId',
+          builder: (_, state) => GroupInfoPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/group-qr/:roomId',
+          builder: (_, state) => GroupQrPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: AppTheme.light,
-          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
         ),
       ),
     );
     await tester.pump();
 
+    final identityHeader = find.byKey(
+      const ValueKey('group_info_identity_header_!group:p2p-im.com'),
+    );
     expect(find.text('真实群'), findsOneWidget);
-    expect(find.text('!group:p2p-im.com'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: identityHeader,
+        matching: find.text('!group:p2p-im.com'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: identityHeader,
+        matching: find.byType(GroupCompositeAvatar),
+      ),
+      findsNothing,
+    );
 
-    await tester.tap(find.text('!group:p2p-im.com'));
-    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: identityHeader,
+        matching: find.byKey(const ValueKey('group_info_qr_action')),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    expect(find.text('已复制 UID'), findsOneWidget);
-    expect(find.byType(SnackBar), findsNothing);
-    final copied = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copied?.text, '!group:p2p-im.com');
-    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('群二维码'), findsOneWidget);
+    expect(find.text('群 ID !group:p2p-im.com'), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
+    final qr = tester.widget<QrImageView>(
+      find.byKey(const ValueKey('group_qr_display_qr_image')),
+    );
+    expect(
+      qr.semanticsLabel,
+      Uri(
+        scheme: 'p2pim',
+        host: 'group',
+        queryParameters: const {
+          'room_id': '!group:p2p-im.com',
+          'name': '真实群',
+        },
+      ).toString(),
+    );
   });
 
-  testWidgets('group info identity header uses composite member avatar',
+  testWidgets('group info identity header hides composite member avatar',
       (tester) async {
     const roomId = '!group-info-avatar:p2p-im.com';
     final client = Client('DirexioGroupInfoCompositeAvatarTest')
@@ -13445,7 +13544,7 @@ void main() {
         of: identityHeader,
         matching: find.byType(GroupCompositeAvatar),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -13454,7 +13553,7 @@ void main() {
           const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
         ),
       ),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -13833,12 +13932,6 @@ void main() {
 
     expect(
       find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(
-        const ValueKey('group_composite_avatar_member_@alice:p2p-im.com'),
-      ),
       findsOneWidget,
     );
 
@@ -20760,6 +20853,58 @@ void main() {
         .toList(growable: false);
     expect(avatars, isNotEmpty);
     expect(avatars.every((avatar) => avatar.imageUrl == null), isTrue);
+  });
+
+  testWidgets('group qr page follows locale and dark theme', (tester) async {
+    const roomId = '!group:p2p-im.com';
+    final client = Client('DirexioGroupQrLocaleDarkTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: 'リアルグループ',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
+          locale: const Locale('ja'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const GroupQrPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('グループQRコード'), findsOneWidget);
+    expect(find.text('グループID !group:p2p-im.com'), findsOneWidget);
+    expect(
+      find.text('上のQRコードをスキャンしてグループチャットに参加できます。'),
+      findsOneWidget,
+    );
+    expect(find.text('Group QR Code'), findsNothing);
+    expect(find.text('群二维码'), findsNothing);
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, PortalTokens.dark.bg);
+
+    final groupQrBox = find.byKey(const ValueKey('group_qr_display_qr_box'));
+    final qr = tester.widget<QrImageView>(
+      find.byKey(const ValueKey('group_qr_display_qr_image')),
+    );
+    expect(qr.size, greaterThanOrEqualTo(172));
+    expect(qr.errorCorrectionLevel, QrErrorCorrectLevel.H);
+    expect(
+      find.descendant(of: groupQrBox, matching: find.byType(Image)),
+      findsNothing,
+    );
   });
 
   testWidgets('me qr share export card matches iOS image-only format',

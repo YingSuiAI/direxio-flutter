@@ -914,7 +914,7 @@
   "qrInvalidGroup": "Invalid group QR code",
   "qrUnsupportedGroup": "This group QR code is not supported yet",
   "qrScannerInstruction": "Place the QR code inside the frame to scan automatically",
-  "qrScannerSupportUsers": "User QR codes are supported",
+  "qrScannerSupportUsers": "User and group QR codes are supported",
   "meQrTitle": "My QR Code",
   "meQrHint": "Scan this QR code to add me as a friend.",
   "meQrSaveToAlbum": "Save to Photos",
@@ -923,6 +923,16 @@
   "meQrSaveFailed": "Failed to save. Check Photos permission.",
   "meQrSaveTodo": "Save to Photos is not connected yet",
   "meQrUnconnectedDomain": "No connected domain",
+  "groupQrTitle": "Group QR Code",
+  "groupQrId": "Group ID {roomId}",
+  "@groupQrId": {
+    "placeholders": {
+      "roomId": {
+        "type": "String"
+      }
+    }
+  },
+  "groupQrHint": "Scan this QR code to join the group.",
   "groupInviteTitle": "Group invitation",
   "groupInviteJoining": "Joining \"{groupName}\"",
   "@groupInviteJoining": {

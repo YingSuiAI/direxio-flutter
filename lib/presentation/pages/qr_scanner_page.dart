@@ -22,16 +22,27 @@ class _QrScannerPageState extends State<QrScannerPage> {
   bool _handled = false;
 
   @override
+  void initState() {
+    super.initState();
+    _logQrScan('scanner init');
+  }
+
+  @override
   void dispose() {
+    _logQrScan('scanner dispose handled=$_handled');
     _controller.dispose();
     super.dispose();
   }
 
   void _handleCapture(BarcodeCapture capture) {
     if (_handled) return;
+    _logQrScan('capture barcodes=${capture.barcodes.length}');
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue;
       if (raw == null || raw.trim().isEmpty) continue;
+      _logQrScan(
+        'raw format=${barcode.format.name} value=${_rawPreview(raw)}',
+      );
       _handled = true;
       _controller.stop();
       _handleScanResult(raw.trim());
@@ -44,36 +55,47 @@ class _QrScannerPageState extends State<QrScannerPage> {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     if (target == null) {
+      _logQrScan('parse failed raw=${_rawPreview(raw)}');
       _showErrorAndResume('${l10n.qrInvalidFormat}: ${_rawPreview(raw)}');
       return;
     }
+    _logQrScan(
+      'parsed kind=${target.kind.name} user=${target.userId ?? ""} '
+      'group=${target.groupId ?? ""} hasName=${target.displayName?.trim().isNotEmpty == true} '
+      'hasAvatar=${target.avatarUrl?.trim().isNotEmpty == true}',
+    );
 
     switch (target.kind) {
       case QrScanKind.user:
         final userId = target.userId?.trim();
         if (userId == null || userId.isEmpty) {
+          _logQrScan('invalid user target');
           _showErrorAndResume(l10n.qrInvalidUser);
           return;
         }
-        context.pushReplacement(
-          addContactDetailRouteForQrTarget(target),
-        );
+        final route = addContactDetailRouteForQrTarget(target);
+        _logQrScan('navigate user route=$route');
+        context.pushReplacement(route);
       case QrScanKind.group:
         final groupId = target.groupId?.trim();
         if (groupId == null || groupId.isEmpty) {
+          _logQrScan('invalid group target');
           _showErrorAndResume(l10n.qrInvalidGroup);
           return;
         }
-        if (groupId.startsWith('!')) {
-          context
-              .pushReplacement('/group-detail/${Uri.encodeComponent(groupId)}');
-        } else {
+        final route = groupDetailRouteForQrTarget(target);
+        if (route == null) {
+          _logQrScan('unsupported group target group=$groupId');
           _showErrorAndResume(l10n.qrUnsupportedGroup);
+        } else {
+          _logQrScan('navigate group route=$route');
+          context.pushReplacement(route);
         }
     }
   }
 
   void _showErrorAndResume(String message) {
+    _logQrScan('error message=$message');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -86,6 +108,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    _logQrScan('scanner build handled=$_handled');
     final t = context.tk;
     final l10n = AppLocalizations.of(context);
     return Scaffold(
@@ -155,6 +178,27 @@ String addContactDetailRouteForQrTarget(QrScanTarget target) {
       ? ''
       : '?${Uri(queryParameters: queryParameters).query}';
   return '/add-contact/detail/${Uri.encodeComponent(userId)}$query';
+}
+
+@visibleForTesting
+String? groupDetailRouteForQrTarget(QrScanTarget target) {
+  final groupId = target.groupId?.trim() ?? '';
+  if (groupId.isEmpty) return null;
+  final queryParameters = <String, String>{
+    'qr': '1',
+    if (target.displayName?.trim().isNotEmpty == true)
+      'name': target.displayName!.trim(),
+    if (target.avatarUrl?.trim().isNotEmpty == true)
+      'avatar': target.avatarUrl!.trim(),
+  };
+  final query = queryParameters.isEmpty
+      ? ''
+      : '?${Uri(queryParameters: queryParameters).query}';
+  return '/group-detail/${Uri.encodeComponent(groupId)}$query';
+}
+
+void _logQrScan(String message) {
+  debugPrint('qr-scan $message');
 }
 
 class _ScannerScrim extends StatelessWidget {

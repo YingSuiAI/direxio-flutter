@@ -1625,7 +1625,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get qrScannerInstruction => 'QRコードを枠内に入れると自動でスキャンします';
 
   @override
-  String get qrScannerSupportUsers => 'ユーザーQRコードのスキャンに対応しています';
+  String get qrScannerSupportUsers => 'ユーザーとグループのQRコードをスキャンできます';
 
   @override
   String get meQrTitle => '自分のQRコード';
@@ -1650,6 +1650,17 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => '接続済みドメインなし';
+
+  @override
+  String get groupQrTitle => 'グループQRコード';
+
+  @override
+  String groupQrId(String roomId) {
+    return 'グループID $roomId';
+  }
+
+  @override
+  String get groupQrHint => '上のQRコードをスキャンしてグループチャットに参加できます。';
 
   @override
   String get groupInviteTitle => 'グループチャットへの招待';

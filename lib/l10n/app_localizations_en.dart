@@ -1680,7 +1680,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Place the QR code inside the frame to scan automatically';
 
   @override
-  String get qrScannerSupportUsers => 'User QR codes are supported';
+  String get qrScannerSupportUsers => 'User and group QR codes are supported';
 
   @override
   String get meQrTitle => 'My QR Code';
@@ -1705,6 +1705,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => 'No connected domain';
+
+  @override
+  String get groupQrTitle => 'Group QR Code';
+
+  @override
+  String groupQrId(String roomId) {
+    return 'Group ID $roomId';
+  }
+
+  @override
+  String get groupQrHint => 'Scan this QR code to join the group.';
 
   @override
   String get groupInviteTitle => 'Group invitation';

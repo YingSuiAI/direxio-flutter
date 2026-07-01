@@ -10,11 +10,12 @@ class QrScanTarget {
   })  : kind = QrScanKind.user,
         groupId = null;
 
-  const QrScanTarget.group({required this.groupId})
-      : kind = QrScanKind.group,
-        userId = null,
-        displayName = null,
-        avatarUrl = null;
+  const QrScanTarget.group({
+    required this.groupId,
+    this.displayName,
+    this.avatarUrl,
+  })  : kind = QrScanKind.group,
+        userId = null;
 
   final QrScanKind kind;
   final String? userId;
@@ -88,7 +89,23 @@ QrScanTarget? _parseJsonQr(String value) {
   ]);
   if (groupId != null &&
       (kind == null || kind.contains('group') || kind.contains('room'))) {
-    return QrScanTarget.group(groupId: groupId);
+    return QrScanTarget.group(
+      groupId: groupId,
+      displayName: _firstString(
+        decoded,
+        const ['display_name', 'displayName', 'name', 'room_name', 'roomName'],
+      ),
+      avatarUrl: _firstString(
+        decoded,
+        const [
+          'avatar_url',
+          'avatarUrl',
+          'avatar',
+          'room_avatar',
+          'roomAvatar'
+        ],
+      ),
+    );
   }
   return null;
 }
@@ -121,7 +138,12 @@ QrScanTarget? _parseP2pQr(String value) {
     final groupId = uri.queryParameters['room_id']?.trim() ??
         uri.queryParameters['group_id']?.trim();
     if (groupId == null || groupId.isEmpty) return null;
-    return QrScanTarget.group(groupId: groupId);
+    return QrScanTarget.group(
+      groupId: groupId,
+      displayName:
+          _queryParam(uri, const ['name', 'display_name', 'displayName']),
+      avatarUrl: _queryParam(uri, const ['avatar_url', 'avatarUrl', 'avatar']),
+    );
   }
 
   return null;
@@ -150,7 +172,14 @@ QrScanTarget? _parseUniversalUri(Uri uri, String rawValue) {
     'group_id',
     'groupId',
   ]);
-  if (groupId != null) return QrScanTarget.group(groupId: groupId);
+  if (groupId != null) {
+    return QrScanTarget.group(
+      groupId: groupId,
+      displayName:
+          _queryParam(uri, const ['name', 'display_name', 'displayName']),
+      avatarUrl: _queryParam(uri, const ['avatar_url', 'avatarUrl', 'avatar']),
+    );
+  }
 
   if (uri.host == 'matrix.to' && uri.fragment.isNotEmpty) {
     final fragment = Uri.decodeComponent(

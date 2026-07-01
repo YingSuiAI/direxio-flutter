@@ -3,7 +3,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
@@ -27,7 +26,6 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/group_avatar_members.dart';
 import '../widgets/center_toast.dart';
-import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
@@ -86,9 +84,6 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
-    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
-    final groupAvatarMemberAvatars =
-        ref.watch(groupAvatarMemberAvatarsProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
@@ -121,26 +116,6 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       remark: groupRemark,
       syncCache: syncCache,
     );
-    final groupAvatarUrl = room == null ? null : roomAvatarHttpUrl(room);
-    final groupAvatarMembers = room == null
-        ? null
-        : stableGroupAvatarMembersForRoom(
-            room: room,
-            syncCache: syncCache,
-            cachedMemberOrder:
-                groupAvatarMemberOrders[widget.roomId] ?? const <String>[],
-            cachedMemberAvatarUrls:
-                groupAvatarMemberAvatars[widget.roomId] ?? const {},
-            authoritativeMembers: visibleAuthoritativeGroupMembers,
-            currentUserProfile: currentUserProfile,
-          );
-    if (groupAvatarMembers != null) {
-      scheduleGroupAvatarMemberOrderPersist(
-        ref,
-        widget.roomId,
-        groupAvatarMembers,
-      );
-    }
     // 真实成员列表（已加入）；降级到空列表
     final matrixMembers = room
             ?.getParticipants()
@@ -198,13 +173,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     ),
                     child: _GroupIdentityHeader(
                       name: groupName,
-                      uid: widget.roomId,
-                      avatarUrl: groupAvatarMembers?.members.isEmpty == true
-                          ? groupAvatarUrl
-                          : null,
-                      avatarMembers: groupAvatarMembers?.members ?? const [],
-                      seed: widget.roomId,
-                      onUidTap: () => _copyGroupUid(context, widget.roomId),
+                      onQrTap: () => context.push(
+                        '/group-qr/${Uri.encodeComponent(widget.roomId)}',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -825,12 +796,6 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   }
 }
 
-Future<void> _copyGroupUid(BuildContext context, String uid) async {
-  await Clipboard.setData(ClipboardData(text: uid));
-  if (!context.mounted) return;
-  _toast(context, _groupInfoL10n(context).chatInfoUidCopied);
-}
-
 String _groupDisplayName({
   required String roomId,
   required Room? room,
@@ -1047,75 +1012,45 @@ class _GroupMemberPresentation {
 class _GroupIdentityHeader extends StatelessWidget {
   const _GroupIdentityHeader({
     required this.name,
-    required this.uid,
-    required this.seed,
-    required this.onUidTap,
-    this.avatarMembers = const [],
-    this.avatarUrl,
+    required this.onQrTap,
   });
 
   final String name;
-  final String uid;
-  final String seed;
-  final VoidCallback onUidTap;
-  final List<GroupCompositeAvatarMember> avatarMembers;
-  final String? avatarUrl;
+  final VoidCallback onQrTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     return SizedBox(
-      height: 60,
+      height: 52,
       child: Row(
         children: [
-          GroupCompositeAvatar(
-            seed: seed,
-            size: 60,
-            imageUrl: avatarUrl,
-            members: avatarMembers,
-            minimumSlots: 4,
-          ),
-          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              key: const ValueKey('group_info_qr_action'),
+              onTap: onQrTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox.square(
+                dimension: 40,
+                child: Center(
+                  child: Icon(Symbols.qr_code_2, size: 24, color: t.text),
                 ),
-                const SizedBox(height: 6),
-                InkWell(
-                  onTap: onUidTap,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          uid,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(size: 13, color: t.textMute),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Symbols.content_copy,
-                        size: 14,
-                        color: t.textMute,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],

@@ -12,11 +12,14 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/save_image_to_gallery.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -58,7 +61,10 @@ class MeQrPage extends ConsumerWidget {
         top: false,
         child: Column(
           children: [
-            _QrHeader(topInset: topInset),
+            _QrHeader(
+              topInset: topInset,
+              title: AppLocalizations.of(context).meQrTitle,
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
@@ -67,6 +73,68 @@ class MeQrPage extends ConsumerWidget {
                   uid: uid,
                   userId: userId,
                   avatarUrl: avatarUrl,
+                  payload: payload,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GroupQrPage extends ConsumerWidget {
+  const GroupQrPage({super.key, required this.roomId});
+
+  final String roomId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.tk;
+    final client = ref.watch(matrixClientProvider);
+    final room = client.getRoomById(roomId);
+    final syncCache = ref.watch(asSyncCacheProvider);
+    final displayName = _groupQrDisplayName(
+      roomId: roomId,
+      room: room,
+      syncCache: syncCache,
+    );
+    final avatarUrl = _groupQrAvatarUrl(
+      client: client,
+      roomId: roomId,
+      room: room,
+      syncCache: syncCache,
+    );
+    final payload = buildGroupQrPayload(
+      roomId: roomId,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
+    debugPrint(
+      'group-qr payload=${_rawQrPayloadPreview(payload)} '
+      'roomId=$roomId hasName=${displayName.trim().isNotEmpty} '
+      'hasAvatar=${avatarUrl?.trim().isNotEmpty == true}',
+    );
+    final topInset = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? t.bg : t.surfaceHover,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _QrHeader(
+              topInset: topInset,
+              title: AppLocalizations.of(context).groupQrTitle,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
+                child: _GroupQrCard(
+                  displayName: displayName,
+                  roomId: roomId,
                   payload: payload,
                 ),
               ),
@@ -97,10 +165,31 @@ String buildMeQrPayload({
   ).toString();
 }
 
+@visibleForTesting
+String buildGroupQrPayload({
+  required String roomId,
+  String? displayName,
+  String? avatarUrl,
+}) {
+  return Uri(
+    scheme: 'p2pim',
+    host: 'group',
+    queryParameters: {
+      'room_id': roomId,
+      if (displayName?.trim().isNotEmpty == true) 'name': displayName!.trim(),
+      if (avatarUrl?.trim().isNotEmpty == true) 'avatar_url': avatarUrl!.trim(),
+    },
+  ).toString();
+}
+
 class _QrHeader extends StatelessWidget {
-  const _QrHeader({required this.topInset});
+  const _QrHeader({
+    required this.topInset,
+    required this.title,
+  });
 
   final double topInset;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +209,7 @@ class _QrHeader extends StatelessWidget {
               ),
             ),
             Text(
-              AppLocalizations.of(context).meQrTitle,
+              title,
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -174,6 +263,72 @@ class _QrGlassButton extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupQrCard extends StatelessWidget {
+  const _GroupQrCard({
+    required this.displayName,
+    required this.roomId,
+    required this.payload,
+  });
+
+  final String displayName;
+  final String roomId;
+  final String payload;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: t.surface,
+      shadowColor: t.text.withValues(alpha: isDark ? 0.28 : 0.08),
+      elevation: isDark ? 2 : 0,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AppLocalizations.of(context).groupQrId(roomId),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(size: 14, color: t.textMute),
+            ),
+            const SizedBox(height: 24),
+            _QrCodeWithLogo(
+              payload: payload,
+              boxKey: const ValueKey('group_qr_display_qr_box'),
+              qrKey: const ValueKey('group_qr_display_qr_image'),
+              showContainerChrome: true,
+              qrSize: 172,
+              errorCorrectionLevel: QrErrorCorrectLevel.H,
+              showLogo: false,
+              semanticsLabel: payload,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              AppLocalizations.of(context).groupQrHint,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(size: 14, color: t.textMute),
+            ),
+          ],
         ),
       ),
     );
@@ -493,12 +648,20 @@ class _QrCodeWithLogo extends StatelessWidget {
     required this.boxKey,
     required this.qrKey,
     required this.showContainerChrome,
+    this.qrSize = 126,
+    this.errorCorrectionLevel = QrErrorCorrectLevel.L,
+    this.showLogo = true,
+    this.semanticsLabel = 'qr code',
   });
 
   final String payload;
   final Key boxKey;
   final Key qrKey;
   final bool showContainerChrome;
+  final double qrSize;
+  final int errorCorrectionLevel;
+  final bool showLogo;
+  final String semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -516,8 +679,10 @@ class _QrCodeWithLogo extends StatelessWidget {
           QrImageView(
             key: qrKey,
             data: payload,
+            semanticsLabel: semanticsLabel,
             version: QrVersions.auto,
-            size: 126,
+            errorCorrectionLevel: errorCorrectionLevel,
+            size: qrSize,
             backgroundColor: Colors.white,
             eyeStyle: const QrEyeStyle(
               eyeShape: QrEyeShape.square,
@@ -528,31 +693,32 @@ class _QrCodeWithLogo extends StatelessWidget {
               color: Colors.black,
             ),
           ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const SizedBox(
-              width: 32,
-              height: 32,
-              child: Center(
-                child: Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  width: 24,
-                  height: 24,
-                  fit: BoxFit.contain,
+          if (showLogo)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                  child: Image(
+                    image: AssetImage('assets/images/logo.png'),
+                    width: 24,
+                    height: 24,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -621,4 +787,54 @@ String _domainFromMxid(String mxid, AppLocalizations l10n) {
 String _safeFileName(String value) {
   final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
   return sanitized.isEmpty ? 'me' : sanitized;
+}
+
+String _rawQrPayloadPreview(String payload) {
+  if (payload.length <= 160) return payload;
+  return '${payload.substring(0, 160)}...';
+}
+
+String _groupQrDisplayName({
+  required String roomId,
+  required Room? room,
+  required AsSyncCacheState syncCache,
+}) {
+  final productName = _productGroupNameForQr(syncCache, roomId);
+  if (productName.isNotEmpty) return productName;
+  final roomName = safeRoomDisplayName(room).trim();
+  if (roomName.isNotEmpty && roomName != roomId.trim()) return roomName;
+  return roomId;
+}
+
+String _productGroupNameForQr(AsSyncCacheState syncCache, String roomId) {
+  final target = roomId.trim();
+  if (target.isEmpty) return '';
+  for (final group
+      in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+    if (group.roomId.trim() == target) return group.name.trim();
+  }
+  return '';
+}
+
+String? _groupQrAvatarUrl({
+  required Client client,
+  required String roomId,
+  required Room? room,
+  required AsSyncCacheState syncCache,
+}) {
+  final productAvatar = _productGroupAvatarForQr(syncCache, roomId);
+  final productAvatarUrl = avatarHttpUrl(client, productAvatar);
+  if (productAvatarUrl != null) return productAvatarUrl;
+  if (room != null) return roomAvatarHttpUrl(room);
+  return null;
+}
+
+String _productGroupAvatarForQr(AsSyncCacheState syncCache, String roomId) {
+  final target = roomId.trim();
+  if (target.isEmpty) return '';
+  for (final group
+      in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+    if (group.roomId.trim() == target) return group.avatarUrl.trim();
+  }
+  return '';
 }

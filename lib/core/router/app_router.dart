@@ -448,7 +448,12 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/group-detail/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          GroupDetailPage(roomId: state.pathParameters['roomId']!),
+          GroupDetailPage(
+            roomId: state.pathParameters['roomId']!,
+            displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
+            scannedQr: state.uri.queryParameters['qr'] == '1',
+          ),
         ),
       ),
       GoRoute(
@@ -600,6 +605,11 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/me/qr',
         pageBuilder: (_, __) => _slidePage(const MeQrPage()),
+      ),
+      GoRoute(
+        path: '/group-qr/:roomId',
+        pageBuilder: (_, state) =>
+            _slidePage(GroupQrPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/search',

@@ -23,8 +23,18 @@ import '../widgets/m3/glass_header.dart';
 /// GROUP INFO 屏 —— 1:1 复刻 P2P-APP-UI/index.html 中 #s-group-info（678-808 行）。
 /// 保留 Riverpod / Matrix client 数据查询；widget 树严格对齐设计稿。
 class GroupDetailPage extends ConsumerStatefulWidget {
-  const GroupDetailPage({super.key, required this.roomId});
+  const GroupDetailPage({
+    super.key,
+    required this.roomId,
+    this.displayName,
+    this.avatarUrl,
+    this.scannedQr = false,
+  });
+
   final String roomId;
+  final String? displayName;
+  final String? avatarUrl;
+  final bool scannedQr;
 
   @override
   ConsumerState<GroupDetailPage> createState() => _GroupDetailPageState();
@@ -61,6 +71,40 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
             .valueOrNull ??
         const <AsGroupMember>[];
     if (room == null) {
+      final scannedDisplayName = _usableDisplayName(widget.displayName ?? '');
+      final scannedAvatarUrl = avatarHttpUrl(client, widget.avatarUrl);
+      _logGroupDetail(
+        'room missing roomId=${widget.roomId} scannedQr=${widget.scannedQr} '
+        'hasName=${scannedDisplayName.isNotEmpty} hasAvatar=${scannedAvatarUrl != null}',
+      );
+      if (widget.scannedQr ||
+          scannedDisplayName.isNotEmpty ||
+          scannedAvatarUrl != null) {
+        _logGroupDetail('show scanned item roomId=${widget.roomId}');
+        return Scaffold(
+          backgroundColor: context.tk.bg,
+          body: Column(
+            children: [
+              GlassHeader.detail(
+                title: l10n?.groupDetailChatInfoTitle(0) ?? '聊天信息(0)',
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                  child: _ScannedGroupQrCard(
+                    displayName: scannedDisplayName.isNotEmpty
+                        ? scannedDisplayName
+                        : widget.roomId,
+                    roomId: widget.roomId,
+                    avatarUrl: scannedAvatarUrl,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      _logGroupDetail('show missing state roomId=${widget.roomId}');
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(child: Text(l10n?.groupDetailMissing ?? '群组不存在')),
@@ -603,6 +647,10 @@ void _toast(BuildContext context, String message) {
   );
 }
 
+void _logGroupDetail(String message) {
+  debugPrint('group-detail $message');
+}
+
 class _GroupTextEditDialog extends StatefulWidget {
   const _GroupTextEditDialog({
     required this.title,
@@ -857,6 +905,69 @@ class _DashedCirclePainter extends CustomPainter {
 }
 
 // ─────────────────────────── 分组卡片 / 行 ───────────────────────────
+
+class _ScannedGroupQrCard extends StatelessWidget {
+  const _ScannedGroupQrCard({
+    required this.displayName,
+    required this.roomId,
+    required this.avatarUrl,
+  });
+
+  final String displayName;
+  final String roomId;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border.withValues(alpha: 0.3)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          PortalAvatar(
+            seed: displayName.isNotEmpty ? displayName : roomId,
+            size: 60,
+            imageUrl: avatarUrl,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 17,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n?.groupQrId(roomId) ?? 'ID $roomId',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 14, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _GroupedCard extends StatelessWidget {
   const _GroupedCard({required this.children});

@@ -914,7 +914,7 @@
   "qrInvalidGroup": "無効なグループQRコードです",
   "qrUnsupportedGroup": "このグループQRコードはまだサポートされていません",
   "qrScannerInstruction": "QRコードを枠内に入れると自動でスキャンします",
-  "qrScannerSupportUsers": "ユーザーQRコードのスキャンに対応しています",
+  "qrScannerSupportUsers": "ユーザーとグループのQRコードをスキャンできます",
   "meQrTitle": "自分のQRコード",
   "meQrHint": "上のQRコードをスキャンして友だちに追加できます。",
   "meQrSaveToAlbum": "写真に保存",
@@ -923,6 +923,16 @@
   "meQrSaveFailed": "保存に失敗しました。写真の権限を確認してください。",
   "meQrSaveTodo": "写真への保存機能はまだ接続されていません",
   "meQrUnconnectedDomain": "接続済みドメインなし",
+  "groupQrTitle": "グループQRコード",
+  "groupQrId": "グループID {roomId}",
+  "@groupQrId": {
+    "placeholders": {
+      "roomId": {
+        "type": "String"
+      }
+    }
+  },
+  "groupQrHint": "上のQRコードをスキャンしてグループチャットに参加できます。",
   "groupInviteTitle": "グループチャットへの招待",
   "groupInviteJoining": "「{groupName}」に参加中",
   "@groupInviteJoining": {

@@ -3086,7 +3086,7 @@ abstract class AppLocalizations {
   /// No description provided for @qrScannerSupportUsers.
   ///
   /// In zh, this message translates to:
-  /// **'支持扫描用户二维码'**
+  /// **'支持扫描用户和群二维码'**
   String get qrScannerSupportUsers;
 
   /// No description provided for @meQrTitle.
@@ -3136,6 +3136,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未连接域名'**
   String get meQrUnconnectedDomain;
+
+  /// No description provided for @groupQrTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'群二维码'**
+  String get groupQrTitle;
+
+  /// No description provided for @groupQrId.
+  ///
+  /// In zh, this message translates to:
+  /// **'群 ID {roomId}'**
+  String groupQrId(String roomId);
+
+  /// No description provided for @groupQrHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫一扫上面的二维码图案，加入群聊。'**
+  String get groupQrHint;
 
   /// No description provided for @groupInviteTitle.
   ///

@@ -51,6 +51,13 @@ void main() {
   });
 
   test('parses mobile join group qr formats', () {
+    final p2pGroupTarget = parseQrScanTarget(
+      'p2pim://group?room_id=!room:portal.local&name=真实群&avatar_url=mxc%3A%2F%2Fportal.local%2Fgroup',
+    );
+    expect(p2pGroupTarget?.groupId, '!room:portal.local');
+    expect(p2pGroupTarget?.displayName, '真实群');
+    expect(p2pGroupTarget?.avatarUrl, 'mxc://portal.local/group');
+
     expect(
       parseQrScanTarget('https://io.openim.app/joinGroup/group-a')?.groupId,
       'group-a',

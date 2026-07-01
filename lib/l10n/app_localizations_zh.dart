@@ -1619,7 +1619,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qrScannerInstruction => '将二维码放入框内，即可自动扫描';
 
   @override
-  String get qrScannerSupportUsers => '支持扫描用户二维码';
+  String get qrScannerSupportUsers => '支持扫描用户和群二维码';
 
   @override
   String get meQrTitle => '我的二维码';
@@ -1644,6 +1644,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => '未连接域名';
+
+  @override
+  String get groupQrTitle => '群二维码';
+
+  @override
+  String groupQrId(String roomId) {
+    return '群 ID $roomId';
+  }
+
+  @override
+  String get groupQrHint => '扫一扫上面的二维码图案，加入群聊。';
 
   @override
   String get groupInviteTitle => '邀请加入群聊';

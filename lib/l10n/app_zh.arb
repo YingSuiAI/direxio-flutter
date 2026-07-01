@@ -917,7 +917,7 @@
   "qrInvalidGroup": "无效的群二维码",
   "qrUnsupportedGroup": "暂不支持该群二维码",
   "qrScannerInstruction": "将二维码放入框内，即可自动扫描",
-  "qrScannerSupportUsers": "支持扫描用户二维码",
+  "qrScannerSupportUsers": "支持扫描用户和群二维码",
   "meQrTitle": "我的二维码",
   "meQrHint": "扫一扫上面的二维码图案，加我为好友。",
   "meQrSaveToAlbum": "保存到相册",
@@ -926,6 +926,16 @@
   "meQrSaveFailed": "保存失败，请检查相册权限",
   "meQrSaveTodo": "保存到相册功能待接入",
   "meQrUnconnectedDomain": "未连接域名",
+  "groupQrTitle": "群二维码",
+  "groupQrId": "ID {roomId}",
+  "@groupQrId": {
+    "placeholders": {
+      "roomId": {
+        "type": "String"
+      }
+    }
+  },
+  "groupQrHint": "扫一扫上面的二维码图案，加入群聊。",
   "groupInviteTitle": "邀请加入群聊",
   "groupInviteJoining": "正在加入“{groupName}”",
   "@groupInviteJoining": {

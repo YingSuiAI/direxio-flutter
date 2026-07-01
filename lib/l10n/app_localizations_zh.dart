@@ -1650,7 +1650,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String groupQrId(String roomId) {
-    return '群 ID $roomId';
+    return 'ID $roomId';
   }
 
   @override

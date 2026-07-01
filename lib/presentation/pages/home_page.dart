@@ -74,6 +74,63 @@ const _homeBottomBarHorizontalInset = 12.0;
 const _homeBottomBarGap = 12.0;
 const _homeBottomBarMinBottomInset = 12.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
+const _homeGroupParticipantsWarmupMaxMemberCount = 50;
+
+final _homeGroupParticipantsWarmupProvider =
+    FutureProvider.autoDispose.family<void, _HomeGroupParticipantsWarmupKey>(
+  (ref, key) async {
+    final roomId = key.roomId.trim();
+    if (roomId.isEmpty) return;
+    if (key.expectedJoinedMemberCount <= 0 ||
+        key.knownJoinedMemberCount >= key.expectedJoinedMemberCount ||
+        key.authoritativeMemberCount >= key.expectedJoinedMemberCount ||
+        key.expectedJoinedMemberCount >
+            _homeGroupParticipantsWarmupMaxMemberCount) {
+      return;
+    }
+    final client = ref.watch(matrixClientProvider);
+    final room = client.getRoomById(roomId);
+    if (room == null || client.homeserver == null) return;
+    final currentJoined = room.getParticipants([Membership.join]).length;
+    if (currentJoined >= key.expectedJoinedMemberCount) return;
+    try {
+      await room.requestParticipants([Membership.join], true);
+    } on Object catch (e) {
+      debugPrint('home group participants warmup failed: $e');
+    }
+  },
+);
+
+class _HomeGroupParticipantsWarmupKey {
+  const _HomeGroupParticipantsWarmupKey({
+    required this.roomId,
+    required this.expectedJoinedMemberCount,
+    required this.knownJoinedMemberCount,
+    required this.authoritativeMemberCount,
+  });
+
+  final String roomId;
+  final int expectedJoinedMemberCount;
+  final int knownJoinedMemberCount;
+  final int authoritativeMemberCount;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _HomeGroupParticipantsWarmupKey &&
+        other.roomId == roomId &&
+        other.expectedJoinedMemberCount == expectedJoinedMemberCount &&
+        other.knownJoinedMemberCount == knownJoinedMemberCount &&
+        other.authoritativeMemberCount == authoritativeMemberCount;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        roomId,
+        expectedJoinedMemberCount,
+        knownJoinedMemberCount,
+        authoritativeMemberCount,
+      );
+}
 
 @visibleForTesting
 double homeBottomBarEffectiveBottomInset(double bottomInset) {
@@ -1501,6 +1558,8 @@ class _HomeConversationEntryList extends ConsumerWidget {
         final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
         final productConversation = productConversationsByRoomId[roomId];
         final room = client.getRoomById(roomId);
+        final hasExplicitGroupAvatar =
+            entry.isGroup && entry.avatarUrl.trim().isNotEmpty;
         final authoritativeGroupMembers = entry.isGroup
             ? ref
                     .watch(
@@ -1514,6 +1573,27 @@ class _HomeConversationEntryList extends ConsumerWidget {
                     .valueOrNull ??
                 const <AsGroupMember>[]
             : const <AsGroupMember>[];
+        final expectedGroupMemberCount =
+            _homeExpectedGroupMemberCount(productConversation, room);
+        final knownJoinedGroupMembers = entry.isGroup && room != null
+            ? room.getParticipants([Membership.join]).length
+            : 0;
+        if (entry.isGroup &&
+            room != null &&
+            !hasExplicitGroupAvatar &&
+            expectedGroupMemberCount > knownJoinedGroupMembers &&
+            authoritativeGroupMembers.length < expectedGroupMemberCount) {
+          ref.watch(
+            _homeGroupParticipantsWarmupProvider(
+              _HomeGroupParticipantsWarmupKey(
+                roomId: roomId,
+                expectedJoinedMemberCount: expectedGroupMemberCount,
+                knownJoinedMemberCount: knownJoinedGroupMembers,
+                authoritativeMemberCount: authoritativeGroupMembers.length,
+              ),
+            ),
+          );
+        }
         final groupAvatarMembers = entry.isGroup && room != null
             ? stableGroupAvatarMembersForRoom(
                 room: room,
@@ -1564,6 +1644,12 @@ class _HomeConversationEntryList extends ConsumerWidget {
       },
     );
   }
+}
+
+int _homeExpectedGroupMemberCount(AsConversation? conversation, Room? room) {
+  final productCount = conversation?.memberCount ?? 0;
+  final matrixCount = room?.summary.mJoinedMemberCount ?? 0;
+  return productCount > matrixCount ? productCount : matrixCount;
 }
 
 String _homeConversationPreviewText(

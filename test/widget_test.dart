@@ -3821,6 +3821,19 @@ void main() {
               ),
             ]),
           ),
+          productConversationsProvider.overrideWith(
+            (ref) async => const [
+              AsConversation(
+                conversationId: conversationId,
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '产品群',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ],
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -8684,6 +8697,134 @@ void main() {
     );
   });
 
+  testWidgets('chat list group avatar loads complete startup participants',
+      (tester) async {
+    const roomId = '!group-avatar-startup:p2p-im.com';
+    var membersRequests = 0;
+    final client = Client(
+      'DirexioHomeGroupAvatarStartupMembersTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/members')) {
+          membersRequests++;
+          return http.Response(
+            jsonEncode({
+              'chunk': [
+                for (final entry in const {
+                  '@owner:p2p-im.com': 'Owner',
+                  '@alice:p2p-im.com': 'Alice',
+                  '@bob:p2p-im.com': 'Bob',
+                  '@carol:p2p-im.com': 'Carol',
+                  '@dave:p2p-im.com': 'Dave',
+                  '@erin:p2p-im.com': 'Erin',
+                  '@frank:p2p-im.com': 'Frank',
+                }.entries)
+                  {
+                    'content': {
+                      'membership': 'join',
+                      'displayname': entry.value,
+                    },
+                    'type': EventTypes.RoomMember,
+                    'event_id': '\$member-${entry.key}',
+                    'room_id': roomId,
+                    'sender': entry.key,
+                    'origin_server_ts': 1780000000000,
+                    'state_key': entry.key,
+                  },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'test-token';
+    final room = _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '七人群',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    room.summary = RoomSummary.fromJson({
+      'm.joined_member_count': 7,
+      'm.invited_member_count': 0,
+    });
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '七人群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 7,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          voiceCallControllerProvider.overrideWithValue(
+            _IdleVoiceCallController(),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => _MemoryConversationSummaryStore(),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+
+    final groupRow = find.byKey(const ValueKey('home_conversation_$roomId'));
+    expect(groupRow, findsOneWidget);
+    expect(membersRequests, 1);
+    expect(
+      room.getParticipants([Membership.join]).map((user) => user.id),
+      contains('@frank:p2p-im.com'),
+    );
+    expect(
+      find.descendant(
+        of: groupRow,
+        matching: find.byKey(
+          const ValueKey('group_composite_avatar_member_@frank:p2p-im.com'),
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('chat list group avatar prefers explicit group image',
       (tester) async {
     const roomId = '!group-explicit-avatar:p2p-im.com';
@@ -11552,6 +11693,7 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('我的群组'), findsOneWidget);
     expect(find.text('P2P IM 核心群'), findsNothing);
     expect(find.text('产品设计组'), findsNothing);
     expect(find.text('Agent 创作小组'), findsNothing);
@@ -11784,7 +11926,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('AS 产品群'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('2'), findsNothing);
     expect(find.text('群'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
     expect(find.text('agent'), findsNothing);
@@ -11852,6 +11994,120 @@ void main() {
 
     expect(find.text('不显示时间群'), findsOneWidget);
     expect(find.text('09:37'), findsNothing);
+  });
+
+  testWidgets('groups list sorts by initial and shows alphabet index',
+      (tester) async {
+    final client = Client('DirexioGroupsAlphabetizedListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final conversations = [
+      AsConversation(
+        conversationId: 'conv_zeta',
+        roomId: '!zeta:p2p-im.com',
+        kind: asConversationKindGroup,
+        lifecycle: 'active',
+        title: 'Zeta群',
+        avatarUrl: '',
+        lastActivityAt: DateTime.utc(2026, 6, 21, 13),
+        membership: asChannelMemberStatusJoined,
+        capabilities: const AsConversationCapabilities(open: true),
+      ),
+      AsConversation(
+        conversationId: 'conv_alpha',
+        roomId: '!alpha:p2p-im.com',
+        kind: asConversationKindGroup,
+        lifecycle: 'active',
+        title: 'Alpha群',
+        avatarUrl: '',
+        lastActivityAt: DateTime.utc(2026, 6, 21, 11),
+        membership: asChannelMemberStatusJoined,
+        capabilities: const AsConversationCapabilities(open: true),
+      ),
+      AsConversation(
+        conversationId: 'conv_beta',
+        roomId: '!beta:p2p-im.com',
+        kind: asConversationKindGroup,
+        lifecycle: 'active',
+        title: 'Beta群',
+        avatarUrl: '',
+        lastActivityAt: DateTime.utc(2026, 6, 21, 12),
+        membership: asChannelMemberStatusJoined,
+        capabilities: const AsConversationCapabilities(open: true),
+      ),
+    ];
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!zeta:p2p-im.com',
+          name: 'Zeta群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsSyncRoomSummary(
+          roomId: '!alpha:p2p-im.com',
+          name: 'Alpha群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsSyncRoomSummary(
+          roomId: '!beta:p2p-im.com',
+          name: 'Beta群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          productConversationsProvider.overrideWith(
+            (ref) async => conversations,
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('groups_alphabet_index')), findsOneWidget);
+    final firstGroupAvatarTop = tester
+        .getTopLeft(
+          find.byKey(const ValueKey('group_avatar_!alpha:p2p-im.com')),
+        )
+        .dy;
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('groups_alphabet_index'))).dy,
+      closeTo(firstGroupAvatarTop - 252, 0.1),
+    );
+    expect(
+      tester.getTopLeft(find.text('Alpha群')).dy,
+      lessThan(tester.getTopLeft(find.text('Beta群')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Beta群')).dy,
+      lessThan(tester.getTopLeft(find.text('Zeta群')).dy),
+    );
   });
 
   testWidgets('groups list hides non-joined group projections', (tester) async {
@@ -12074,6 +12330,7 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          productConversationsProvider.overrideWith((ref) async => const []),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
       ),
@@ -12088,6 +12345,15 @@ void main() {
       (tester) async {
     const roomId = '!group:p2p-im.com';
     const conversationId = 'conv_group';
+    const productConversation = AsConversation(
+      conversationId: conversationId,
+      roomId: roomId,
+      kind: asConversationKindGroup,
+      lifecycle: 'active',
+      title: '产品群',
+      avatarUrl: '',
+      capabilities: AsConversationCapabilities(open: true),
+    );
     final client = Client('DirexioGroupsProductOpenTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
@@ -12130,18 +12396,10 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(
-            _ConversationListAsClient(const [
-              AsConversation(
-                conversationId: conversationId,
-                roomId: roomId,
-                kind: asConversationKindGroup,
-                lifecycle: 'active',
-                title: '产品群',
-                avatarUrl: '',
-                capabilities: AsConversationCapabilities(open: true),
-              ),
-            ]),
+            _ConversationListAsClient(const [productConversation]),
           ),
+          productConversationsProvider
+              .overrideWith((ref) async => const [productConversation]),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -12302,7 +12560,7 @@ void main() {
     );
   });
 
-  testWidgets('groups list labels image previews instead of filenames',
+  testWidgets('groups list hides message previews and filenames',
       (tester) async {
     const imageName =
         'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
@@ -12372,7 +12630,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('真实群'), findsOneWidget);
-    expect(find.text('收到图片'), findsOneWidget);
+    expect(find.text('收到图片'), findsNothing);
     expect(find.text(imageName), findsNothing);
   });
 

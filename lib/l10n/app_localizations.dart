@@ -3146,7 +3146,7 @@ abstract class AppLocalizations {
   /// No description provided for @groupQrId.
   ///
   /// In zh, this message translates to:
-  /// **'群 ID {roomId}'**
+  /// **'ID {roomId}'**
   String groupQrId(String roomId);
 
   /// No description provided for @groupQrHint.

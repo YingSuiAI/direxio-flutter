@@ -16,12 +16,17 @@ import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
-import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const _groupsToolbarHeight = 62.0;
+const _groupSectionHeaderHeight = 28.0;
+const _groupRowHeight = 52.0;
+const _groupAvatarSize = 28.0;
+const _groupsAlphabetIndexLift = 240.0;
+const _groupsAlphabetIndexTop =
+    _groupSectionHeaderHeight - _groupsAlphabetIndexLift;
 
 final AppLocalizations _fallbackGroupsListL10n = AppLocalizationsZh();
 
@@ -69,11 +74,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     final groupConversations = [
       for (final conversation in productConversations)
         if (conversation.isGroup) conversation,
-    ]..sort((a, b) {
-        final ta = a.lastActivityAt?.millisecondsSinceEpoch ?? 0;
-        final tb = b.lastActivityAt?.millisecondsSinceEpoch ?? 0;
-        return tb.compareTo(ta);
-      });
+    ];
     for (final conversation in groupConversations) {
       final roomId = conversation.roomId.trim();
       if (roomId.isEmpty) continue;
@@ -81,7 +82,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       final group = groupsByRoomId[roomId];
       if (!_isVisibleGroupForList(group, conversation)) continue;
       final room = client.getRoomById(roomId);
-      final lastEvent = room?.lastEvent;
       final productTitle = conversation.title.trim();
       final groupName = group?.name.trim() ?? '';
       final authoritativeGroupMembers = ref
@@ -128,20 +128,13 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                       : safeRoomDisplayName(room).isNotEmpty
                           ? safeRoomDisplayName(room)
                           : l10n.contactsGroups,
-          preview: lastEvent == null
-              ? _previewText(group?.topic ?? '')
-              : roomEventPreviewText(lastEvent, isAgent: false, l10n: l10n),
           avatarMembers: groupAvatarMembers?.members ??
               cachedGroupAvatarMembers(
                 cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
                 cachedMemberAvatarUrls:
                     groupAvatarMemberAvatars[roomId] ?? const {},
               ),
-          unread: (group?.unreadCount ?? 0) > 0
-              ? group!.unreadCount
-              : room?.notificationCount ?? 0,
           avatarUrl: avatarUrl,
-          isOwner: group?.isOwned ?? false,
           productConversation: _openableGroupConversationForList(conversation),
         ),
       );
@@ -152,13 +145,20 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         : items
             .where((g) => g.name.toLowerCase().contains(_query.toLowerCase()))
             .toList();
+    final groupedItems = _groupItemsByInitial(filtered);
+    final sectionKeys = groupedItems.keys.toList()
+      ..sort((a, b) {
+        if (a == '#') return 1;
+        if (b == '#') return -1;
+        return a.compareTo(b);
+      });
 
     return Scaffold(
       backgroundColor: t.bg,
       body: Column(
         children: [
           _GroupsToolbar(
-            title: l10n.contactsGroups,
+            title: l10n.contactsMyGroups,
             onBack: () => Navigator.of(context).maybePop(),
             onCreate: () => showCreateGroupFlow(context, ref),
           ),
@@ -181,10 +181,28 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                       style: AppTheme.sans(size: 13, color: t.textMute),
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) => _GroupRow(item: filtered[i]),
+                : Stack(
+                    children: [
+                      ListView(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        children: [
+                          for (final sectionKey in sectionKeys) ...[
+                            _GroupSectionHeader(label: sectionKey),
+                            for (final item in groupedItems[sectionKey]!)
+                              _GroupRow(item: item),
+                          ],
+                        ],
+                      ),
+                      Positioned(
+                        key: const ValueKey('groups_alphabet_index'),
+                        top: _groupsAlphabetIndexTop,
+                        right: 8,
+                        bottom: 24,
+                        child: _GroupsAlphabetIndex(
+                          activeLetters: sectionKeys.toSet(),
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -412,21 +430,129 @@ class _GroupItem {
   const _GroupItem({
     required this.id,
     required this.name,
-    required this.preview,
     this.avatarUrl = '',
     this.avatarMembers = const [],
-    required this.unread,
-    this.isOwner = false,
     this.productConversation,
   });
   final String id;
   final String name;
-  final String preview;
   final String avatarUrl;
   final List<GroupCompositeAvatarMember> avatarMembers;
-  final int unread;
-  final bool isOwner;
   final AsConversation? productConversation;
+}
+
+Map<String, List<_GroupItem>> _groupItemsByInitial(List<_GroupItem> items) {
+  final grouped = <String, List<_GroupItem>>{};
+  final sorted = [...items]
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  for (final item in sorted) {
+    final key = _groupInitial(item.name);
+    grouped.putIfAbsent(key, () => []).add(item);
+  }
+  return grouped;
+}
+
+String _groupInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '#';
+  final first = trimmed.characters.first.toUpperCase();
+  final unit = first.codeUnitAt(0);
+  if (unit >= 65 && unit <= 90) return first;
+  return '#';
+}
+
+class _GroupSectionHeader extends StatelessWidget {
+  const _GroupSectionHeader({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: _groupSectionHeaderHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 16,
+              weight: FontWeight.w600,
+              color: t.text,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupsAlphabetIndex extends StatelessWidget {
+  const _GroupsAlphabetIndex({required this.activeLetters});
+
+  static const _letters = [
+    '#',
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'G',
+    'H',
+    'I',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'P',
+    'Q',
+    'R',
+    'S',
+    'T',
+    'U',
+    'V',
+    'W',
+    'X',
+    'Y',
+    'Z',
+  ];
+
+  final Set<String> activeLetters;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return IgnorePointer(
+      child: SizedBox(
+        width: 12,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _letters
+                .map(
+                  (letter) => Text(
+                    letter,
+                    style: AppTheme.sans(
+                      size: 10,
+                      weight: activeLetters.contains(letter)
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color:
+                          activeLetters.contains(letter) ? t.text : t.textMute,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _GroupRow extends StatelessWidget {
@@ -437,8 +563,6 @@ class _GroupRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final name = item.name;
-    final preview = item.preview;
-    final unread = item.unread;
 
     return Material(
       color: t.surface.withValues(alpha: 0),
@@ -457,19 +581,19 @@ class _GroupRow extends StatelessWidget {
               GroupCompositeAvatar(
                 key: ValueKey('group_avatar_${item.id}'),
                 seed: name,
-                size: 48,
+                size: _groupAvatarSize,
                 imageUrl: item.avatarUrl,
                 stableCacheKey: 'group:${item.id}',
                 members: item.avatarUrl.trim().isEmpty
                     ? item.avatarMembers
                     : const [],
                 minimumSlots: 4,
-                radius: 12,
+                radius: 6,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Container(
-                  height: preview.isEmpty ? 56 : 64,
+                  height: _groupRowHeight,
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
@@ -478,73 +602,18 @@ class _GroupRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.sans(
-                                      size: 14,
-                                      weight: FontWeight.w600,
-                                      color: t.text,
-                                    ),
-                                  ),
-                                ),
-                                if (item.isOwner) ...[
-                                  const SizedBox(width: 6),
-                                  _OwnerBadge(),
-                                ],
-                              ],
-                            ),
-                            if (preview.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                preview,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 12,
-                                  color: t.textMute,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: t.text,
                       ),
-                      if (unread > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          height: 20,
-                          constraints: const BoxConstraints(minWidth: 20),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: unread > 99 ? 5 : 0,
-                          ),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: t.accent,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            unread > 99 ? '99+' : '$unread',
-                            textAlign: TextAlign.center,
-                            style: AppTheme.sans(
-                              size: unread > 99 ? 9 : 11,
-                              weight: FontWeight.w700,
-                              color: t.onAccent,
-                            ).copyWith(height: 1),
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -554,34 +623,4 @@ class _GroupRow extends StatelessWidget {
       ),
     );
   }
-}
-
-class _OwnerBadge extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final l10n = _groupsListL10n(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        l10n.groupsListOwnerBadge,
-        style: AppTheme.sans(
-          size: 10,
-          weight: FontWeight.w600,
-          color: t.textMute,
-        ),
-      ),
-    );
-  }
-}
-
-String _previewText(String raw) {
-  return raw
-      .replaceAll(RegExp(r'[*_`#~]'), '')
-      .replaceAll(RegExp(r'\s*\n+\s*'), ' ')
-      .trim();
 }

@@ -309,29 +309,13 @@
   "channelManageInviteOwner": "频道主",
   "channelManageInviteMembers": "邀请成员",
   "channelManageInviteMembersValue": "通过 ID 或链接",
-  "channelManageOwnerOnline": "所有者 · 在线",
-  "channelManageMemberModeration": "成员 · 内容审核",
-  "channelManageMemberOperations": "成员 · 运营",
-  "channelManageBotRiskControl": "机器人 · 风控",
-  "channelManageReviewSpeechTitle": "新成员发言申请",
-  "channelManageReviewSpeechBody": "用户 @ray 申请在公告频道发布节点同步说明。",
-  "channelManageReviewSpeechTag": "发言",
-  "channelManageReviewLinkTitle": "链接风险提示",
-  "channelManageReviewLinkBody": "检测到外部链接，需要频道主确认后展示。",
-  "channelManageReviewLinkTag": "链接",
-  "channelManageReviewReportTitle": "举报消息",
-  "channelManageReviewReportBody": "2 位成员举报该消息包含重复广告内容。",
-  "channelManageReviewReportTag": "举报",
+  "channelManageMembersEmptyTitle": "暂无成员明细",
+  "channelManageModerationEmptyTitle": "暂无审核明细",
   "channelManageAutoRules": "自动审核规则",
-  "channelManageAutoRulesValue": "关键词 / 链接 / 频率",
   "channelManageEditProfile": "编辑资料",
   "channelManageManage": "管理",
   "channelManageManaging": "管理中",
-  "channelManageApprove": "通过",
-  "channelManageReject": "拒绝",
-  "channelManageDefaultChannelName": "P2P Matrix 公告",
-  "channelManageDefaultChannelDescription": "项目公告、节点状态与版本发布",
-  "channelManageChannelSummary": "{visibility}频道 · {members} 人 · 今日 {messages} 条",
+  "channelManageChannelSummary": "{visibility}频道 · {members} 人",
   "@channelManageChannelSummary": {
     "placeholders": {
       "visibility": {
@@ -339,9 +323,6 @@
       },
       "members": {
         "type": "String"
-      },
-      "messages": {
-        "type": "int"
       }
     }
   },

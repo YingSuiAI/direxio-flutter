@@ -3382,7 +3382,8 @@ void main() {
     expect(find.text('ID:!empty:p2p-im.com'), findsOneWidget);
   });
 
-  testWidgets('channel conversation page renders figma chat surface',
+  testWidgets(
+      'channel conversation page renders chat shell without mock messages',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -3435,13 +3436,14 @@ void main() {
       findsNothing,
     );
     expect(find.text('频道已创建'), findsOneWidget);
-    expect(find.text('Alice'), findsAtLeastNWidgets(1));
-    expect(find.text('我正在考虑接受它！！'), findsAtLeastNWidgets(1));
+    expect(find.text('Alice'), findsNothing);
+    expect(find.text('我正在考虑接受它！！'), findsNothing);
     expect(find.text('按住 说话'), findsOneWidget);
     expect(find.byIcon(Symbols.lock), findsNothing);
   });
 
-  testWidgets('channel conversation long press hides delete action',
+  testWidgets(
+      'channel conversation has no message actions before real messages',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -3484,21 +3486,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('我正在考虑接受它！！'), findsNWidgets(2));
-
-    await tester.longPress(find.text('我正在考虑接受它！！').first);
-    await tester.pumpAndSettle();
-    expect(find.text('复制'), findsOneWidget);
-    expect(find.text('删除'), findsNothing);
-
-    await tester.tap(find.text('复制'));
-    await tester.pumpAndSettle();
+    expect(find.text('我正在考虑接受它！！'), findsNothing);
     expect(find.text('复制'), findsNothing);
-
-    await tester.longPress(find.text('我正在考虑接受它！！').first);
-    await tester.pumpAndSettle();
     expect(find.text('删除'), findsNothing);
-    expect(find.text('我正在考虑接受它！！'), findsNWidgets(2));
   });
 
   testWidgets('post list more button opens channel info page', (tester) async {
@@ -3556,7 +3546,8 @@ void main() {
     expect(find.text('解散频道'), findsOneWidget);
   });
 
-  testWidgets('owned channel member management renders members tab',
+  testWidgets(
+      'owned channel member management renders real summary empty state',
       (tester) async {
     final asClient = _PostingChannelAsClient();
     final bootstrap = AsSyncBootstrap(
@@ -3606,8 +3597,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('成员与角色'), findsOneWidget);
-    expect(find.text('Niki'), findsOneWidget);
-    expect(find.text('Alex Chen'), findsOneWidget);
+    expect(find.text('暂无成员明细'), findsOneWidget);
+    expect(find.text('Niki'), findsNothing);
+    expect(find.text('Alex Chen'), findsNothing);
   });
 
   testWidgets('real channel page marks latest post as read', (tester) async {

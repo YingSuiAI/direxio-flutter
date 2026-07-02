@@ -6150,7 +6150,7 @@ void main() {
     );
   });
 
-  testWidgets('create group name field shows selected friends without avatars',
+  testWidgets('create group name field hides the leading avatar',
       (tester) async {
     final client = Client('DirexioCreateGroupNameFieldInitialsTest')
       ..setUserId('@owner:p2p-im.com')
@@ -6225,39 +6225,9 @@ void main() {
     final composite = find.byKey(
       const ValueKey('create_group_composite_avatar'),
     );
-    expect(composite, findsOneWidget);
+    expect(composite, findsNothing);
     expect(
-      find.descendant(
-        of: composite,
-        matching: find.byWidgetPredicate(
-          (widget) => widget is PortalAvatar && widget.seed == 'Alice',
-        ),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: composite,
-        matching: find.byWidgetPredicate(
-          (widget) => widget is PortalAvatar && widget.seed == 'Bob',
-        ),
-      ),
-      findsNothing,
-    );
-    final avatarSeeds = tester
-        .widgetList<PortalAvatar>(
-          find.descendant(of: composite, matching: find.byType(PortalAvatar)),
-        )
-        .map((avatar) => avatar.seed)
-        .toList(growable: false);
-    expect(avatarSeeds, ['我']);
-    final ownerAvatarFinder =
-        find.descendant(of: composite, matching: find.byType(PortalAvatar));
-    final ownerAvatar = tester.widget<PortalAvatar>(ownerAvatarFinder.first);
-    expect(ownerAvatar.size, closeTo(23.5, 0.001));
-    expect(ownerAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
-    expect(tester.getTopLeft(ownerAvatarFinder.first),
-        tester.getTopLeft(composite));
+        find.byKey(const ValueKey('create_group_name_field')), findsOneWidget);
   });
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',

@@ -306,29 +306,13 @@
   "channelManageInviteOwner": "所有者",
   "channelManageInviteMembers": "メンバーを招待",
   "channelManageInviteMembersValue": "ID またはリンクで招待",
-  "channelManageOwnerOnline": "所有者 · オンライン",
-  "channelManageMemberModeration": "メンバー · 審査",
-  "channelManageMemberOperations": "メンバー · 運営",
-  "channelManageBotRiskControl": "Bot · リスク管理",
-  "channelManageReviewSpeechTitle": "新メンバーの投稿申請",
-  "channelManageReviewSpeechBody": "ユーザー @ray が告知チャンネルにノード同期メモの投稿を申請しました。",
-  "channelManageReviewSpeechTag": "投稿",
-  "channelManageReviewLinkTitle": "リンクリスク警告",
-  "channelManageReviewLinkBody": "外部リンクが検出されました。表示前に所有者の確認が必要です。",
-  "channelManageReviewLinkTag": "リンク",
-  "channelManageReviewReportTitle": "報告されたメッセージ",
-  "channelManageReviewReportBody": "2 人のメンバーがこのメッセージを重複広告として報告しました。",
-  "channelManageReviewReportTag": "報告",
+  "channelManageMembersEmptyTitle": "メンバー詳細はまだありません",
+  "channelManageModerationEmptyTitle": "審査詳細はまだありません",
   "channelManageAutoRules": "自動審査ルール",
-  "channelManageAutoRulesValue": "キーワード / リンク / 頻度",
   "channelManageEditProfile": "情報を編集",
   "channelManageManage": "管理",
   "channelManageManaging": "管理中",
-  "channelManageApprove": "承認",
-  "channelManageReject": "拒否",
-  "channelManageDefaultChannelName": "P2P Matrix お知らせ",
-  "channelManageDefaultChannelDescription": "プロジェクト告知、ノード状態、リリース情報",
-  "channelManageChannelSummary": "{visibility}チャンネル · {members} 人 · 今日 {messages} 件",
+  "channelManageChannelSummary": "{visibility}チャンネル · {members} 人",
   "@channelManageChannelSummary": {
     "placeholders": {
       "visibility": {
@@ -336,9 +320,6 @@
       },
       "members": {
         "type": "String"
-      },
-      "messages": {
-        "type": "int"
       }
     }
   },

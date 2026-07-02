@@ -156,7 +156,6 @@ class _ManageChannel {
     required this.domain,
     required this.description,
     required this.memberCount,
-    required this.todayMessages,
     required this.pendingCount,
     required this.color,
     required this.isOwned,
@@ -171,7 +170,6 @@ class _ManageChannel {
   final String domain;
   final String description;
   final int memberCount;
-  final int todayMessages;
   final int pendingCount;
   final Color color;
   final bool isOwned;
@@ -200,7 +198,6 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
               ? channel.latestPreview
               : channel.description,
           memberCount: channel.memberCount,
-          todayMessages: channel.unreadCount + 24,
           pendingCount: channel.pendingJoinCount,
           color: PortalTokens.brandPrimary,
           isOwned: true,
@@ -450,10 +447,6 @@ class _OverviewSection extends StatelessWidget {
       0,
       (value, channel) => value + channel.memberCount,
     );
-    final totalMessages = channels.fold<int>(
-      0,
-      (value, channel) => value + channel.todayMessages,
-    );
     final pending = channels.fold<int>(
       0,
       (value, channel) => value + channel.pendingCount,
@@ -473,17 +466,17 @@ class _OverviewSection extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: l10n.channelManageStatTodayMessages,
-                value: '$totalMessages',
-                color: const Color(0xFF1FAF71),
+                label: l10n.channelManageStatPending,
+                value: '$pending',
+                color: t.accentCool,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: l10n.channelManageStatPending,
-                value: '$pending',
-                color: const Color(0xFFF59E0B),
+                label: l10n.channelManageMyChannels,
+                value: '${channels.length}',
+                color: t.primaryContainer,
               ),
             ),
           ],
@@ -521,8 +514,8 @@ class _OverviewSection extends StatelessWidget {
         _ActionRow(
           icon: Symbols.link,
           label: l10n.channelManageInviteLinks,
-          value: l10n.channelManageInviteLinksValue(3),
-          color: const Color(0xFF1FAF71),
+          value: l10n.channelManageDisabled,
+          color: t.accentCool,
           onTap: () => _showComingSoon(context, l10n.channelManageInviteLinks),
         ),
       ],
@@ -618,15 +611,6 @@ class _MembersSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = context.tk;
-    final members = [
-      _Member('Niki', l10n.channelManageOwnerOnline, channel.color),
-      _Member('Alex Chen', l10n.channelManageMemberModeration,
-          const Color(0xFF1FAF71)),
-      _Member(
-          'Mina', l10n.channelManageMemberOperations, const Color(0xFF6F4CE6)),
-      _Member('Bot Monitor', l10n.channelManageBotRiskControl,
-          const Color(0xFFF59E0B)),
-    ];
     return Column(
       children: [
         Row(
@@ -641,17 +625,17 @@ class _MembersSection extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: l10n.channelManageStatNewToday,
-                value: '58',
-                color: const Color(0xFF1FAF71),
+                label: l10n.channelManageStatSubscribers,
+                value: _compactCount(channel.memberCount),
+                color: t.accentCool,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: l10n.channelManageStatMuted,
-                value: '7',
-                color: t.danger,
+                label: l10n.channelManageStatPending,
+                value: '${channel.pendingCount}',
+                color: t.primaryContainer,
               ),
             ),
           ],
@@ -666,10 +650,10 @@ class _MembersSection extends StatelessWidget {
               _showComingSoon(context, l10n.channelManageInviteMembers),
         ),
         const SizedBox(height: 12),
-        for (final member in members) ...[
-          _MemberRow(member: member),
-          const SizedBox(height: 10),
-        ],
+        _EmptyPanel(
+          icon: Symbols.groups,
+          title: l10n.channelManageMembersEmptyTitle,
+        ),
       ],
     );
   }
@@ -691,55 +675,23 @@ class _ModerationSection extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 label: l10n.channelManageStatPending,
-                value: '${channel.pendingCount + 20}',
-                color: const Color(0xFFF59E0B),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatCard(
-                label: l10n.channelManageStatReports,
-                value: '5',
-                color: t.danger,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatCard(
-                label: l10n.channelManageStatAutoApproved,
-                value: '91%',
-                color: const Color(0xFF1FAF71),
+                value: '${channel.pendingCount}',
+                color: t.accentCool,
               ),
             ),
           ],
         ),
         const SizedBox(height: 18),
-        _ReviewCard(
-          title: l10n.channelManageReviewSpeechTitle,
-          body: l10n.channelManageReviewSpeechBody,
-          tag: l10n.channelManageReviewSpeechTag,
-          color: t.accent,
-        ),
-        const SizedBox(height: 12),
-        _ReviewCard(
-          title: l10n.channelManageReviewLinkTitle,
-          body: l10n.channelManageReviewLinkBody,
-          tag: l10n.channelManageReviewLinkTag,
-          color: const Color(0xFFF59E0B),
-        ),
-        const SizedBox(height: 12),
-        _ReviewCard(
-          title: l10n.channelManageReviewReportTitle,
-          body: l10n.channelManageReviewReportBody,
-          tag: l10n.channelManageReviewReportTag,
-          color: t.danger,
+        _EmptyPanel(
+          icon: Symbols.fact_check,
+          title: l10n.channelManageModerationEmptyTitle,
         ),
         const SizedBox(height: 18),
         _ActionRow(
           icon: Symbols.rule,
           label: l10n.channelManageAutoRules,
-          value: l10n.channelManageAutoRulesValue,
-          color: const Color(0xFF6F4CE6),
+          value: l10n.channelManageDisabled,
+          color: t.primaryContainer,
           onTap: () => _showComingSoon(context, l10n.channelManageAutoRules),
         ),
       ],
@@ -840,7 +792,6 @@ class _ChannelManageCard extends StatelessWidget {
                     l10n.channelManageChannelSummary(
                       _visibilityLabel(l10n, channel.visibility),
                       _compactCount(channel.memberCount),
-                      channel.todayMessages,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1062,217 +1013,31 @@ class _DangerRow extends StatelessWidget {
   }
 }
 
-class _Member {
-  const _Member(this.name, this.role, this.color);
-
-  final String name;
-  final String role;
-  final Color color;
-}
-
-class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member});
-
-  final _Member member;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final t = context.tk;
-    return _Surface(
-      height: 64,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: member.color.withValues(alpha: 0.16),
-              child: Text(
-                member.name.characters.first,
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w700,
-                  color: member.color,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    member.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 15,
-                      weight: FontWeight.w600,
-                      color: t.text,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    member.role,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 12,
-                      color: t.textMute,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              height: 28,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: t.surfaceHover,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                l10n.channelManageManage,
-                style: AppTheme.sans(
-                  size: 12,
-                  weight: FontWeight.w600,
-                  color: t.accent,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({
+class _EmptyPanel extends StatelessWidget {
+  const _EmptyPanel({
+    required this.icon,
     required this.title,
-    required this.body,
-    required this.tag,
-    required this.color,
   });
 
+  final IconData icon;
   final String title;
-  final String body;
-  final String tag;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final t = context.tk;
-    return _Surface(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 15,
-                      weight: FontWeight.w600,
-                      color: t.text,
-                    ),
-                  ),
-                ),
-                _TagPill(text: tag, color: color),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(size: 13, color: t.textMute),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                _ReviewButton(
-                  label: l10n.channelManageApprove,
-                  color: const Color(0xFF1FAF71),
-                ),
-                const SizedBox(width: 10),
-                _ReviewButton(
-                  label: l10n.channelManageReject,
-                  color: t.danger,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewButton extends StatelessWidget {
-  const _ReviewButton({
-    required this.label,
-    required this.color,
-  });
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 22),
+      height: 92,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Text(
-        label,
-        style: AppTheme.sans(
-          size: 12,
-          weight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _TagPill extends StatelessWidget {
-  const _TagPill({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        text,
-        style: AppTheme.sans(
-          size: 11,
-          weight: FontWeight.w600,
-          color: color,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 26, color: t.textMute),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: AppTheme.sans(size: 13, color: t.textMute),
+          ),
+        ],
       ),
     );
   }

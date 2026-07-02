@@ -23,7 +23,6 @@ import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../groups/group_invite_content.dart';
 import '../widgets/m3/m3_search_field.dart';
-import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/center_toast.dart';
 
@@ -456,9 +455,6 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
       });
     final canComplete = _selectedMxids.isNotEmpty;
     final selectedContacts = _selectedContacts();
-    final currentUserProfile =
-        ref.watch(currentUserProfileProvider).valueOrNull;
-
     final t = context.tk;
     final l10n = Localizations.of<AppLocalizations>(
       context,
@@ -529,8 +525,6 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                   if (_showGroupSetup)
                     Expanded(
                       child: _CreateGroupSetupStep(
-                        client: widget.client,
-                        currentUserProfile: currentUserProfile,
                         controller: _groupNameController,
                         focusNode: _groupNameFocusNode,
                         selectedContacts: selectedContacts,
@@ -683,8 +677,6 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
 
 class _CreateGroupSetupStep extends StatelessWidget {
   const _CreateGroupSetupStep({
-    required this.client,
-    required this.currentUserProfile,
     required this.controller,
     required this.focusNode,
     required this.selectedContacts,
@@ -694,8 +686,6 @@ class _CreateGroupSetupStep extends StatelessWidget {
     required this.onSubmit,
   });
 
-  final Client client;
-  final Profile? currentUserProfile;
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<AsSyncContact> selectedContacts;
@@ -713,8 +703,6 @@ class _CreateGroupSetupStep extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               _CreateGroupInfoCard(
-                client: client,
-                currentUserProfile: currentUserProfile,
                 controller: controller,
                 focusNode: focusNode,
               ),
@@ -735,14 +723,10 @@ class _CreateGroupSetupStep extends StatelessWidget {
 
 class _CreateGroupInfoCard extends StatelessWidget {
   const _CreateGroupInfoCard({
-    required this.client,
-    required this.currentUserProfile,
     required this.controller,
     required this.focusNode,
   });
 
-  final Client client;
-  final Profile? currentUserProfile;
   final TextEditingController controller;
   final FocusNode focusNode;
 
@@ -753,12 +737,6 @@ class _CreateGroupInfoCard extends StatelessWidget {
       context,
       AppLocalizations,
     );
-    final avatarMembers = <GroupCompositeAvatarMember>[
-      GroupCompositeAvatarMember(
-        seed: '我',
-        imageUrl: profileAvatarHttpUrl(currentUserProfile, client),
-      ),
-    ];
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -768,14 +746,6 @@ class _CreateGroupInfoCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          GroupCompositeAvatar(
-            key: const ValueKey('create_group_composite_avatar'),
-            seed: '我',
-            size: 48,
-            members: avatarMembers,
-            minimumSlots: 4,
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: TextField(
               key: const ValueKey('create_group_name_field'),

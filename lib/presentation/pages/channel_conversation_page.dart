@@ -43,7 +43,7 @@ class _ChannelConversationPageState
       AppLocalizations,
     );
     final channel = resolveChannelInfoData(ref, widget.channelId);
-    final messages = _messages ??= _initialMessages(channel.id);
+    final messages = _messages ??= _initialMessages();
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -161,23 +161,8 @@ class _ChannelConversationPageState
   }
 }
 
-List<_ChannelConversationMessage> _initialMessages(String channelId) {
-  return [
-    _ChannelConversationMessage(
-      id: '$channelId-message-1',
-      name: 'Alice',
-      time: '10:55',
-      body: '我正在考虑接受它！！',
-      avatarSeed: '$channelId-alice-1',
-    ),
-    _ChannelConversationMessage(
-      id: '$channelId-message-2',
-      name: 'Alice',
-      time: '10:56',
-      body: '我正在考虑接受它！！',
-      avatarSeed: '$channelId-alice-2',
-    ),
-  ];
+List<_ChannelConversationMessage> _initialMessages() {
+  return const <_ChannelConversationMessage>[];
 }
 
 class _ChannelConversationMessage {

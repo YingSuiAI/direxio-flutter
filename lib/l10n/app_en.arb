@@ -306,29 +306,13 @@
   "channelManageInviteOwner": "Owner",
   "channelManageInviteMembers": "Invite Members",
   "channelManageInviteMembersValue": "By ID or link",
-  "channelManageOwnerOnline": "Owner · Online",
-  "channelManageMemberModeration": "Member · Moderation",
-  "channelManageMemberOperations": "Member · Operations",
-  "channelManageBotRiskControl": "Bot · Risk control",
-  "channelManageReviewSpeechTitle": "New member posting request",
-  "channelManageReviewSpeechBody": "User @ray requested to post a node sync note in the announcements channel.",
-  "channelManageReviewSpeechTag": "Post",
-  "channelManageReviewLinkTitle": "Link risk warning",
-  "channelManageReviewLinkBody": "An external link was detected and needs owner approval before display.",
-  "channelManageReviewLinkTag": "Link",
-  "channelManageReviewReportTitle": "Reported message",
-  "channelManageReviewReportBody": "2 members reported this message for repeated advertising.",
-  "channelManageReviewReportTag": "Report",
+  "channelManageMembersEmptyTitle": "No member details yet",
+  "channelManageModerationEmptyTitle": "No review details yet",
   "channelManageAutoRules": "Auto Review Rules",
-  "channelManageAutoRulesValue": "Keywords / links / rate",
   "channelManageEditProfile": "Edit Profile",
   "channelManageManage": "Manage",
   "channelManageManaging": "Managing",
-  "channelManageApprove": "Approve",
-  "channelManageReject": "Reject",
-  "channelManageDefaultChannelName": "P2P Matrix Announcements",
-  "channelManageDefaultChannelDescription": "Project announcements, node status, and releases",
-  "channelManageChannelSummary": "{visibility} channel · {members} members · {messages} today",
+  "channelManageChannelSummary": "{visibility} channel · {members} members",
   "@channelManageChannelSummary": {
     "placeholders": {
       "visibility": {
@@ -336,9 +320,6 @@
       },
       "members": {
         "type": "String"
-      },
-      "messages": {
-        "type": "int"
       }
     }
   },

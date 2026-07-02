@@ -1270,95 +1270,23 @@ abstract class AppLocalizations {
   /// **'通过 ID 或链接'**
   String get channelManageInviteMembersValue;
 
-  /// No description provided for @channelManageOwnerOnline.
+  /// No description provided for @channelManageMembersEmptyTitle.
   ///
   /// In zh, this message translates to:
-  /// **'所有者 · 在线'**
-  String get channelManageOwnerOnline;
+  /// **'暂无成员明细'**
+  String get channelManageMembersEmptyTitle;
 
-  /// No description provided for @channelManageMemberModeration.
+  /// No description provided for @channelManageModerationEmptyTitle.
   ///
   /// In zh, this message translates to:
-  /// **'成员 · 内容审核'**
-  String get channelManageMemberModeration;
-
-  /// No description provided for @channelManageMemberOperations.
-  ///
-  /// In zh, this message translates to:
-  /// **'成员 · 运营'**
-  String get channelManageMemberOperations;
-
-  /// No description provided for @channelManageBotRiskControl.
-  ///
-  /// In zh, this message translates to:
-  /// **'机器人 · 风控'**
-  String get channelManageBotRiskControl;
-
-  /// No description provided for @channelManageReviewSpeechTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'新成员发言申请'**
-  String get channelManageReviewSpeechTitle;
-
-  /// No description provided for @channelManageReviewSpeechBody.
-  ///
-  /// In zh, this message translates to:
-  /// **'用户 @ray 申请在公告频道发布节点同步说明。'**
-  String get channelManageReviewSpeechBody;
-
-  /// No description provided for @channelManageReviewSpeechTag.
-  ///
-  /// In zh, this message translates to:
-  /// **'发言'**
-  String get channelManageReviewSpeechTag;
-
-  /// No description provided for @channelManageReviewLinkTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'链接风险提示'**
-  String get channelManageReviewLinkTitle;
-
-  /// No description provided for @channelManageReviewLinkBody.
-  ///
-  /// In zh, this message translates to:
-  /// **'检测到外部链接，需要频道主确认后展示。'**
-  String get channelManageReviewLinkBody;
-
-  /// No description provided for @channelManageReviewLinkTag.
-  ///
-  /// In zh, this message translates to:
-  /// **'链接'**
-  String get channelManageReviewLinkTag;
-
-  /// No description provided for @channelManageReviewReportTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'举报消息'**
-  String get channelManageReviewReportTitle;
-
-  /// No description provided for @channelManageReviewReportBody.
-  ///
-  /// In zh, this message translates to:
-  /// **'2 位成员举报该消息包含重复广告内容。'**
-  String get channelManageReviewReportBody;
-
-  /// No description provided for @channelManageReviewReportTag.
-  ///
-  /// In zh, this message translates to:
-  /// **'举报'**
-  String get channelManageReviewReportTag;
+  /// **'暂无审核明细'**
+  String get channelManageModerationEmptyTitle;
 
   /// No description provided for @channelManageAutoRules.
   ///
   /// In zh, this message translates to:
   /// **'自动审核规则'**
   String get channelManageAutoRules;
-
-  /// No description provided for @channelManageAutoRulesValue.
-  ///
-  /// In zh, this message translates to:
-  /// **'关键词 / 链接 / 频率'**
-  String get channelManageAutoRulesValue;
 
   /// No description provided for @channelManageEditProfile.
   ///
@@ -1378,36 +1306,11 @@ abstract class AppLocalizations {
   /// **'管理中'**
   String get channelManageManaging;
 
-  /// No description provided for @channelManageApprove.
-  ///
-  /// In zh, this message translates to:
-  /// **'通过'**
-  String get channelManageApprove;
-
-  /// No description provided for @channelManageReject.
-  ///
-  /// In zh, this message translates to:
-  /// **'拒绝'**
-  String get channelManageReject;
-
-  /// No description provided for @channelManageDefaultChannelName.
-  ///
-  /// In zh, this message translates to:
-  /// **'P2P Matrix 公告'**
-  String get channelManageDefaultChannelName;
-
-  /// No description provided for @channelManageDefaultChannelDescription.
-  ///
-  /// In zh, this message translates to:
-  /// **'项目公告、节点状态与版本发布'**
-  String get channelManageDefaultChannelDescription;
-
   /// No description provided for @channelManageChannelSummary.
   ///
   /// In zh, this message translates to:
-  /// **'{visibility}频道 · {members} 人 · 今日 {messages} 条'**
-  String channelManageChannelSummary(
-      String visibility, String members, int messages);
+  /// **'{visibility}频道 · {members} 人'**
+  String channelManageChannelSummary(String visibility, String members);
 
   /// No description provided for @channelManageComingSoon.
   ///

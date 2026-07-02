@@ -18,16 +18,7 @@ class BlacklistPage extends StatefulWidget {
 }
 
 class _BlacklistPageState extends State<BlacklistPage> {
-  final List<_BlacklistEntry> _entries = const [
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-1:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-2:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-1:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-3:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-4:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-2:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-3:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-4:p2p-im.com'),
-  ].toList();
+  final List<_BlacklistEntry> _entries = [];
 
   void _remove(_BlacklistEntry entry) {
     setState(() => _entries.remove(entry));

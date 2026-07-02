@@ -643,52 +643,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelManageInviteMembersValue => 'By ID or link';
 
   @override
-  String get channelManageOwnerOnline => 'Owner · Online';
+  String get channelManageMembersEmptyTitle => 'No member details yet';
 
   @override
-  String get channelManageMemberModeration => 'Member · Moderation';
-
-  @override
-  String get channelManageMemberOperations => 'Member · Operations';
-
-  @override
-  String get channelManageBotRiskControl => 'Bot · Risk control';
-
-  @override
-  String get channelManageReviewSpeechTitle => 'New member posting request';
-
-  @override
-  String get channelManageReviewSpeechBody =>
-      'User @ray requested to post a node sync note in the announcements channel.';
-
-  @override
-  String get channelManageReviewSpeechTag => 'Post';
-
-  @override
-  String get channelManageReviewLinkTitle => 'Link risk warning';
-
-  @override
-  String get channelManageReviewLinkBody =>
-      'An external link was detected and needs owner approval before display.';
-
-  @override
-  String get channelManageReviewLinkTag => 'Link';
-
-  @override
-  String get channelManageReviewReportTitle => 'Reported message';
-
-  @override
-  String get channelManageReviewReportBody =>
-      '2 members reported this message for repeated advertising.';
-
-  @override
-  String get channelManageReviewReportTag => 'Report';
+  String get channelManageModerationEmptyTitle => 'No review details yet';
 
   @override
   String get channelManageAutoRules => 'Auto Review Rules';
-
-  @override
-  String get channelManageAutoRulesValue => 'Keywords / links / rate';
 
   @override
   String get channelManageEditProfile => 'Edit Profile';
@@ -700,22 +661,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelManageManaging => 'Managing';
 
   @override
-  String get channelManageApprove => 'Approve';
-
-  @override
-  String get channelManageReject => 'Reject';
-
-  @override
-  String get channelManageDefaultChannelName => 'P2P Matrix Announcements';
-
-  @override
-  String get channelManageDefaultChannelDescription =>
-      'Project announcements, node status, and releases';
-
-  @override
-  String channelManageChannelSummary(
-      String visibility, String members, int messages) {
-    return '$visibility channel · $members members · $messages today';
+  String channelManageChannelSummary(String visibility, String members) {
+    return '$visibility channel · $members members';
   }
 
   @override

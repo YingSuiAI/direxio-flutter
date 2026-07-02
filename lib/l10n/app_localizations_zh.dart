@@ -626,49 +626,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageInviteMembersValue => '通过 ID 或链接';
 
   @override
-  String get channelManageOwnerOnline => '所有者 · 在线';
+  String get channelManageMembersEmptyTitle => '暂无成员明细';
 
   @override
-  String get channelManageMemberModeration => '成员 · 内容审核';
-
-  @override
-  String get channelManageMemberOperations => '成员 · 运营';
-
-  @override
-  String get channelManageBotRiskControl => '机器人 · 风控';
-
-  @override
-  String get channelManageReviewSpeechTitle => '新成员发言申请';
-
-  @override
-  String get channelManageReviewSpeechBody => '用户 @ray 申请在公告频道发布节点同步说明。';
-
-  @override
-  String get channelManageReviewSpeechTag => '发言';
-
-  @override
-  String get channelManageReviewLinkTitle => '链接风险提示';
-
-  @override
-  String get channelManageReviewLinkBody => '检测到外部链接，需要频道主确认后展示。';
-
-  @override
-  String get channelManageReviewLinkTag => '链接';
-
-  @override
-  String get channelManageReviewReportTitle => '举报消息';
-
-  @override
-  String get channelManageReviewReportBody => '2 位成员举报该消息包含重复广告内容。';
-
-  @override
-  String get channelManageReviewReportTag => '举报';
+  String get channelManageModerationEmptyTitle => '暂无审核明细';
 
   @override
   String get channelManageAutoRules => '自动审核规则';
-
-  @override
-  String get channelManageAutoRulesValue => '关键词 / 链接 / 频率';
 
   @override
   String get channelManageEditProfile => '编辑资料';
@@ -680,21 +644,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageManaging => '管理中';
 
   @override
-  String get channelManageApprove => '通过';
-
-  @override
-  String get channelManageReject => '拒绝';
-
-  @override
-  String get channelManageDefaultChannelName => 'P2P Matrix 公告';
-
-  @override
-  String get channelManageDefaultChannelDescription => '项目公告、节点状态与版本发布';
-
-  @override
-  String channelManageChannelSummary(
-      String visibility, String members, int messages) {
-    return '$visibility频道 · $members 人 · 今日 $messages 条';
+  String channelManageChannelSummary(String visibility, String members) {
+    return '$visibility频道 · $members 人';
   }
 
   @override

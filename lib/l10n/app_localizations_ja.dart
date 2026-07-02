@@ -627,50 +627,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageInviteMembersValue => 'ID またはリンクで招待';
 
   @override
-  String get channelManageOwnerOnline => '所有者 · オンライン';
+  String get channelManageMembersEmptyTitle => 'メンバー詳細はまだありません';
 
   @override
-  String get channelManageMemberModeration => 'メンバー · 審査';
-
-  @override
-  String get channelManageMemberOperations => 'メンバー · 運営';
-
-  @override
-  String get channelManageBotRiskControl => 'Bot · リスク管理';
-
-  @override
-  String get channelManageReviewSpeechTitle => '新メンバーの投稿申請';
-
-  @override
-  String get channelManageReviewSpeechBody =>
-      'ユーザー @ray が告知チャンネルにノード同期メモの投稿を申請しました。';
-
-  @override
-  String get channelManageReviewSpeechTag => '投稿';
-
-  @override
-  String get channelManageReviewLinkTitle => 'リンクリスク警告';
-
-  @override
-  String get channelManageReviewLinkBody => '外部リンクが検出されました。表示前に所有者の確認が必要です。';
-
-  @override
-  String get channelManageReviewLinkTag => 'リンク';
-
-  @override
-  String get channelManageReviewReportTitle => '報告されたメッセージ';
-
-  @override
-  String get channelManageReviewReportBody => '2 人のメンバーがこのメッセージを重複広告として報告しました。';
-
-  @override
-  String get channelManageReviewReportTag => '報告';
+  String get channelManageModerationEmptyTitle => '審査詳細はまだありません';
 
   @override
   String get channelManageAutoRules => '自動審査ルール';
-
-  @override
-  String get channelManageAutoRulesValue => 'キーワード / リンク / 頻度';
 
   @override
   String get channelManageEditProfile => '情報を編集';
@@ -682,21 +645,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageManaging => '管理中';
 
   @override
-  String get channelManageApprove => '承認';
-
-  @override
-  String get channelManageReject => '拒否';
-
-  @override
-  String get channelManageDefaultChannelName => 'P2P Matrix お知らせ';
-
-  @override
-  String get channelManageDefaultChannelDescription => 'プロジェクト告知、ノード状態、リリース情報';
-
-  @override
-  String channelManageChannelSummary(
-      String visibility, String members, int messages) {
-    return '$visibilityチャンネル · $members 人 · 今日 $messages 件';
+  String channelManageChannelSummary(String visibility, String members) {
+    return '$visibilityチャンネル · $members 人';
   }
 
   @override

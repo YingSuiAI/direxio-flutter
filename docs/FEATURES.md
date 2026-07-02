@@ -1,6 +1,6 @@
 # Direxio Client Feature Status
 
-Last verified from current code: 2026-06-29
+Last verified from current code: 2026-07-02
 
 This document is a current implementation inventory. It is not a roadmap and does not preserve historical plans.
 
@@ -37,6 +37,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 ## Removed Runtime Fallbacks
 
 - Runtime UI must not hydrate contacts, groups, channels, messages, avatars, or profiles from placeholder fixture data.
+- Legacy direct routes and management surfaces, including blacklist and channel management member/moderation views, render real empty states when no backend/source data is available.
 - Runtime fixture-data directories are not part of the app.
 - Test doubles remain allowed in `test/support/` and individual tests.
 

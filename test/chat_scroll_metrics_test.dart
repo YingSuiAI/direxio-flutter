@@ -71,6 +71,113 @@ void main() {
     expect(chatScrollPositionWithDimensions(controller), same(position));
   });
 
+  testWidgets('chat message controller opens at latest on first layout',
+      (tester) async {
+    final controller = chatMessageScrollController(openAtLatest: true);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          height: 200,
+          child: ListView.builder(
+            controller: controller,
+            itemCount: 40,
+            itemBuilder: (context, index) => SizedBox(
+              height: 40,
+              child: Text('message $index'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final position = chatScrollPositionWithDimensions(controller);
+    expect(position, isNotNull);
+    expect(controller.offset, position!.maxScrollExtent);
+  });
+
+  testWidgets('chat message controller follows latest when final item grows',
+      (tester) async {
+    final controller = chatMessageScrollController(openAtLatest: true);
+    addTearDown(controller.dispose);
+    var expanded = false;
+    late StateSetter updateHeight;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            updateHeight = setState;
+            return SizedBox(
+              height: 200,
+              child: ListView.builder(
+                controller: controller,
+                itemCount: 40,
+                itemBuilder: (context, index) {
+                  final isLast = index == 39;
+                  return SizedBox(
+                    height: isLast && expanded ? 160 : 40,
+                    child: Text('message $index'),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    final firstPosition = chatScrollPositionWithDimensions(controller);
+    expect(firstPosition, isNotNull);
+    expect(controller.offset, firstPosition!.maxScrollExtent);
+
+    updateHeight(() => expanded = true);
+    await tester.pump();
+
+    final grownPosition = chatScrollPositionWithDimensions(controller);
+    expect(grownPosition, isNotNull);
+    expect(controller.offset, grownPosition!.maxScrollExtent);
+  });
+
+  testWidgets('chat message position follows latest when dimensions grow',
+      (tester) async {
+    late BuildContext storageContext;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (context) {
+            storageContext = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final controller = chatMessageScrollController(openAtLatest: true);
+    final position = controller.createScrollPosition(
+      const AlwaysScrollableScrollPhysics(),
+      _FakeScrollContext(storageContext),
+      null,
+    );
+    controller.attach(position);
+    addTearDown(() {
+      controller.detach(position);
+      position.dispose();
+      controller.dispose();
+    });
+
+    position.applyViewportDimension(300);
+    position.applyContentDimensions(0, 500);
+    expect(position.pixels, 500);
+
+    position.applyContentDimensions(0, 650);
+    expect(position.pixels, 650);
+  });
+
   test(
     'latest initial auto-scroll retries while dimensions are missing',
     () {

@@ -45,9 +45,128 @@ class PortalNotDeployedException implements Exception {
   String toString() => 'Portal 未在 $domain 部署';
 }
 
+const _legacyMatrixDatabaseName = 'portal_im_db';
+const _legacyMatrixDatabaseFilename = 'portal_im_matrix.sqlite';
+const _matrixDatabaseNamePrefix = 'portal_im_db_';
+const _matrixDatabaseFilenamePrefix = 'portal_im_matrix_';
+const _matrixDatabaseFilenameSuffix = '.sqlite';
+
+String? _activeMatrixAccountUserId;
+
+@visibleForTesting
+String matrixAccountDatabaseNameFor(String userId) {
+  final scope = _matrixAccountScopeId(userId);
+  if (scope == null) return _legacyMatrixDatabaseName;
+  return '$_matrixDatabaseNamePrefix$scope';
+}
+
+@visibleForTesting
+String matrixAccountDatabaseFilenameFor(String userId) {
+  final scope = _matrixAccountScopeId(userId);
+  if (scope == null) return _legacyMatrixDatabaseFilename;
+  return '$_matrixDatabaseFilenamePrefix$scope$_matrixDatabaseFilenameSuffix';
+}
+
+String? _matrixAccountScopeId(String? userId) {
+  final normalized = _normalizedMatrixAccountUserId(userId);
+  if (normalized.isEmpty) return null;
+  return base64Url.encode(utf8.encode(normalized)).replaceAll('=', '');
+}
+
+String _normalizedMatrixAccountUserId(String? userId) {
+  return (userId ?? '').trim().toLowerCase();
+}
+
+void _activateMatrixAccountStore(String? userId) {
+  final normalized = _normalizedMatrixAccountUserId(userId);
+  _activeMatrixAccountUserId = normalized.isEmpty ? null : normalized;
+}
+
+bool _activeMatrixAccountStoreMatches(String? userId) {
+  return _activeMatrixAccountUserId == _normalizedMatrixAccountUserId(userId);
+}
+
+Future<MatrixSdkDatabase> _openPortalMatrixDatabase() async {
+  final accountUserId = _activeMatrixAccountUserId;
+  final name = matrixAccountDatabaseNameFor(accountUserId ?? '');
+  final db = kIsWeb
+      ? MatrixSdkDatabase(name)
+      : await _openNativePortalMatrixDatabase(name, accountUserId);
+  await db.open();
+  return db;
+}
+
+Future<MatrixSdkDatabase> _openNativePortalMatrixDatabase(
+  String name,
+  String? accountUserId,
+) async {
+  final dir = await getApplicationSupportDirectory();
+  final account = _normalizedMatrixAccountUserId(accountUserId);
+  if (account.isNotEmpty) {
+    await _copyLegacyMatrixDatabaseForAccountIfNeeded(dir, account);
+  }
+  final filename = matrixAccountDatabaseFilenameFor(account);
+  return MatrixSdkDatabase(
+    name,
+    database: await sqlite.openDatabase(
+      '${dir.path}/$filename',
+      singleInstance: false,
+    ),
+  );
+}
+
+Future<void> _copyLegacyMatrixDatabaseForAccountIfNeeded(
+  Directory dir,
+  String accountUserId,
+) async {
+  final legacy = File('${dir.path}/$_legacyMatrixDatabaseFilename');
+  final scoped = File(
+    '${dir.path}/${matrixAccountDatabaseFilenameFor(accountUserId)}',
+  );
+  if (legacy.path == scoped.path ||
+      !await legacy.exists() ||
+      await scoped.exists()) {
+    return;
+  }
+  final legacyUserId = await _readMatrixDatabaseUserId(legacy.path);
+  if (_normalizedMatrixAccountUserId(legacyUserId) != accountUserId) return;
+
+  try {
+    await legacy.copy(scoped.path);
+    for (final suffix in const ['-wal', '-shm']) {
+      final sidecar = File('${legacy.path}$suffix');
+      if (await sidecar.exists()) {
+        await sidecar.copy('${scoped.path}$suffix');
+      }
+    }
+  } catch (e) {
+    debugPrint('legacy Matrix database copy skipped: $e');
+  }
+}
+
+Future<String?> _readMatrixDatabaseUserId(String path) async {
+  sqlite.Database? db;
+  try {
+    db = await sqlite.openReadOnlyDatabase(path, singleInstance: false);
+    final rows = await db.query(
+      'box_client',
+      columns: const ['v'],
+      where: 'k = ?',
+      whereArgs: const ['user_id'],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['v'] as String?;
+  } catch (_) {
+    return null;
+  } finally {
+    await db?.close();
+  }
+}
+
 // Matrix client singleton — 持久化到 IndexedDB（Web）或 SQLite（Native）。
 // 不持久化的话，每次进入聊天页 Timeline.events 会是空（/sync 没存盘），历史拉不回。
-@riverpod
+@Riverpod(keepAlive: true)
 Client matrixClient(Ref ref) {
   final rawHttpClient = http.Client();
   final refreshingHttpClient = MatrixTokenRefreshingHttpClient(
@@ -59,19 +178,7 @@ Client matrixClient(Ref ref) {
     'Direxio',
     httpClient: refreshingHttpClient,
     importantStateEvents: {direxioAgentStatusEventType},
-    databaseBuilder: (_) async {
-      final db = kIsWeb
-          ? MatrixSdkDatabase('portal_im_db')
-          : MatrixSdkDatabase(
-              'portal_im_db',
-              database: await sqlite.openDatabase(
-                '${(await getApplicationSupportDirectory()).path}/portal_im_matrix.sqlite',
-                singleInstance: false,
-              ),
-            );
-      await db.open();
-      return db;
-    },
+    databaseBuilder: (_) => _openPortalMatrixDatabase(),
   );
   refreshingHttpClient.onAuthenticationFailed = () async {
     await ref
@@ -83,7 +190,9 @@ Client matrixClient(Ref ref) {
         .read(authStateNotifierProvider.notifier)
         .expireSessionDueInvalidTokenIfCurrent(failedToken);
   };
-  ref.onDispose(refreshingHttpClient.close);
+  ref.onDispose(() {
+    unawaited(client.dispose().whenComplete(refreshingHttpClient.close));
+  });
   return client;
 }
 
@@ -254,6 +363,54 @@ bool portalSessionNeedsCleanMatrixInit({
       currentHost != nextHost;
 }
 
+@visibleForTesting
+bool shouldResetUserScopedLocalStateForLogin({
+  required String? activeStoreUserId,
+  required String? currentUserId,
+  required String? storedUserId,
+  required Uri? currentHomeserver,
+  required String? storedHomeserver,
+  required String nextUserId,
+  required Uri nextHomeserver,
+  required bool? sessionInitialized,
+  required bool hasCurrentRooms,
+  required bool isLoggedInAsNextUser,
+}) {
+  final next = nextUserId.trim();
+  if (next.isEmpty) return false;
+  if (sessionInitialized != false) return false;
+
+  final normalizedNext = _normalizedMatrixAccountUserId(next);
+  final activeStoreUser = _normalizedMatrixAccountUserId(activeStoreUserId);
+  if (activeStoreUser.isNotEmpty && activeStoreUser != normalizedNext) {
+    return true;
+  }
+  final current = _normalizedMatrixAccountUserId(currentUserId);
+  if (current.isNotEmpty && current != normalizedNext) return true;
+  final stored = _normalizedMatrixAccountUserId(storedUserId);
+  if (stored.isNotEmpty && stored != normalizedNext) return true;
+
+  final nextHost = _normalizedLoginHomeserver(nextHomeserver);
+  final currentHost = _normalizedLoginHomeserver(currentHomeserver);
+  if (currentHost.isNotEmpty && currentHost != nextHost) return true;
+  final storedHost = _normalizedStoredLoginHomeserver(storedHomeserver);
+  if (storedHost.isNotEmpty && storedHost != nextHost) return true;
+  return hasCurrentRooms && !isLoggedInAsNextUser;
+}
+
+String _normalizedStoredLoginHomeserver(String? homeserver) {
+  final parsed = Uri.tryParse(homeserver?.trim() ?? '');
+  return _normalizedLoginHomeserver(parsed);
+}
+
+String _normalizedLoginHomeserver(Uri? homeserver) {
+  if (homeserver == null || homeserver.host.isEmpty) return '';
+  final scheme = homeserver.scheme.toLowerCase();
+  final host = homeserver.host.toLowerCase();
+  final port = homeserver.hasPort ? ':${homeserver.port}' : '';
+  return '$scheme://$host$port';
+}
+
 Future<String?> _fetchTokenDeviceId({
   required http.Client httpClient,
   required Uri homeserver,
@@ -286,6 +443,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const accessTokenKey = 'access_token';
   static const initializedKey = 'initialized';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
+  static const lastLoginUserIdKey = 'last_login_user_id';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
   static const _legacyMatrixTokenKey = 'matrix_token';
   static const _legacyInitializedKey = 'profile_initialized';
@@ -298,6 +456,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     accessTokenKey,
     initializedKey,
     lastLoginHomeserverKey,
+    lastLoginUserIdKey,
     lastLoginPortalTokenKey,
     _accessTokenAppliedAtKey,
   ];
@@ -313,7 +472,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   Future<AuthState> build() async {
     _isMounted = true;
     ref.onDispose(() => _isMounted = false);
-    _configureMatrixTokenFailureHandler(ref.watch(matrixClientProvider));
     try {
       return await _buildRestoredAuthStateWithCancelableTimeout();
     } catch (e) {
@@ -321,10 +479,49 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         'startup auth restore failed; keeping stored credentials for retry: $e',
       );
       final fallback = await _storedAuthStateForRetry(
-        client: ref.read(matrixClientProvider),
+        client: _readConfiguredMatrixClient(),
       );
       if (fallback != null) return fallback;
       return const AuthState(isLoggedIn: false);
+    }
+  }
+
+  Client _readConfiguredMatrixClient() {
+    final client = ref.read(matrixClientProvider);
+    _configureMatrixTokenFailureHandler(client);
+    return client;
+  }
+
+  Future<Client> _switchMatrixClientToAccount(
+    String? userId, {
+    Client? currentClient,
+  }) async {
+    if (_activeMatrixAccountStoreMatches(userId)) {
+      return currentClient ?? _readConfiguredMatrixClient();
+    }
+    final previousClient = currentClient ?? _readConfiguredMatrixClient();
+    await _disposeMatrixClientPreservingStore(previousClient);
+    _activateMatrixAccountStore(userId);
+    ref.invalidate(matrixClientProvider);
+    return _readConfiguredMatrixClient();
+  }
+
+  Future<void> _disposeMatrixClientPreservingStore(Client client) async {
+    try {
+      client.backgroundSync = false;
+      await client.abortSync();
+    } catch (e) {
+      debugPrint('stop Matrix sync before client switch failed: $e');
+    }
+    try {
+      await client.encryption?.olmManager.currentUpload?.cancel();
+    } catch (e) {
+      debugPrint('cancel Matrix key upload before client switch failed: $e');
+    }
+    try {
+      await client.dispose();
+    } catch (e) {
+      debugPrint('dispose Matrix client before account switch failed: $e');
     }
   }
 
@@ -357,7 +554,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (await _clearStaleIosKeychainAfterFreshInstallIfNeeded()) {
       return const AuthState(isLoggedIn: false);
     }
-    final client = ref.watch(matrixClientProvider);
     final storedValues = await Future.wait<String?>([
       _storage.read(key: AuthStateNotifier.accessTokenKey),
       _storage.read(key: 'matrix_homeserver'),
@@ -379,6 +575,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (_sessionExpiredLocally) {
       return const AuthState(isLoggedIn: false);
     }
+    _activateMatrixAccountStore(userId);
+    final client = _readConfiguredMatrixClient();
 
     final restored = await _restoreMatrixSdkSession(client, storedAccessToken);
     if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
@@ -671,7 +869,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     bool publishState = true,
     bool useBootstrap = false,
   }) async {
-    final client = ref.read(matrixClientProvider);
+    var client = _readConfiguredMatrixClient();
     final inputUri = _normalizeHomeserverUri(homeserverUrl);
     final cleanPortalToken = portalToken.trim();
     if (cleanPortalToken.isEmpty) {
@@ -694,7 +892,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             httpClient: client.httpClient,
           );
     _rememberPendingMatrixAccessToken(session.accessToken);
-    final storedUserId = await _storage.read(key: 'matrix_user_id');
+    final storedUserId = await _storage.read(key: 'matrix_user_id') ??
+        await _storage.read(key: lastLoginUserIdKey);
     final storedHomeserver = await _storage.read(key: 'matrix_homeserver');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
     await _assertPortalDeployed(inputUri.host);
@@ -707,9 +906,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       storedUserId: storedUserId,
       nextHomeserver: matrixUri,
       storedHomeserver: storedHomeserver,
+      sessionInitialized: _sessionInitialized(session),
     )) {
-      await _clearUserScopedLocalState(client);
+      await _clearUserScopedLocalState(client, clearMatrix: false);
     }
+    client = await _switchMatrixClientToAccount(
+      session.userId,
+      currentClient: client,
+    );
     await client.checkHomeserver(matrixUri);
     var checkedHomeserver = client.homeserver ?? matrixUri;
     final storedDeviceId = await _storage.read(key: 'matrix_device_id');
@@ -778,6 +982,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       final retryMatrixUri = _resolveClientHomeserver(
         inputUri,
         session.homeserver,
+      );
+      client = await _switchMatrixClientToAccount(
+        session.userId,
+        currentClient: client,
       );
       await _clearMatrixForCleanInit(client);
       await client.checkHomeserver(retryMatrixUri);
@@ -1724,35 +1932,20 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String? storedUserId,
     required Uri nextHomeserver,
     required String? storedHomeserver,
+    required bool? sessionInitialized,
   }) {
-    final next = nextUserId.trim();
-    if (next.isEmpty) return false;
-    final current = client.userID?.trim() ?? '';
-    if (current.isNotEmpty && current != next) return true;
-    final stored = storedUserId?.trim() ?? '';
-    if (stored.isNotEmpty && stored != next) return true;
-    final nextHost = _normalizedAccountHost(nextHomeserver);
-    final currentHost = client.homeserver == null
-        ? ''
-        : _normalizedAccountHost(client.homeserver!);
-    if (currentHost.isNotEmpty && currentHost != nextHost) return true;
-    final storedHost = _normalizedStoredAccountHost(storedHomeserver);
-    if (storedHost.isNotEmpty && storedHost != nextHost) return true;
-    return client.rooms.isNotEmpty && !_isLoggedInAs(client, next);
-  }
-
-  String _normalizedStoredAccountHost(String? homeserver) {
-    final parsed = Uri.tryParse(homeserver?.trim() ?? '');
-    if (parsed == null || parsed.host.isEmpty) return '';
-    return _normalizedAccountHost(parsed);
-  }
-
-  String _normalizedAccountHost(Uri homeserver) {
-    final scheme = homeserver.scheme.toLowerCase();
-    final host = homeserver.host.toLowerCase();
-    if (host.isEmpty) return '';
-    final port = homeserver.hasPort ? ':${homeserver.port}' : '';
-    return '$scheme://$host$port';
+    return shouldResetUserScopedLocalStateForLogin(
+      activeStoreUserId: _activeMatrixAccountUserId,
+      currentUserId: client.userID,
+      storedUserId: storedUserId,
+      currentHomeserver: client.homeserver,
+      storedHomeserver: storedHomeserver,
+      nextUserId: nextUserId,
+      nextHomeserver: nextHomeserver,
+      sessionInitialized: sessionInitialized,
+      hasCurrentRooms: client.rooms.isNotEmpty,
+      isLoggedInAsNextUser: _isLoggedInAs(client, nextUserId),
+    );
   }
 
   bool _isTokenFailure(Object error) {
@@ -1812,6 +2005,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         key: AuthStateNotifier.accessTokenKey, value: portalToken);
     await _storage.write(key: 'matrix_homeserver', value: uri.toString());
     await _storage.write(key: 'matrix_user_id', value: userId ?? client.userID);
+    final effectiveUserId = userId ?? client.userID;
+    if ((effectiveUserId?.trim().isNotEmpty ?? false)) {
+      await _storage.write(
+        key: lastLoginUserIdKey,
+        value: effectiveUserId!.trim(),
+      );
+    }
     await _storage.write(
       key: 'matrix_device_id',
       value: deviceId,
@@ -1956,15 +2156,20 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   Future<void> logout() async {
-    final client = ref.read(matrixClientProvider);
+    final client = _readConfiguredMatrixClient();
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
+    final lastUserId = client.userID ??
+        await _storage.read(key: 'matrix_user_id') ??
+        await _storage.read(key: lastLoginUserIdKey);
     try {
       await unregisterStoredMatrixPusher(client);
     } catch (e) {
       debugPrint('Matrix pusher unregister during logout failed: $e');
     }
     await _logoutMatrixSessionPreservingStore(client);
+    await _disposeMatrixClientPreservingStore(client);
+    ref.invalidate(matrixClientProvider);
     await _clearUserScopedLocalState(
       client,
       clearMatrix: false,
@@ -1975,6 +2180,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await _storage.write(
         key: lastLoginHomeserverKey,
         value: lastHomeserver.trim(),
+      );
+    }
+    if (lastUserId != null && lastUserId.trim().isNotEmpty) {
+      await _storage.write(
+        key: lastLoginUserIdKey,
+        value: lastUserId.trim(),
       );
     }
     state = const AsyncData(AuthState(isLoggedIn: false));

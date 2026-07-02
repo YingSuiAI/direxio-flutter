@@ -53,4 +53,57 @@ void main() {
 
     expect(resolved.toString(), 'https://matrix.example.com');
   });
+
+  test('Matrix SDK database names are scoped by Matrix account', () {
+    final ownerOne = matrixAccountDatabaseNameFor('@owner:p2p-im.com');
+    final ownerTwo = matrixAccountDatabaseNameFor('@owner:p2p-liyanan.com');
+
+    expect(ownerOne, isNot(ownerTwo));
+    expect(ownerOne, matrixAccountDatabaseNameFor('@owner:p2p-im.com'));
+    expect(ownerOne, startsWith('portal_im_db_'));
+  });
+
+  test('Matrix SDK database filenames are safe and account scoped', () {
+    final ownerOne = matrixAccountDatabaseFilenameFor('@owner:p2p-im.com');
+    final ownerTwo = matrixAccountDatabaseFilenameFor('@owner:p2p-liyanan.com');
+
+    expect(ownerOne, isNot(ownerTwo));
+    expect(ownerOne, endsWith('.sqlite'));
+    expect(ownerOne, isNot(contains('@')));
+    expect(ownerOne, isNot(contains(':')));
+  });
+
+  test('initialized relogin keeps user scoped cache by Matrix user id', () {
+    final shouldReset = shouldResetUserScopedLocalStateForLogin(
+      activeStoreUserId: '@account2:p2p-im.com',
+      currentUserId: '@account2:p2p-im.com',
+      storedUserId: '@account2:p2p-im.com',
+      currentHomeserver: Uri.parse('https://p2p-im.com'),
+      storedHomeserver: 'https://p2p-im.com',
+      nextUserId: '@account1:p2p-im.com',
+      nextHomeserver: Uri.parse('https://p2p-im.com'),
+      sessionInitialized: true,
+      hasCurrentRooms: true,
+      isLoggedInAsNextUser: false,
+    );
+
+    expect(shouldReset, isFalse);
+  });
+
+  test('uninitialized relogin resets cache for fresh setup state', () {
+    final shouldReset = shouldResetUserScopedLocalStateForLogin(
+      activeStoreUserId: '@account2:p2p-im.com',
+      currentUserId: '@account2:p2p-im.com',
+      storedUserId: '@account2:p2p-im.com',
+      currentHomeserver: Uri.parse('https://p2p-im.com'),
+      storedHomeserver: 'https://p2p-im.com',
+      nextUserId: '@account1:p2p-im.com',
+      nextHomeserver: Uri.parse('https://p2p-im.com'),
+      sessionInitialized: false,
+      hasCurrentRooms: true,
+      isLoggedInAsNextUser: false,
+    );
+
+    expect(shouldReset, isTrue);
+  });
 }

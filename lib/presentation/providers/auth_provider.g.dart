@@ -6,11 +6,11 @@ part of 'auth_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$matrixClientHash() => r'd13882280d7795c1e2eda89d6ce97a5fca2e1768';
+String _$matrixClientHash() => r'94724001fcdfcde067a630589738de5f54414a1a';
 
 /// See also [matrixClient].
 @ProviderFor(matrixClient)
-final matrixClientProvider = AutoDisposeProvider<Client>.internal(
+final matrixClientProvider = Provider<Client>.internal(
   matrixClient,
   name: r'matrixClientProvider',
   debugGetCreateSourceHash:
@@ -21,8 +21,8 @@ final matrixClientProvider = AutoDisposeProvider<Client>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef MatrixClientRef = AutoDisposeProviderRef<Client>;
-String _$authStateNotifierHash() => r'f0ecde2b7bfb692cf65a66a5d6b0c472a2ce17cc';
+typedef MatrixClientRef = ProviderRef<Client>;
+String _$authStateNotifierHash() => r'9b7586c1808ef5ae7b81fe652b5df746fd69f105';
 
 /// See also [AuthStateNotifier].
 @ProviderFor(AuthStateNotifier)

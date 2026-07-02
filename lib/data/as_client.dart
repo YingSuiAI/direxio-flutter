@@ -2334,25 +2334,17 @@ class AsSyncPendingItem {
 }
 
 const asBlockTargetContact = 'contact';
-const asBlockTargetGroup = 'group';
-const asBlockTargetChannel = 'channel';
 
 class AsBlockList {
   const AsBlockList({
     this.contacts = const [],
-    this.groups = const [],
-    this.channels = const [],
   });
 
   final List<AsBlockItem> contacts;
-  final List<AsBlockItem> groups;
-  final List<AsBlockItem> channels;
 
   factory AsBlockList.fromJson(Map<String, dynamic> json) {
     return AsBlockList(
       contacts: _parseList(json['contacts'], AsBlockItem.fromJson),
-      groups: _parseList(json['groups'], AsBlockItem.fromJson),
-      channels: _parseList(json['channels'], AsBlockItem.fromJson),
     );
   }
 }
@@ -2377,14 +2369,9 @@ class AsBlockItem {
   final DateTime? createdAt;
 
   bool get isContact => targetType == asBlockTargetContact;
-  bool get isGroup => targetType == asBlockTargetGroup;
-  bool get isChannel => targetType == asBlockTargetChannel;
 
   String get displayId {
     if (isContact && peerMxid.trim().isNotEmpty) return peerMxid.trim();
-    if ((isGroup || isChannel) && roomId.trim().isNotEmpty) {
-      return roomId.trim();
-    }
     return targetId.trim();
   }
 
@@ -2396,7 +2383,8 @@ class AsBlockItem {
       targetType: targetType,
       targetId: _firstNonEmptyString([
         _firstString(json, const ['target_id', 'id']),
-        targetType == asBlockTargetContact ? peerMxid : roomId,
+        peerMxid,
+        roomId,
       ]),
       roomId: roomId,
       peerMxid: peerMxid,
@@ -2548,20 +2536,6 @@ abstract class AsClient {
   /// P2P product API action.
   Future<AsBlockItem> blockContact({
     required String peerMxid,
-    String displayName = '',
-    String avatarUrl = '',
-  });
-
-  /// P2P product API action.
-  Future<AsBlockItem> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  });
-
-  /// P2P product API action.
-  Future<AsBlockItem> blockChannel({
-    required String roomId,
     String displayName = '',
     String avatarUrl = '',
   });

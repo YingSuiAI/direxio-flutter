@@ -8,7 +8,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/block_list_provider.dart';
 import 'center_toast.dart';
 
-enum BlockedRouteTargetKind { room, contact, group, channel }
+enum BlockedRouteTargetKind { room, contact }
 
 class BlockedRouteGuard extends ConsumerStatefulWidget {
   const BlockedRouteGuard({
@@ -17,7 +17,6 @@ class BlockedRouteGuard extends ConsumerStatefulWidget {
     required this.child,
     this.roomId,
     this.peerMxid,
-    this.channelId,
     this.fallbackLocation = '/home',
   });
 
@@ -25,7 +24,6 @@ class BlockedRouteGuard extends ConsumerStatefulWidget {
   final Widget child;
   final String? roomId;
   final String? peerMxid;
-  final String? channelId;
   final String fallbackLocation;
 
   @override
@@ -40,8 +38,7 @@ class _BlockedRouteGuardState extends ConsumerState<BlockedRouteGuard> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.kind != widget.kind ||
         oldWidget.roomId != widget.roomId ||
-        oldWidget.peerMxid != widget.peerMxid ||
-        oldWidget.channelId != widget.channelId) {
+        oldWidget.peerMxid != widget.peerMxid) {
       _handled = false;
     }
   }
@@ -56,7 +53,6 @@ class _BlockedRouteGuardState extends ConsumerState<BlockedRouteGuard> {
       kind: widget.kind,
       roomId: widget.roomId,
       peerMxid: widget.peerMxid,
-      channelId: widget.channelId,
     );
     if (blocked) {
       _handleBlockedRoute(context);
@@ -91,11 +87,9 @@ bool _routeIsBlocked(
   required BlockedRouteTargetKind kind,
   String? roomId,
   String? peerMxid,
-  String? channelId,
 }) {
   final room = roomId?.trim() ?? '';
   final peer = peerMxid?.trim() ?? '';
-  final channel = channelId?.trim() ?? '';
   return switch (kind) {
     BlockedRouteTargetKind.contact => isContactBlocked(
         blocks,
@@ -103,11 +97,6 @@ bool _routeIsBlocked(
             ? peer
             : syncCache.acceptedContactForRoom(room)?.userId ?? '',
         roomId: room,
-      ),
-    BlockedRouteTargetKind.group => isGroupBlocked(blocks, room),
-    BlockedRouteTargetKind.channel => isChannelBlocked(
-        blocks,
-        _resolvedChannelRoomId(syncCache, channelId: channel, roomId: room),
       ),
     BlockedRouteTargetKind.room => _roomIsBlocked(
         blocks,
@@ -125,30 +114,8 @@ bool _roomIsBlocked(
   final room = roomId.trim();
   if (room.isEmpty) return false;
   return isContactBlocked(
-        blocks,
-        peerMxid: syncCache.acceptedContactForRoom(room)?.userId ?? '',
-        roomId: room,
-      ) ||
-      isGroupBlocked(blocks, room) ||
-      isChannelBlocked(blocks, room);
-}
-
-String _resolvedChannelRoomId(
-  AsSyncCacheState syncCache, {
-  required String channelId,
-  required String roomId,
-}) {
-  final room = roomId.trim();
-  if (room.isNotEmpty) return room;
-  final channel = channelId.trim();
-  if (channel.isEmpty) return '';
-  for (final item
-      in syncCache.bootstrap?.channels ?? const <AsSyncRoomSummary>[]) {
-    final itemRoomId = item.roomId.trim();
-    if (itemRoomId.isEmpty) continue;
-    if (item.channelId.trim() == channel || itemRoomId == channel) {
-      return itemRoomId;
-    }
-  }
-  return channel;
+    blocks,
+    peerMxid: syncCache.acceptedContactForRoom(room)?.userId ?? '',
+    roomId: room,
+  );
 }

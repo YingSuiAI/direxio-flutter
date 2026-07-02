@@ -35,32 +35,6 @@ class BlockListController extends StateNotifier<AsyncValue<AsBlockList>> {
     state = AsyncValue.data(_upsert(state.valueOrNull, item));
   }
 
-  Future<void> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    final item = await _client.blockGroup(
-      roomId: roomId,
-      displayName: displayName,
-      avatarUrl: avatarUrl,
-    );
-    state = AsyncValue.data(_upsert(state.valueOrNull, item));
-  }
-
-  Future<void> blockChannel({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    final item = await _client.blockChannel(
-      roomId: roomId,
-      displayName: displayName,
-      avatarUrl: avatarUrl,
-    );
-    state = AsyncValue.data(_upsert(state.valueOrNull, item));
-  }
-
   Future<void> removeBlock({
     required String targetType,
     required String targetId,
@@ -73,23 +47,7 @@ class BlockListController extends StateNotifier<AsyncValue<AsBlockList>> {
 
   AsBlockList _upsert(AsBlockList? current, AsBlockItem item) {
     final blocks = current ?? const AsBlockList();
-    return switch (item.targetType) {
-      asBlockTargetGroup => AsBlockList(
-          contacts: blocks.contacts,
-          groups: _upsertItem(blocks.groups, item),
-          channels: blocks.channels,
-        ),
-      asBlockTargetChannel => AsBlockList(
-          contacts: blocks.contacts,
-          groups: blocks.groups,
-          channels: _upsertItem(blocks.channels, item),
-        ),
-      _ => AsBlockList(
-          contacts: _upsertItem(blocks.contacts, item),
-          groups: blocks.groups,
-          channels: blocks.channels,
-        ),
-    };
+    return AsBlockList(contacts: _upsertItem(blocks.contacts, item));
   }
 
   AsBlockList _remove(
@@ -98,23 +56,7 @@ class BlockListController extends StateNotifier<AsyncValue<AsBlockList>> {
     required String targetId,
   }) {
     final blocks = current ?? const AsBlockList();
-    return switch (targetType.trim()) {
-      asBlockTargetGroup => AsBlockList(
-          contacts: blocks.contacts,
-          groups: _removeItem(blocks.groups, targetId),
-          channels: blocks.channels,
-        ),
-      asBlockTargetChannel => AsBlockList(
-          contacts: blocks.contacts,
-          groups: blocks.groups,
-          channels: _removeItem(blocks.channels, targetId),
-        ),
-      _ => AsBlockList(
-          contacts: _removeItem(blocks.contacts, targetId),
-          groups: blocks.groups,
-          channels: blocks.channels,
-        ),
-    };
+    return AsBlockList(contacts: _removeItem(blocks.contacts, targetId));
   }
 }
 
@@ -131,18 +73,6 @@ bool isContactBlocked(
             (peer.isNotEmpty && item.targetId.trim() == peer);
       }) ??
       false;
-}
-
-bool isGroupBlocked(AsBlockList? blocks, String roomId) {
-  final room = roomId.trim();
-  if (room.isEmpty) return false;
-  return blocks?.groups.any((item) => _sameBlockId(item, room)) ?? false;
-}
-
-bool isChannelBlocked(AsBlockList? blocks, String roomId) {
-  final room = roomId.trim();
-  if (room.isEmpty) return false;
-  return blocks?.channels.any((item) => _sameBlockId(item, room)) ?? false;
 }
 
 List<AsBlockItem> _upsertItem(List<AsBlockItem> items, AsBlockItem item) {

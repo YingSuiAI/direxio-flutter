@@ -16,7 +16,6 @@ import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/block_list_provider.dart';
 import '../providers/im_public_client_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
@@ -217,7 +216,6 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final localCreatedChannels = useRealChannels
         ? ref.watch(localCreatedChannelsProvider)
         : const <ChannelCreatedCacheEntry>[];
-    final blocks = ref.watch(blockListProvider).valueOrNull;
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
     final fallbackDomain = _clientServerName(client);
@@ -303,7 +301,6 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
           .where((channel) =>
-              !isChannelBlocked(blocks, channel.roomId) &&
               !_channelHiddenKeysContain(hiddenChannelKeys, channel) &&
               !_channelHiddenKeysContain(syncHiddenChannelKeys, channel))
           .toList(growable: false),
@@ -498,7 +495,6 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
-    final blocks = ref.watch(blockListProvider).valueOrNull;
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -554,7 +550,6 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel) ||
           _channelHiddenKeysContain(syncHiddenChannelKeys, channel);
       if (hidden) return false;
-      if (isChannelBlocked(blocks, channel.roomId)) return false;
       return _section == _MeChannelSection.created
           ? channel.isOwned
           : !channel.isOwned;

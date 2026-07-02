@@ -9,9 +9,7 @@ import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
-import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/block_list_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
@@ -47,7 +45,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   bool _showNicknames = true;
   bool _leaving = false;
   bool _clearing = false;
-  bool _blocking = false;
 
   @override
   Widget build(BuildContext context) {
@@ -246,16 +243,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                   const SizedBox(height: 16),
                   _GroupedCard(
                     children: [
-                      _RowDanger(
-                        label: '拉黑群聊',
-                        onTap: () => _confirmBlockGroup(
-                          context,
-                          displayName: groupRemark.isNotEmpty
-                              ? groupRemark
-                              : safeRoomDisplayName(room),
-                        ),
-                      ),
-                      _Divider(),
                       _RowDanger(
                         label: canDissolveGroup ? '解散群聊' : '退出群聊',
                         onTap: () => _confirmLeave(
@@ -576,74 +563,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       if (mounted) setState(() => _leaving = false);
     }
   }
-
-  Future<void> _confirmBlockGroup(
-    BuildContext context, {
-    required String displayName,
-  }) async {
-    if (_blocking) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(
-          '拉黑群聊',
-          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
-        ),
-        content: Text(
-          '拉黑后将不能继续发送消息。',
-          style: AppTheme.sans(size: 15, color: context.tk.textMute),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(c).pop(false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(c).pop(true),
-            child: Text(
-              '拉黑',
-              style: AppTheme.sans(
-                size: 15,
-                weight: FontWeight.w600,
-                color: context.tk.danger,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    setState(() => _blocking = true);
-    try {
-      await ref.read(blockListProvider.notifier).blockGroup(
-            roomId: widget.roomId,
-            displayName: displayName,
-          );
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.withoutGroup(widget.roomId),
-          );
-      final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
-      if (room != null) {
-        ref.read(matrixClientProvider).rooms.remove(room);
-      }
-      if (!context.mounted) return;
-      _toast(context, '已拉黑群聊');
-      context.go('/home');
-    } catch (error) {
-      if (!context.mounted) return;
-      _toast(
-        context,
-        _alreadyBlockedMessage(error) ? '已经拉黑' : '拉黑群聊失败: $error',
-      );
-    } finally {
-      if (mounted) setState(() => _blocking = false);
-    }
-  }
-}
-
-bool _alreadyBlockedMessage(Object error) {
-  final message = error.toString().toLowerCase();
-  return message.contains('already blocked') || message.contains('已经拉黑');
 }
 
 Future<String?> _showTextEditDialog(

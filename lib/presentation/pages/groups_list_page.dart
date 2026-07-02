@@ -9,7 +9,6 @@ import '../../l10n/app_localizations.dart';
 import '../../l10n/app_localizations_zh.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/block_list_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/product_conversations_provider.dart';
@@ -62,7 +61,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final groupAvatarMemberAvatars =
         ref.watch(groupAvatarMemberAvatarsProvider);
-    final blocks = ref.watch(blockListProvider).valueOrNull;
     final directContactRoomIds = syncCache.acceptedContacts
         .map((contact) => contact.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
@@ -80,7 +78,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     for (final conversation in groupConversations) {
       final roomId = conversation.roomId.trim();
       if (roomId.isEmpty) continue;
-      if (isGroupBlocked(blocks, roomId)) continue;
       if (directContactRoomIds.contains(roomId)) continue;
       final group = groupsByRoomId[roomId];
       if (!_isVisibleGroupForList(group, conversation)) continue;

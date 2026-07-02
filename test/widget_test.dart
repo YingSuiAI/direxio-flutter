@@ -935,34 +935,6 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
-  Future<AsBlockItem> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async =>
-      AsBlockItem(
-        targetType: asBlockTargetGroup,
-        targetId: roomId.trim(),
-        roomId: roomId.trim(),
-        displayName: displayName.trim(),
-        avatarUrl: avatarUrl.trim(),
-      );
-
-  @override
-  Future<AsBlockItem> blockChannel({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async =>
-      AsBlockItem(
-        targetType: asBlockTargetChannel,
-        targetId: roomId.trim(),
-        roomId: roomId.trim(),
-        displayName: displayName.trim(),
-        avatarUrl: avatarUrl.trim(),
-      );
-
-  @override
   Future<void> removeBlock({
     required String targetType,
     required String targetId,
@@ -1981,12 +1953,6 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? blockedContactPeerMxid;
   String? blockedContactDisplayName;
   String? blockedContactAvatarUrl;
-  int blockGroupCalls = 0;
-  String? blockedGroupRoomId;
-  String? blockedGroupDisplayName;
-  int blockChannelCalls = 0;
-  String? blockedChannelRoomId;
-  String? blockedChannelDisplayName;
   int removeBlockCalls = 0;
   String? removedBlockTargetType;
   String? removedBlockTargetId;
@@ -2122,42 +2088,6 @@ class _TrackingAsClient extends _EmptyAsClient {
       targetType: asBlockTargetContact,
       targetId: peerMxid.trim(),
       peerMxid: peerMxid.trim(),
-      displayName: displayName.trim(),
-      avatarUrl: avatarUrl.trim(),
-    );
-  }
-
-  @override
-  Future<AsBlockItem> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    blockGroupCalls++;
-    blockedGroupRoomId = roomId;
-    blockedGroupDisplayName = displayName;
-    return AsBlockItem(
-      targetType: asBlockTargetGroup,
-      targetId: roomId.trim(),
-      roomId: roomId.trim(),
-      displayName: displayName.trim(),
-      avatarUrl: avatarUrl.trim(),
-    );
-  }
-
-  @override
-  Future<AsBlockItem> blockChannel({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    blockChannelCalls++;
-    blockedChannelRoomId = roomId;
-    blockedChannelDisplayName = displayName;
-    return AsBlockItem(
-      targetType: asBlockTargetChannel,
-      targetId: roomId.trim(),
-      roomId: roomId.trim(),
       displayName: displayName.trim(),
       avatarUrl: avatarUrl.trim(),
     );
@@ -21770,9 +21700,9 @@ void main() {
     await tester.tap(find.text('Blacklist'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Friends'), findsOneWidget);
-    expect(find.text('Groups'), findsOneWidget);
-    expect(find.text('Channels'), findsOneWidget);
+    expect(find.text('No blocked friends'), findsOneWidget);
+    expect(find.text('Groups'), findsNothing);
+    expect(find.text('Channels'), findsNothing);
   });
 
   testWidgets('blocked contact route is intercepted with already blocked toast',
@@ -21830,16 +21760,17 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('blocked room route is intercepted before opening room',
+  testWidgets('blocked direct room route is intercepted before opening room',
       (tester) async {
     final asClient = _TrackingAsClient()
       ..blockList = const AsBlockList(
-        groups: [
+        contacts: [
           AsBlockItem(
-            targetType: asBlockTargetGroup,
-            targetId: '!blocked:p2p-im.com',
-            roomId: '!blocked:p2p-im.com',
-            displayName: 'Blocked Group',
+            targetType: asBlockTargetContact,
+            targetId: '@blocked:p2p-im.com',
+            peerMxid: '@blocked:p2p-im.com',
+            roomId: '!blocked-direct:p2p-im.com',
+            displayName: 'Blocked',
           ),
         ],
       );
@@ -21854,7 +21785,7 @@ void main() {
           path: '/target',
           builder: (_, __) => const BlockedRouteGuard(
             kind: BlockedRouteTargetKind.room,
-            roomId: '!blocked:p2p-im.com',
+            roomId: '!blocked-direct:p2p-im.com',
             child: Scaffold(body: Text('blocked-room')),
           ),
         ),

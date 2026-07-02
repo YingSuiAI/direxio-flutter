@@ -843,12 +843,8 @@ List<ConversationSummaryEntry> _filterBlockedHomeConversations({
     if (roomId.isEmpty || entry.isAgent) return true;
     final productConversation = productConversationsByRoomId[roomId];
     if (productConversation?.isAgent == true) return true;
-    if (productConversation?.isChannel == true) {
-      return !isChannelBlocked(blocks, roomId);
-    }
-    if (entry.isGroup || productConversation?.isGroup == true) {
-      return !isGroupBlocked(blocks, roomId);
-    }
+    if (productConversation?.isChannel == true) return true;
+    if (entry.isGroup || productConversation?.isGroup == true) return true;
     final room = client.getRoomById(roomId);
     final peerMxid = _homeDirectPeerMxid(
       productConversation: productConversation,

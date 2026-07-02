@@ -24,7 +24,6 @@ class BlacklistPage extends ConsumerStatefulWidget {
 }
 
 class _BlacklistPageState extends ConsumerState<BlacklistPage> {
-  var _selectedType = asBlockTargetContact;
   final Set<String> _removing = {};
 
   Future<void> _refresh() async {
@@ -98,23 +97,16 @@ class _BlacklistPageState extends ConsumerState<BlacklistPage> {
                 builder: (context) {
                   final value = ref.watch(blockListProvider);
                   final blocks = value.valueOrNull ?? const AsBlockList();
-                  final entries = _entriesForType(blocks, _selectedType);
+                  final entries = blocks.contacts;
                   return Column(
                     children: [
-                      _BlacklistTabs(
-                        selectedType: _selectedType,
-                        onSelected: (type) =>
-                            setState(() => _selectedType = type),
-                      ),
                       Expanded(
                         child: value.isLoading && value.valueOrNull == null
                             ? const Center(child: CircularProgressIndicator())
                             : value.hasError
                                 ? _BlacklistError(onRetry: _refresh)
                                 : entries.isEmpty
-                                    ? _BlacklistEmpty(
-                                        targetType: _selectedType,
-                                      )
+                                    ? const _BlacklistEmpty()
                                     : RefreshIndicator(
                                         onRefresh: _refresh,
                                         child: ListView.builder(
@@ -144,14 +136,6 @@ class _BlacklistPageState extends ConsumerState<BlacklistPage> {
       ),
     );
   }
-}
-
-List<AsBlockItem> _entriesForType(AsBlockList blocks, String targetType) {
-  return switch (targetType) {
-    asBlockTargetGroup => blocks.groups,
-    asBlockTargetChannel => blocks.channels,
-    _ => blocks.contacts,
-  };
 }
 
 String _entryTitle(AsBlockItem entry) {
@@ -354,49 +338,8 @@ class _RemoveButton extends StatelessWidget {
   }
 }
 
-class _BlacklistTabs extends StatelessWidget {
-  const _BlacklistTabs({
-    required this.selectedType,
-    required this.onSelected,
-  });
-
-  final String selectedType;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: SegmentedButton<String>(
-        segments: [
-          ButtonSegment(
-            value: asBlockTargetContact,
-            label: Text(l10n?.blacklistContactsTab ?? '好友'),
-          ),
-          ButtonSegment(
-            value: asBlockTargetGroup,
-            label: Text(l10n?.blacklistGroupsTab ?? '群聊'),
-          ),
-          ButtonSegment(
-            value: asBlockTargetChannel,
-            label: Text(l10n?.blacklistChannelsTab ?? '频道'),
-          ),
-        ],
-        selected: {selectedType},
-        onSelectionChanged: (values) => onSelected(values.first),
-      ),
-    );
-  }
-}
-
 class _BlacklistEmpty extends StatelessWidget {
-  const _BlacklistEmpty({required this.targetType});
-
-  final String targetType;
+  const _BlacklistEmpty();
 
   @override
   Widget build(BuildContext context) {
@@ -407,11 +350,7 @@ class _BlacklistEmpty extends StatelessWidget {
     );
     return Center(
       child: Text(
-        switch (targetType) {
-          asBlockTargetGroup => l10n?.blacklistGroupsEmpty ?? '暂无拉黑群聊',
-          asBlockTargetChannel => l10n?.blacklistChannelsEmpty ?? '暂无拉黑频道',
-          _ => l10n?.blacklistContactsEmpty ?? l10n?.blacklistEmpty ?? '暂无拉黑好友',
-        },
+        l10n?.blacklistContactsEmpty ?? l10n?.blacklistEmpty ?? '暂无拉黑好友',
         style: AppTheme.sans(size: 14, color: t.textMute),
       ),
     );

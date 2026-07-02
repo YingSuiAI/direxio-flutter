@@ -489,34 +489,6 @@ class HttpAsClient implements AsClient {
     );
   }
 
-  @override
-  Future<AsBlockItem> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) {
-    return _blockTarget(
-      targetType: asBlockTargetGroup,
-      roomId: roomId,
-      displayName: displayName,
-      avatarUrl: avatarUrl,
-    );
-  }
-
-  @override
-  Future<AsBlockItem> blockChannel({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) {
-    return _blockTarget(
-      targetType: asBlockTargetChannel,
-      roomId: roomId,
-      displayName: displayName,
-      avatarUrl: avatarUrl,
-    );
-  }
-
   Future<AsBlockItem> _blockTarget({
     required String targetType,
     String peerMxid = '',
@@ -544,17 +516,13 @@ class HttpAsClient implements AsClient {
     required String targetType,
     required String targetId,
   }) async {
-    final cleanType = targetType.trim();
     final cleanId = targetId.trim();
     await _requestJson(
       'POST',
       'blocks/remove',
       body: {
-        'target_type': cleanType,
-        if (cleanType == asBlockTargetContact)
-          'peer_mxid': cleanId
-        else
-          'room_id': cleanId,
+        'target_type': asBlockTargetContact,
+        'peer_mxid': cleanId,
       },
       allowedStatusCodes: const {200, 404},
     );

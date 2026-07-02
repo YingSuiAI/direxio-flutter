@@ -24,8 +24,6 @@ class MockAsClient implements AsClient {
   final List<AsFavoriteMessage> _favorites = [];
   final Map<String, AsCallSession> _calls = {};
   final Map<String, AsBlockItem> _blockedContacts = {};
-  final Map<String, AsBlockItem> _blockedGroups = {};
-  final Map<String, AsBlockItem> _blockedChannels = {};
   final Map<String, AsChannel> _channels = {};
   final Map<String, List<AsChannelMember>> _channelMembers = {};
   final Map<String, List<AsChannelPost>> _channelPosts = {};
@@ -318,8 +316,6 @@ class MockAsClient implements AsClient {
     await Future.delayed(_latency);
     return AsBlockList(
       contacts: List.unmodifiable(_blockedContacts.values),
-      groups: List.unmodifiable(_blockedGroups.values),
-      channels: List.unmodifiable(_blockedChannels.values),
     );
   }
 
@@ -344,60 +340,13 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AsBlockItem> blockGroup({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    await Future.delayed(_latency);
-    final id = roomId.trim();
-    final item = AsBlockItem(
-      targetType: asBlockTargetGroup,
-      targetId: id,
-      roomId: id,
-      displayName: displayName.trim().isEmpty ? id : displayName.trim(),
-      avatarUrl: avatarUrl.trim(),
-      createdAt: DateTime.now().toUtc(),
-    );
-    _blockedGroups[id] = item;
-    return item;
-  }
-
-  @override
-  Future<AsBlockItem> blockChannel({
-    required String roomId,
-    String displayName = '',
-    String avatarUrl = '',
-  }) async {
-    await Future.delayed(_latency);
-    final id = roomId.trim();
-    final item = AsBlockItem(
-      targetType: asBlockTargetChannel,
-      targetId: id,
-      roomId: id,
-      displayName: displayName.trim().isEmpty ? id : displayName.trim(),
-      avatarUrl: avatarUrl.trim(),
-      createdAt: DateTime.now().toUtc(),
-    );
-    _blockedChannels[id] = item;
-    return item;
-  }
-
-  @override
   Future<void> removeBlock({
     required String targetType,
     required String targetId,
   }) async {
     await Future.delayed(_latency);
     final id = targetId.trim();
-    switch (targetType.trim()) {
-      case asBlockTargetContact:
-        _blockedContacts.remove(id);
-      case asBlockTargetGroup:
-        _blockedGroups.remove(id);
-      case asBlockTargetChannel:
-        _blockedChannels.remove(id);
-    }
+    _blockedContacts.remove(id);
   }
 
   @override

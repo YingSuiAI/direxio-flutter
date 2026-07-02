@@ -386,25 +386,16 @@ GoRouter appRouter(Ref ref) {
       ),
       GoRoute(
         path: '/group-info/:roomId',
-        pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
-            roomId: state.pathParameters['roomId']!,
-            child: GroupInfoPage(roomId: state.pathParameters['roomId']!),
-          ),
-        ),
+        pageBuilder: (_, state) =>
+            _slidePage(GroupInfoPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/group/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
           state.matchedLocation,
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
+          GroupChatPage(
             roomId: state.pathParameters['roomId']!,
-            child: GroupChatPage(
-              roomId: state.pathParameters['roomId']!,
-              targetEventId: state.uri.queryParameters['event'],
-            ),
+            targetEventId: state.uri.queryParameters['event'],
           ),
         ),
       ),
@@ -492,26 +483,18 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/group-detail/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
+          GroupDetailPage(
             roomId: state.pathParameters['roomId']!,
-            child: GroupDetailPage(
-              roomId: state.pathParameters['roomId']!,
-              displayName: state.uri.queryParameters['name'],
-              avatarUrl: state.uri.queryParameters['avatar'],
-              scannedQr: state.uri.queryParameters['qr'] == '1',
-            ),
+            displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
+            scannedQr: state.uri.queryParameters['qr'] == '1',
           ),
         ),
       ),
       GoRoute(
         path: '/group-manage/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
-            roomId: state.pathParameters['roomId']!,
-            child: GroupManagePage(roomId: state.pathParameters['roomId']!),
-          ),
+          GroupManagePage(roomId: state.pathParameters['roomId']!),
         ),
       ),
       GoRoute(
@@ -610,56 +593,43 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/group-call-invite/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
+          GroupCallMemberSelectPage(
             roomId: state.pathParameters['roomId']!,
-            child: GroupCallMemberSelectPage(
-              roomId: state.pathParameters['roomId']!,
-              roomName: state.uri.queryParameters['name'],
-              callType:
-                  groupCallTypeFromQuery(state.uri.queryParameters['type']),
-            ),
+            roomName: state.uri.queryParameters['name'],
+            callType: groupCallTypeFromQuery(state.uri.queryParameters['type']),
           ),
         ),
       ),
       GoRoute(
         path: '/group-call/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
+          GroupCallPage(
             roomId: state.pathParameters['roomId']!,
-            child: GroupCallPage(
-              roomId: state.pathParameters['roomId']!,
-              roomName: state.uri.queryParameters['name'],
-              callId: state.uri.queryParameters['call_id'],
-              inviteeIds: groupCallInviteesFromQuery(
-                state.uri.queryParameters['invitees'],
-              ),
-              incoming: state.uri.queryParameters['incoming'] == '1',
-              autoAnswer: state.uri.queryParameters['auto'] == '1',
-              restore: state.uri.queryParameters['restore'] == '1',
+            roomName: state.uri.queryParameters['name'],
+            callId: state.uri.queryParameters['call_id'],
+            inviteeIds: groupCallInviteesFromQuery(
+              state.uri.queryParameters['invitees'],
             ),
+            incoming: state.uri.queryParameters['incoming'] == '1',
+            autoAnswer: state.uri.queryParameters['auto'] == '1',
+            restore: state.uri.queryParameters['restore'] == '1',
           ),
         ),
       ),
       GoRoute(
         path: '/group-video-call/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.group,
+          GroupCallPage(
             roomId: state.pathParameters['roomId']!,
-            child: GroupCallPage(
-              roomId: state.pathParameters['roomId']!,
-              roomName: state.uri.queryParameters['name'],
-              callId: state.uri.queryParameters['call_id'],
-              inviteeIds: groupCallInviteesFromQuery(
-                state.uri.queryParameters['invitees'],
-              ),
-              isVideo: true,
-              incoming: state.uri.queryParameters['incoming'] == '1',
-              autoAnswer: state.uri.queryParameters['auto'] == '1',
-              restore: state.uri.queryParameters['restore'] == '1',
+            roomName: state.uri.queryParameters['name'],
+            callId: state.uri.queryParameters['call_id'],
+            inviteeIds: groupCallInviteesFromQuery(
+              state.uri.queryParameters['invitees'],
             ),
+            isVideo: true,
+            incoming: state.uri.queryParameters['incoming'] == '1',
+            autoAnswer: state.uri.queryParameters['auto'] == '1',
+            restore: state.uri.queryParameters['restore'] == '1',
           ),
         ),
       ),
@@ -720,63 +690,41 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/channel/:channelId/post/create',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.channel,
+          ChannelPostCreatePage(
             channelId: state.pathParameters['channelId']!,
-            fallbackLocation: '/home?tab=channels',
-            child: ChannelPostCreatePage(
-              channelId: state.pathParameters['channelId']!,
-            ),
           ),
         ),
       ),
       GoRoute(
         path: '/channel/:channelId/post/:postId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.channel,
+          ChannelPostDetailPage(
             channelId: state.pathParameters['channelId']!,
-            fallbackLocation: '/home?tab=channels',
-            child: ChannelPostDetailPage(
-              channelId: state.pathParameters['channelId']!,
-              postId: state.pathParameters['postId']!,
-            ),
+            postId: state.pathParameters['postId']!,
           ),
         ),
       ),
       GoRoute(
         path: '/channel/:channelId/info',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.channel,
-            channelId: state.pathParameters['channelId']!,
-            fallbackLocation: '/home?tab=channels',
-            child:
-                ChannelInfoPage(channelId: state.pathParameters['channelId']!),
-          ),
+          ChannelInfoPage(channelId: state.pathParameters['channelId']!),
         ),
       ),
       GoRoute(
         path: '/channel/:channelId/detail',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.channel,
+          ChannelDetailInfoPage(
             channelId: state.pathParameters['channelId']!,
-            roomId: state.uri.queryParameters['room_id'],
-            fallbackLocation: '/home?tab=channels',
-            child: ChannelDetailInfoPage(
-              channelId: state.pathParameters['channelId']!,
-              routeRoomId: state.uri.queryParameters['room_id'],
-              routeName: state.uri.queryParameters['name'],
-              routeAvatarUrl: state.uri.queryParameters['avatar'],
-              routeDescription: state.uri.queryParameters['description'],
-              routeChannelType: state.uri.queryParameters['type'],
-              sharePayload: state.extra is ChannelSharePayload
-                  ? state.extra! as ChannelSharePayload
-                  : null,
-              showJoinButton: state.extra is ChannelSharePayload ||
-                  state.uri.queryParameters['join'] == '1',
-            ),
+            routeRoomId: state.uri.queryParameters['room_id'],
+            routeName: state.uri.queryParameters['name'],
+            routeAvatarUrl: state.uri.queryParameters['avatar'],
+            routeDescription: state.uri.queryParameters['description'],
+            routeChannelType: state.uri.queryParameters['type'],
+            sharePayload: state.extra is ChannelSharePayload
+                ? state.extra! as ChannelSharePayload
+                : null,
+            showJoinButton: state.extra is ChannelSharePayload ||
+                state.uri.queryParameters['join'] == '1',
           ),
         ),
       ),
@@ -790,16 +738,10 @@ GoRouter appRouter(Ref ref) {
           );
           return _pageForLocation(
             '/group/${Uri.encodeComponent(roomId)}',
-            BlockedRouteGuard(
-              kind: BlockedRouteTargetKind.channel,
-              channelId: channelId,
+            GroupChatPage(
               roomId: roomId,
-              fallbackLocation: '/home?tab=channels',
-              child: GroupChatPage(
-                roomId: roomId,
-                channelId: channelId,
-                channelName: state.uri.queryParameters['name'],
-              ),
+              channelId: channelId,
+              channelName: state.uri.queryParameters['name'],
             ),
           );
         },
@@ -807,12 +749,7 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/channel/:channelId',
         pageBuilder: (_, state) => _slidePage(
-          BlockedRouteGuard(
-            kind: BlockedRouteTargetKind.channel,
-            channelId: state.pathParameters['channelId']!,
-            fallbackLocation: '/home?tab=channels',
-            child: ChannelPage(channelId: state.pathParameters['channelId']!),
-          ),
+          ChannelPage(channelId: state.pathParameters['channelId']!),
         ),
       ),
       GoRoute(

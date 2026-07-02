@@ -81,11 +81,11 @@ Accepted-contact remark updates use `contacts.update` with `room_id` and
 `display_name`; the backend stores that remark as contact `display_name`.
 
 User blacklist actions use `blocks.list`, `blocks.add`, and `blocks.remove`.
-`blocks.list` returns grouped `contacts`, `groups`, and `channels`, not a
-required merged total list. Contact blocks are keyed by peer Matrix id; group
-and channel blocks are keyed by Matrix `room_id`. Block list records must carry
-`display_name` and may carry `avatar_url` so the UI can identify blocked items
-without showing raw ids only.
+The blacklist is contact-only: `blocks.list` returns `contacts`, and contact
+blocks are keyed by peer Matrix id. Block list records must carry
+`display_name` and may carry `avatar_url` so the UI can identify blocked
+contacts without showing raw ids only. Do not expose group or channel blacklist
+methods in `AsClient`.
 
 ## Change Order
 

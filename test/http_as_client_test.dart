@@ -207,7 +207,7 @@ void main() {
     ]);
   });
 
-  test('block actions use grouped backend contract', () async {
+  test('block actions use contact-only backend contract', () async {
     final seen = <Map<String, dynamic>>[];
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
@@ -224,20 +224,6 @@ void main() {
                   'target_type': 'contact',
                   'peer_mxid': '@alice:p2p-im.com',
                   'display_name': 'Alice',
-                },
-              ],
-              'groups': [
-                {
-                  'target_type': 'group',
-                  'room_id': '!group:p2p-im.com',
-                  'display_name': 'Team',
-                },
-              ],
-              'channels': [
-                {
-                  'target_type': 'channel',
-                  'room_id': '!channel:p2p-im.com',
-                  'display_name': 'News',
                 },
               ],
             }, 200);
@@ -261,25 +247,13 @@ void main() {
       displayName: 'Alice',
       avatarUrl: 'mxc://avatar',
     );
-    final group = await client.blockGroup(
-      roomId: '!group:p2p-im.com',
-      displayName: 'Team',
-    );
-    final channel = await client.blockChannel(
-      roomId: '!channel:p2p-im.com',
-      displayName: 'News',
-    );
     await client.removeBlock(
-      targetType: asBlockTargetChannel,
-      targetId: '!channel:p2p-im.com',
+      targetType: asBlockTargetContact,
+      targetId: '@alice:p2p-im.com',
     );
 
     expect(blocks.contacts.single.displayName, 'Alice');
-    expect(blocks.groups.single.roomId, '!group:p2p-im.com');
-    expect(blocks.channels.single.roomId, '!channel:p2p-im.com');
     expect(contact.peerMxid, '@alice:p2p-im.com');
-    expect(group.roomId, '!group:p2p-im.com');
-    expect(channel.roomId, '!channel:p2p-im.com');
     expect(seen, [
       {'action': 'blocks.list', 'params': <String, dynamic>{}},
       {
@@ -292,26 +266,10 @@ void main() {
         },
       },
       {
-        'action': 'blocks.add',
-        'params': {
-          'target_type': 'group',
-          'room_id': '!group:p2p-im.com',
-          'display_name': 'Team',
-        },
-      },
-      {
-        'action': 'blocks.add',
-        'params': {
-          'target_type': 'channel',
-          'room_id': '!channel:p2p-im.com',
-          'display_name': 'News',
-        },
-      },
-      {
         'action': 'blocks.remove',
         'params': {
-          'target_type': 'channel',
-          'room_id': '!channel:p2p-im.com',
+          'target_type': 'contact',
+          'peer_mxid': '@alice:p2p-im.com',
         },
       },
     ]);

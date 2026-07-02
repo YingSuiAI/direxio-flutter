@@ -2176,7 +2176,19 @@ class WsAsClient extends HttpAsClient {
       return result;
     } catch (error, stackTrace) {
       stopwatch.stop();
-      _logChannelShareApiError(action, error);
+      if (_shouldHTTPFallbackForWSError(action, error)) {
+        ApiLogger.info(
+          '[P2P product WS] api=$action fallback_to_http=true '
+          'elapsed=${stopwatch.elapsed.inMilliseconds}ms reason=$error',
+        );
+        return super._requestJson(
+          method,
+          path,
+          queryParameters: queryParameters,
+          body: body,
+          allowedStatusCodes: allowedStatusCodes,
+        );
+      }
       if (error is AsClientException && error.statusCode == 401) {
         await _notifyAuthenticationFailed();
       }
@@ -2190,15 +2202,7 @@ class WsAsClient extends HttpAsClient {
         error: error,
         stackTrace: stackTrace,
       );
-      if (_shouldHTTPFallbackForWSError(action, error)) {
-        return super._requestJson(
-          method,
-          path,
-          queryParameters: queryParameters,
-          body: body,
-          allowedStatusCodes: allowedStatusCodes,
-        );
-      }
+      _logChannelShareApiError(action, error);
       rethrow;
     }
   }

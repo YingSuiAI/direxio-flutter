@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/api_logger.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/local_endpoint_resolver.dart';
 
@@ -1625,6 +1626,55 @@ void main() {
     expect(profile.userId, '@owner:example.com');
     expect(wsCalls, 1);
     expect(httpCalls, 1);
+  });
+
+  test('WsAsClient fallback from not-ready WS does not log a WS failure',
+      () async {
+    final records = <ApiLogRecord>[];
+    var httpCalls = 0;
+    final client = WsAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      requestAction: (
+        action,
+        params, {
+        Set<int> allowedStatusCodes = const {200},
+      }) async {
+        throw AsClientException('WS transport is not ready before request');
+      },
+      httpClient: MockClient((request) async {
+        httpCalls++;
+        expect(jsonDecode(request.body), {
+          'action': 'sync.bootstrap',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'synced_at': '2026-07-02T00:00:00Z',
+          'user': {'user_id': '@owner:example.com'},
+          'rooms': [],
+          'contacts': [],
+          'groups': [],
+          'channels': [],
+          'pending': {},
+        }, 200);
+      }),
+    );
+
+    final bootstrap = await ApiLogger.runWithSink(
+      records.add,
+      client.syncBootstrap,
+    );
+
+    expect(bootstrap.user.userId, '@owner:example.com');
+    expect(httpCalls, 1);
+    expect(
+      records.where(
+        (record) =>
+            record.service == 'P2P product WS' &&
+            record.kind == ApiLogKind.failure,
+      ),
+      isEmpty,
+    );
   });
 
   test('WsAsClient falls back after sent for safe idempotent actions',

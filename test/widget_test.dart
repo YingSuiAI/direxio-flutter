@@ -20063,30 +20063,34 @@ void main() {
 
     expect(find.text('我的'), findsWidgets);
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('https://p2p-im.com'), findsOneWidget);
+    expect(find.text('p2p-im.com'), findsOneWidget);
+    expect(find.text('https://p2p-im.com'), findsNothing);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
 
-    await tester.tap(find.text('https://p2p-im.com'));
+    await tester.tap(find.text('p2p-im.com'));
     await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copied?.text, 'https://p2p-im.com');
+    expect(copied?.text, 'p2p-im.com');
     await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.byIcon(Symbols.content_copy));
     await tester.pumpAndSettle();
     final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copiedFromIcon?.text, 'https://p2p-im.com');
+    expect(copiedFromIcon?.text, 'p2p-im.com');
+    await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.byIcon(Symbols.qr_code_2));
     await tester.pumpAndSettle();
 
     expect(find.text('我的二维码'), findsOneWidget);
-    expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text('UID https://p2p-im.com'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('me_qr_display_qr_image')), findsOneWidget);
+    expect(find.text('UID p2p-im.com'), findsAtLeastNWidgets(1));
+    expect(find.text('UID https://p2p-im.com'), findsNothing);
     expect(find.text('保存到相册'), findsOneWidget);
   });
 
@@ -21085,23 +21089,24 @@ void main() {
     expect(find.text('我的信息'), findsOneWidget);
     expect(find.text('修改'), findsOneWidget);
     expect(find.text('昵称'), findsOneWidget);
-    expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
+    expect(find.text('UID: p2p-im.com'), findsOneWidget);
+    expect(find.text('UID: https://p2p-im.com'), findsNothing);
     expect(find.text('性别'), findsOneWidget);
     expect(find.text('生日'), findsOneWidget);
     expect(find.text('邮箱'), findsOneWidget);
 
-    await tester.tap(find.text('UID: https://p2p-im.com'));
+    await tester.tap(find.text('UID: p2p-im.com'));
     await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copied?.text, 'https://p2p-im.com');
+    expect(copied?.text, 'p2p-im.com');
     await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.byIcon(Symbols.content_copy));
     await tester.pumpAndSettle();
     final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copiedFromIcon?.text, 'https://p2p-im.com');
+    expect(copiedFromIcon?.text, 'p2p-im.com');
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -21357,9 +21362,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(savedImages, hasLength(1));
-    expect(savedImages.single['fileName'], 'p2p_im_qr_https_p2p-im.com.png');
+    expect(savedImages.single['fileName'], 'p2p_im_qr_p2p-im.com.png');
     expect(savedImages.single['bytes'], isA<Uint8List>());
     expect(savedImages.single['bytes'], isNotEmpty);
+    await tester.pump(const Duration(seconds: 2));
   });
 
   test('me qr payload includes current avatar url', () {

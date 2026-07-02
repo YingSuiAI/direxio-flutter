@@ -1,10 +1,63 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+
+enum ApiLogKind { info, response, failure }
+
+typedef ApiLogSink = void Function(ApiLogRecord record);
+
+final Object _apiLogSinkZoneKey = Object();
+
+class ApiLogRecord {
+  const ApiLogRecord({
+    required this.kind,
+    required this.message,
+    required this.level,
+    this.service,
+    this.method,
+    this.uri,
+    this.statusCode,
+    this.elapsed,
+    this.error,
+    this.stackTrace,
+    this.apiName,
+    this.requestBody,
+    this.responseBody,
+  });
+
+  final ApiLogKind kind;
+  final String message;
+  final int level;
+  final String? service;
+  final String? method;
+  final Uri? uri;
+  final int? statusCode;
+  final Duration? elapsed;
+  final Object? error;
+  final StackTrace? stackTrace;
+  final String? apiName;
+  final String? requestBody;
+  final String? responseBody;
+}
 
 class ApiLogger {
   const ApiLogger._();
 
+  static R runWithSink<R>(ApiLogSink sink, R Function() body) {
+    return runZoned<R>(
+      body,
+      zoneValues: {_apiLogSinkZoneKey: sink},
+    );
+  }
+
   static void info(String message) {
+    _emit(
+      ApiLogRecord(
+        kind: ApiLogKind.info,
+        message: message,
+        level: 800,
+      ),
+    );
     developer.log(
       message,
       name: 'portal.api',
@@ -33,10 +86,26 @@ class ApiLogger {
       requestBody: requestBody,
       responseBody: responseBody,
     );
+    final level = ok ? 800 : 1000;
+    _emit(
+      ApiLogRecord(
+        kind: ApiLogKind.response,
+        message: message,
+        level: level,
+        service: service,
+        method: method,
+        uri: uri,
+        statusCode: statusCode,
+        elapsed: elapsed,
+        apiName: apiName,
+        requestBody: requestBody,
+        responseBody: responseBody,
+      ),
+    );
     developer.log(
       message,
       name: 'portal.api',
-      level: ok ? 800 : 1000,
+      level: level,
     );
   }
 
@@ -52,23 +121,48 @@ class ApiLogger {
     String? apiName,
     int? statusCode,
   }) {
-    developer.log(
-      _format(
+    final message = _format(
+      service: service,
+      method: method,
+      uri: uri,
+      statusCode: statusCode,
+      elapsed: elapsed,
+      error: error,
+      apiName: apiName,
+      requestBody: requestBody,
+      responseBody: responseBody,
+    );
+    _emit(
+      ApiLogRecord(
+        kind: ApiLogKind.failure,
+        message: message,
+        level: 1000,
         service: service,
         method: method,
         uri: uri,
         statusCode: statusCode,
         elapsed: elapsed,
         error: error,
+        stackTrace: stackTrace,
         apiName: apiName,
         requestBody: requestBody,
         responseBody: responseBody,
       ),
+    );
+    developer.log(
+      message,
       name: 'portal.api',
       level: 1000,
       error: error,
       stackTrace: stackTrace,
     );
+  }
+
+  static void _emit(ApiLogRecord record) {
+    final sink = Zone.current[_apiLogSinkZoneKey];
+    if (sink is ApiLogSink) {
+      sink(record);
+    }
   }
 
   static String _format({

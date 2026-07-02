@@ -524,7 +524,7 @@ String _profileUidUrl(Client client, String userId) {
   final domain = serverNameFromMxid(userId) ?? _clientServerName(client);
   final normalized = domain.trim().replaceFirst(RegExp(r'^https?://'), '');
   if (normalized.isEmpty) return userId;
-  return 'https://$normalized';
+  return normalized;
 }
 
 String _clientServerName(Client client) {

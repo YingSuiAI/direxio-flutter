@@ -762,7 +762,7 @@ String _meUidUrl(Client client, String displayId) {
   final domain = _serverNameFromMxid(displayId) ?? _clientServerName(client);
   final normalized = domain.trim().replaceFirst(RegExp(r'^https?://'), '');
   if (normalized.isEmpty) return displayId;
-  return 'https://$normalized';
+  return normalized;
 }
 
 String? _serverNameFromMxid(String mxid) {

@@ -229,10 +229,16 @@ void main() {
             }, 200);
           case 'blocks.add':
             expect(request.url.path, '/_p2p/command');
-            return _jsonResponse(
-              (body['params'] as Map).cast<String, dynamic>(),
-              200,
-            );
+            return _jsonResponse({
+              'status': 'blocked',
+              'block': {
+                'target_type': 'contact',
+                'target_id': '@alice:p2p-im.com',
+                'peer_mxid': '@alice:p2p-im.com',
+                'display_name': 'Alice',
+                'avatar_url': 'mxc://avatar',
+              },
+            }, 200);
           case 'blocks.remove':
             expect(request.url.path, '/_p2p/command');
             return _jsonResponse({'removed': true}, 200);
@@ -254,6 +260,8 @@ void main() {
 
     expect(blocks.contacts.single.displayName, 'Alice');
     expect(contact.peerMxid, '@alice:p2p-im.com');
+    expect(contact.displayName, 'Alice');
+    expect(contact.avatarUrl, 'mxc://avatar');
     expect(seen, [
       {'action': 'blocks.list', 'params': <String, dynamic>{}},
       {

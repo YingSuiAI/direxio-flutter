@@ -508,7 +508,10 @@ class HttpAsClient implements AsClient {
       },
       allowedStatusCodes: const {200},
     );
-    return AsBlockItem.fromJson(body);
+    final rawBlock = body['block'];
+    return AsBlockItem.fromJson(
+      rawBlock is Map ? rawBlock.cast<String, dynamic>() : body,
+    );
   }
 
   @override

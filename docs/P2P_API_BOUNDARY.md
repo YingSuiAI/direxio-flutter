@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-30
+Last verified from current code: 2026-07-02
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -9,8 +9,11 @@ This document records the current P2P product API / Matrix boundary used by the 
 - The IM/BI public endpoints are separate from the authenticated P2P ProductCore `/_p2p` action boundary.
 - The client sends IM/BI public endpoint requests to the fixed base URL `https://imadmin.direxio.ai/api` and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
 - The fixed public secret is `f88c10fe-4559-fa77-b8b9-beadf468ddba`.
-- Public channel directory registration uses `POST /im/channel/join` after a public channel is created locally; directory closure uses `POST /im/channel/close` after local channel dissolve.
-- Channel search keeps Matrix-room-id lookup on the existing P2P public room detail action. All other channel search text uses signed `GET /im/channel/list` with `name`.
+- Public channel tags use signed `GET /im/tag/public/list?type=channel`; the Flutter client caches the channel tag list locally for one day before refreshing.
+- Public channel directory registration uses `POST /im/channel/join` after a public channel is created locally; the signed JSON body uses `channel_domain`, `room_id`, and optional `tag_id`. Directory closure uses `POST /im/channel/close` after local channel dissolve.
+- Channel search keeps Matrix-room-id lookup on the existing P2P public room detail action. All other channel search text uses signed `GET /im/channel/list` with `name`; the public list request uses snake_case query fields such as `page_size`, `sort_by`, and optional `tag_id`.
+- Public channel list responses may include `tag_id`, `rating_count`, and `average_score`; the Flutter `AsChannel` model preserves those aggregate rating fields.
+- Channel rating uses signed `POST /im/channel/rating` with `uid`, `room_id`, and `score`.
 - User-facing report submissions use signed `POST /im/report`; friend reports send `targetType = 1`, group reports send `targetType = 2`, and channel reports send `targetType = 3`. Report images are uploaded as repeated multipart `files` fields, not `images`.
 - BI startup events are always enabled and use signed `POST /bi/events/report`. First install reports `eventType = launch`; every app startup/login path reports `eventType = login`; payload is currently empty.
 

@@ -16,7 +16,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Removed or exited group conversations stay visible in home conversations and Contacts -> Groups as read-only history; opening them shows the exited-group send block.
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.
 - Group invite visibility uses Matrix room invites and `sync.bootstrap.pending.group_invites`; private chat invite messages are not the receiver contract.
-- Channel search uses Matrix-room-id lookup for room ids and the signed IM public `/im/channel/list` endpoint for other search text.
+- Channel search uses Matrix-room-id lookup for room ids and the signed IM public `/im/channel/list` endpoint for other search text. Public channel tags come from signed `/im/tag/public/list` and are cached locally for one day; public channel list entries preserve `tag_id`, `rating_count`, and `average_score`.
 - Public channel creation registers the channel in the signed IM public directory, and channel dissolve closes it there.
 - User, group, and channel reports use the signed IM public `/im/report` endpoint. Report screenshots/images are sent as multipart `files`.
 - BI startup reporting uses the signed IM public `/bi/events/report` endpoint with a stored device number.

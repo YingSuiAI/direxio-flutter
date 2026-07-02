@@ -51,8 +51,12 @@ class ImPublicClient {
     );
   }
 
-  Future<List<ImPublicTag>> listTags() async {
-    final data = await _get('im/tag/public/list');
+  Future<List<ImPublicTag>> listTags({String type = 'channel'}) async {
+    final normalizedType = type.trim().isEmpty ? 'channel' : type.trim();
+    final data = await _get(
+      'im/tag/public/list',
+      queryParameters: {'type': normalizedType},
+    );
     final raw = data['list'] as List? ?? const [];
     return raw
         .whereType<Map>()
@@ -62,16 +66,18 @@ class ImPublicClient {
 
   Future<ImPublicChannelPage> listChannels({
     int page = 1,
-    int pageSize = 10,
+    int pageSize = 20,
     String name = '',
-    String sortBy = 'createdAt',
-    bool desc = false,
+    int? tagId,
+    String sortBy = 'member_count',
+    bool desc = true,
   }) async {
     final data = await _get('im/channel/list', queryParameters: {
       'page': '$page',
-      'pageSize': '$pageSize',
+      'page_size': '$pageSize',
       if (name.trim().isNotEmpty) 'name': name.trim(),
-      if (sortBy.trim().isNotEmpty) 'sortBy': sortBy.trim(),
+      if (tagId != null && tagId > 0) 'tag_id': '$tagId',
+      if (sortBy.trim().isNotEmpty) 'sort_by': sortBy.trim(),
       'desc': desc.toString(),
     });
     return ImPublicChannelPage.fromJson(data);
@@ -80,10 +86,24 @@ class ImPublicClient {
   Future<void> joinChannelDirectory({
     required String channelDomain,
     required String roomId,
+    int? tagId,
   }) async {
     await _post('im/channel/join', {
-      'channelDomain': channelDomain.trim(),
+      'channel_domain': channelDomain.trim(),
       'room_id': roomId.trim(),
+      if (tagId != null && tagId > 0) 'tag_id': tagId,
+    });
+  }
+
+  Future<void> rateChannel({
+    required String uid,
+    required String roomId,
+    required int score,
+  }) async {
+    await _post('im/channel/rating', {
+      'uid': uid.trim(),
+      'room_id': roomId.trim(),
+      'score': score,
     });
   }
 
@@ -260,13 +280,15 @@ class ImPublicTag {
   const ImPublicTag({
     required this.id,
     required this.name,
-    required this.color,
-    required this.status,
-    required this.sort,
+    this.icon = '',
+    this.color = '',
+    this.status = 0,
+    this.sort = 0,
   });
 
   final int id;
   final String name;
+  final String icon;
   final String color;
   final int status;
   final int sort;
@@ -275,10 +297,22 @@ class ImPublicTag {
     return ImPublicTag(
       id: _parseInt(json['ID'] ?? json['id']),
       name: json['name'] as String? ?? '',
+      icon: json['icon'] as String? ?? '',
       color: json['color'] as String? ?? '',
       status: _parseInt(json['status']),
       sort: _parseInt(json['sort']),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (icon.trim().isNotEmpty) 'icon': icon,
+      if (color.trim().isNotEmpty) 'color': color,
+      if (status != 0) 'status': status,
+      if (sort != 0) 'sort': sort,
+    };
   }
 }
 
@@ -352,24 +386,28 @@ class ImPublicChannelListing {
     };
     return ImPublicChannelListing(
       id: _parseInt(json['ID'] ?? json['id']),
-      channelDomain: json['channelDomain'] as String? ?? '',
+      channelDomain: json['channel_domain'] as String? ??
+          json['channelDomain'] as String? ??
+          '',
       roomId: json['room_id'] as String? ?? '',
       ownerDomain: json['ownerDomain'] as String? ??
           json['owner_domain'] as String? ??
+          json['channel_domain'] as String? ??
           json['channelDomain'] as String? ??
           '',
       intro: json['intro'] as String? ?? json['description'] as String? ?? '',
       channel: AsChannel.fromJson(detail),
-      tagId: _parseInt(json['tagId']),
+      tagId: _parseInt(json['tag_id'] ?? json['tagId']),
       tag: json['tag'] is Map
           ? ImPublicTag.fromJson((json['tag'] as Map).cast<String, dynamic>())
           : null,
       status: _parseInt(json['status']),
-      syncStatus: _parseInt(json['syncStatus']),
-      failureCount: _parseInt(json['failureCount']),
-      reportCount: _parseInt(json['reportCount']),
-      joinCount: _parseInt(json['joinCount']),
-      lastJoinTime: _parseDateTime(json['lastJoinTime']),
+      syncStatus: _parseInt(json['sync_status'] ?? json['syncStatus']),
+      failureCount: _parseInt(json['failure_count'] ?? json['failureCount']),
+      reportCount: _parseInt(json['report_count'] ?? json['reportCount']),
+      joinCount: _parseInt(json['join_count'] ?? json['joinCount']),
+      lastJoinTime:
+          _parseDateTime(json['last_join_time'] ?? json['lastJoinTime']),
     );
   }
 }

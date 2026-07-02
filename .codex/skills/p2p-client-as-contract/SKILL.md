@@ -34,7 +34,9 @@ Current public Product API actions are `portal.bootstrap`, `portal.auth`,
 `channels.public.join_result` is an internal node-to-node callback, not a
 normal Flutter workflow entry.
 
-Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel directory registration/close, non-room-id public channel list search, BI launch/login events, and Flutter user-facing report screens use those signed `/im/*` and `/bi/*` endpoints. The public base URL and secret are fixed in code; BI reporting is always enabled. Do not read these settings from dart-define or other runtime configuration.
+Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel tags, public channel directory registration/close, non-room-id public channel list search, public channel rating, BI launch/login events, and Flutter user-facing report screens use those signed `/im/*` and `/bi/*` endpoints. The public base URL and secret are fixed in code; BI reporting is always enabled. Do not read these settings from dart-define or other runtime configuration.
+
+Signed public channel contracts use documented snake_case fields: `/im/tag/public/list?type=channel` supplies channel tags and should be cached locally for one day; `/im/channel/list` uses `page_size`, `sort_by`, and optional `tag_id`, and may return `tag_id`, `rating_count`, and `average_score`; `/im/channel/join` uses `channel_domain`, `room_id`, and optional `tag_id`; `/im/channel/rating` uses `uid`, `room_id`, and `score`.
 
 User-facing reports must call imadmin `/im/report`, not Direxio Message Server
 ProductCore. Use `targetType = 1` for friends, `2` for groups, and `3` for

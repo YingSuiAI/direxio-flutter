@@ -33,9 +33,11 @@ Use `AsSyncBootstrap.channels` as the primary logged-in source for channel lists
 
 Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
 
-Channel search behavior is split by input shape: Matrix room ids still resolve through the P2P public room-id lookup; all other search text uses the signed IM public `/im/channel/list` endpoint with `name`.
+Channel search behavior is split by input shape: Matrix room ids still resolve through the P2P public room-id lookup; all other search text uses the signed IM public `/im/channel/list` endpoint with `name`. Public list requests use documented snake_case query fields such as `page_size`, `sort_by`, and optional `tag_id`; responses may include `tag_id`, `rating_count`, and `average_score`.
 
-When creating a public channel, call the signed IM public `/im/channel/join` directory registration after the local `channels.create` succeeds. When dissolving a channel, call signed `/im/channel/close` with the Matrix `room_id` after the local dissolve succeeds.
+Public channel tags come from signed `GET /im/tag/public/list?type=channel` and should be cached locally for one day before refreshing.
+
+When creating a public channel, call the signed IM public `/im/channel/join` directory registration after the local `channels.create` succeeds. The registration body uses `channel_domain`, `room_id`, and optional `tag_id`. When dissolving a channel, call signed `/im/channel/close` with the Matrix `room_id` after the local dissolve succeeds.
 
 Channel type is creation-time metadata. Post channels (`channel_type=post`) use
 shared Matrix history so new members can see existing posts/comments/reactions;

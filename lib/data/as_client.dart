@@ -1309,6 +1309,8 @@ class AsChannel {
     this.lifecycle = '',
     this.memberCount = 0,
     this.pendingJoinCount = 0,
+    this.ratingCount = 0,
+    this.averageScore = 0,
     this.tags = const [],
     this.latestActivityAt,
     this.productConversation,
@@ -1330,6 +1332,8 @@ class AsChannel {
   final String lifecycle;
   final int memberCount;
   final int pendingJoinCount;
+  final int ratingCount;
+  final double averageScore;
   final List<String> tags;
   final DateTime? latestActivityAt;
   final AsConversation? productConversation;
@@ -1363,6 +1367,8 @@ class AsChannel {
       lifecycle: json['lifecycle'] as String? ?? '',
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
+      ratingCount: _parseInt(json['rating_count']),
+      averageScore: _parseDouble(json['average_score']),
       tags: _parseStringList(json['tags']),
       latestActivityAt: _parseDateTime(
         json['last_activity_at'] ?? json['created_at'],
@@ -1389,6 +1395,8 @@ class AsChannel {
       if (lifecycle.trim().isNotEmpty) 'lifecycle': lifecycle,
       if (memberCount > 0) 'member_count': memberCount,
       if (pendingJoinCount > 0) 'pending_join_count': pendingJoinCount,
+      if (ratingCount > 0) 'rating_count': ratingCount,
+      if (averageScore > 0) 'average_score': averageScore,
       'tags': tags,
       if (latestActivityAt != null)
         'last_activity_at': latestActivityAt!.toUtc().toIso8601String(),
@@ -2810,6 +2818,13 @@ int _parseInt(Object? value) {
   if (value is int) return value;
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+
+double _parseDouble(Object? value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim()) ?? 0;
   return 0;
 }
 

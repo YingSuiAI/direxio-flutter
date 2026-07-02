@@ -84,6 +84,9 @@ void main() {
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsWidgets);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
   });
 
   testWidgets('channel search result renders channel avatar', (tester) async {
@@ -465,6 +468,9 @@ void main() {
     );
     expect(find.text('待审核'), findsWidgets);
     expect(find.textContaining('加入频道失败'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
   });
 
   testWidgets('channel search treats public room 404 as empty result',
@@ -807,6 +813,9 @@ void main() {
         asClient.joinedRemoteNodeBaseUri, Uri.parse('https://p2p-im.com/_p2p'));
     expect(asClient.joinedChannelId, isNull);
     expect(find.text('已申请加入频道'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
   });
 }
 
@@ -954,10 +963,11 @@ class _ChannelSearchImPublicClient extends ImPublicClient {
   @override
   Future<ImPublicChannelPage> listChannels({
     int page = 1,
-    int pageSize = 10,
+    int pageSize = 20,
     String name = '',
-    String sortBy = 'createdAt',
-    bool desc = false,
+    int? tagId,
+    String sortBy = 'member_count',
+    bool desc = true,
   }) async {
     callCount += 1;
     lastName = name;

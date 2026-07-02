@@ -97,7 +97,7 @@ Choose the integration boundary before adding or changing client behavior:
 - Channel share cards must include `channel_id` and `room_id` and must not include invite-grant fields. Sharing a channel is a recommendation card for both owners and ordinary members; receivers open the public channel detail by Matrix `room_id` and apply through `channels.public.join_request`. Direct invite grants are reserved for the owner member-list `+` invite flow, not the share button.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 - User-facing reports use the imadmin signed public API, not Direxio Message Server ProductCore. Call signed `POST /im/report` through the IM public client; use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`. Do not wire report UI to P2P `reports.submit`.
-- Public channel directory search/register/close uses signed `/im/channel/list`, `/im/channel/join`, and `/im/channel/close`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.
+- Public channel tags/search/register/rating/close use signed `/im/tag/public/list`, `/im/channel/list`, `/im/channel/join`, `/im/channel/rating`, and `/im/channel/close`. Channel tag lists are cached locally for one day. Public IM channel fields use the documented snake_case names such as `page_size`, `sort_by`, `channel_domain`, `room_id`, and `tag_id`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.
 
 ## Architecture
 

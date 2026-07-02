@@ -1072,10 +1072,11 @@ class _WidgetImPublicClient extends ImPublicClient {
   @override
   Future<ImPublicChannelPage> listChannels({
     int page = 1,
-    int pageSize = 10,
+    int pageSize = 20,
     String name = '',
-    String sortBy = 'createdAt',
-    bool desc = false,
+    int? tagId,
+    String sortBy = 'member_count',
+    bool desc = true,
   }) async {
     lastName = name;
     return ImPublicChannelPage(

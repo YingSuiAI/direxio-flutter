@@ -25,8 +25,7 @@ void main() {
     expect(defaultImPublicBaseUrl, 'https://imadmin.direxio.ai/api');
   });
 
-  test(
-      'listChannels sends signed name query and reads IM public channel envelope',
+  test('listChannels sends signed documented query and reads rating envelope',
       () async {
     late http.Request seen;
     final client = ImPublicClient(
@@ -37,35 +36,33 @@ void main() {
         expect(request.method, 'GET');
         expect(request.url.path, '/im/channel/list');
         expect(request.url.queryParameters['page'], '2');
-        expect(request.url.queryParameters['pageSize'], '20');
+        expect(request.url.queryParameters['page_size'], '20');
         expect(request.url.queryParameters['name'], '产品');
+        expect(request.url.queryParameters['tag_id'], '7');
+        expect(request.url.queryParameters['sort_by'], 'member_count');
+        expect(request.url.queryParameters['desc'], 'true');
         expect(request.url.queryParameters.containsKey('keyword'), isFalse);
         expect(request.url.queryParameters.containsKey('status'), isFalse);
+        expect(request.url.queryParameters.containsKey('pageSize'), isFalse);
+        expect(request.url.queryParameters.containsKey('sortBy'), isFalse);
         return _json({
           'code': 0,
           'data': {
             'list': [
               {
-                'ID': 1,
-                'channelDomain': 'https://im1.direxio.ai',
                 'channel_id': 'ch_1',
                 'room_id': '!room:im1.direxio.ai',
                 'name': 'Product Updates',
                 'description': 'Release notes',
-                'avatar_url': 'mxc://example.com/avatar',
-                'join_policy': 'open',
-                'channel_type': 'chat',
+                'tag_id': 7,
                 'member_count': 1,
-                'status': 1,
-                'failureCount': 0,
-                'reportCount': 0,
-                'joinCount': 2,
-                'lastJoinTime': '2026-06-16T12:00:00+08:00',
+                'rating_count': 42,
+                'average_score': 4.6,
               },
             ],
             'total': 1,
             'page': 2,
-            'pageSize': 20,
+            'page_size': 20,
           },
           'msg': 'success',
         });
@@ -76,6 +73,7 @@ void main() {
       page: 2,
       pageSize: 20,
       name: '产品',
+      tagId: 7,
     );
 
     final nonce = seen.headers['X-BI-Nonce'];
@@ -86,11 +84,12 @@ void main() {
         secret: 'bi-secret',
         nonce: nonce!,
         canonicalBody: canonicalImPublicJson({
-          'desc': 'false',
+          'desc': 'true',
           'name': '产品',
           'page': '2',
-          'pageSize': '20',
-          'sortBy': 'createdAt',
+          'page_size': '20',
+          'sort_by': 'member_count',
+          'tag_id': '7',
         }),
       ),
     );
@@ -98,6 +97,53 @@ void main() {
     expect(page.items.single.channel.channelId, 'ch_1');
     expect(page.items.single.channel.name, 'Product Updates');
     expect(page.items.single.channel.description, 'Release notes');
+    expect(page.items.single.tagId, 7);
+    expect(page.items.single.channel.ratingCount, 42);
+    expect(page.items.single.channel.averageScore, 4.6);
+  });
+
+  test('listTags sends channel type query and reads documented tag fields',
+      () async {
+    late http.Request seen;
+    final client = ImPublicClient(
+      baseUri: Uri.parse('https://api.example.com'),
+      secret: 'bi-secret',
+      httpClient: MockClient((request) async {
+        seen = request;
+        expect(request.method, 'GET');
+        expect(request.url.path, '/im/tag/public/list');
+        expect(request.url.queryParameters['type'], 'channel');
+        return _json({
+          'code': 0,
+          'data': {
+            'list': [
+              {
+                'id': 7,
+                'name': 'AI',
+                'icon': 'https://cdn.example.com/ai.png',
+              },
+            ],
+          },
+          'msg': 'success',
+        });
+      }),
+    );
+
+    final tags = await client.listTags();
+
+    final nonce = seen.headers['X-BI-Nonce'];
+    expect(nonce, isNotNull);
+    expect(
+      seen.headers['X-BI-Signature'],
+      buildImPublicSignature(
+        secret: 'bi-secret',
+        nonce: nonce!,
+        canonicalBody: canonicalImPublicJson({'type': 'channel'}),
+      ),
+    );
+    expect(tags.single.id, 7);
+    expect(tags.single.name, 'AI');
+    expect(tags.single.icon, 'https://cdn.example.com/ai.png');
   });
 
   test('public clients preserve base URI path prefixes', () async {
@@ -144,7 +190,8 @@ void main() {
     expect(biRequest.url.path, '/api/bi/events/report');
   });
 
-  test('joinChannelDirectory posts signed documented body', () async {
+  test('joinChannelDirectory posts signed documented body with tag_id',
+      () async {
     late http.Request seen;
     final client = ImPublicClient(
       baseUri: Uri.parse('https://api.example.com'),
@@ -154,8 +201,9 @@ void main() {
         expect(request.method, 'POST');
         expect(request.url.path, '/im/channel/join');
         expect(jsonDecode(request.body), {
-          'channelDomain': 'https://im1.direxio.ai',
+          'channel_domain': 'https://im1.direxio.ai',
           'room_id': '!room:im1.direxio.ai',
+          'tag_id': 7,
         });
         return _json({'code': 0, 'data': {}, 'msg': 'success'});
       }),
@@ -164,6 +212,7 @@ void main() {
     await client.joinChannelDirectory(
       channelDomain: 'https://im1.direxio.ai',
       roomId: '!room:im1.direxio.ai',
+      tagId: 7,
     );
 
     final nonce = seen.headers['X-BI-Nonce'];
@@ -174,11 +223,40 @@ void main() {
         secret: 'bi-secret',
         nonce: nonce!,
         canonicalBody: canonicalImPublicJson({
-          'channelDomain': 'https://im1.direxio.ai',
+          'channel_domain': 'https://im1.direxio.ai',
           'room_id': '!room:im1.direxio.ai',
+          'tag_id': 7,
         }),
       ),
     );
+  });
+
+  test('rateChannel posts signed documented rating body', () async {
+    late http.Request seen;
+    final client = ImPublicClient(
+      baseUri: Uri.parse('https://api.example.com'),
+      secret: 'bi-secret',
+      httpClient: MockClient((request) async {
+        seen = request;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/im/channel/rating');
+        expect(jsonDecode(request.body), {
+          'uid': 'user-001',
+          'room_id': '!room:im1.direxio.ai',
+          'score': 5,
+        });
+        return _json({'code': 0, 'data': {}, 'msg': 'success'});
+      }),
+    );
+
+    await client.rateChannel(
+      uid: 'user-001',
+      roomId: '!room:im1.direxio.ai',
+      score: 5,
+    );
+
+    expect(seen.headers['X-BI-Nonce'], isNotEmpty);
+    expect(seen.headers['X-BI-Signature'], isNotEmpty);
   });
 
   test('closeChannelDirectory posts signed documented body', () async {

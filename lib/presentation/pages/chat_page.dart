@@ -3196,11 +3196,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
     _scheduleScrollToLatest(newestTimelineItemKey);
-    final suppressFirstMessageEmpty = topSystemNoticeText == null &&
-        timelineItems.isEmpty &&
-        (_timeline == null ||
-            !summaryState.loaded ||
-            _conversationSummaryHasCachedMessage(summaryState, widget.roomId));
+    final suppressFirstMessageEmpty = isAgent ||
+        (topSystemNoticeText == null &&
+            timelineItems.isEmpty &&
+            (_timeline == null ||
+                !summaryState.loaded ||
+                _conversationSummaryHasCachedMessage(
+                  summaryState,
+                  widget.roomId,
+                )));
     if (deliveredPendingMediaIds.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -3272,10 +3276,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       agentOfflineReplyCount: agentOfflineReplyCount,
       currentUserId: currentUserId,
     );
-    final showDefaultAgentOfflineReply = isAgent &&
-        !agentIsOnline &&
-        agentOfflineReplyCount == 0 &&
-        chatDisplayItems.isEmpty;
     final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversation = productDirectConversationForPeer(
       productConversations,
@@ -3373,12 +3373,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     _lastKeyboardInsetBottom = keyboardInsetBottom;
     _lastBottomPanelVisible = bottomPanelVisible;
-    final messageTopInset = chatMessageTopOverlayClearance(context);
+    final messageTopInset =
+        chatMessageTopOverlayClearanceFor(context, agentStyle: isAgent);
     final messageBottomInset = chatMessageBottomOverlayClearance(
       context,
       replyBarVisible: replyBarVisible,
       selectionBarVisible: selectionBarVisible,
       bottomPanelVisible: bottomPanelVisible,
+      agentStyle: isAgent,
     );
     final messagePadding = chatMessageViewportPadding(
       context,
@@ -3387,12 +3389,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       bottomPanelVisible: bottomPanelVisible,
       reserveTopOverlay: false,
       reserveBottomOverlay: false,
+      agentStyle: isAgent,
     ).add(const EdgeInsets.symmetric(vertical: 12));
 
     return RealtimeRoomFocus(
       roomId: widget.roomId,
       child: Scaffold(
         body: ChatGlassBackground(
+          color: isAgent ? t.agentChatBackground : null,
           child: ChatLayeredLayout(
             messageTopInset: messageTopInset,
             messageBottomInset: messageBottomInset,
@@ -3408,6 +3412,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     title: name,
                     subtitle: headerSubtitle,
                     subtitleStatus: headerSubtitleStatus,
+                    agentStyle: isAgent,
                     onBack: () => unawaited(_popChatOrHome(context)),
                     showEncryptionIcon: true,
                     actions: isAgent
@@ -3415,7 +3420,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             ChatCapsuleAction(
                               icon: Symbols.settings,
                               tooltip: 'Agent 设置',
-                              color: t.accent,
+                              color: t.agentContentText,
                               onTap: () => context.push('/agent-settings'),
                             ),
                           ]
@@ -3448,8 +3453,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               onPointerDown: (_) => _closePanels(),
               child: timelineItems.isEmpty &&
                       topSystemNoticeText == null &&
-                      !showAgentThinking &&
-                      !showDefaultAgentOfflineReply
+                      !showAgentThinking
                   ? LayoutBuilder(
                       builder: (context, constraints) {
                         final emptyHeight = math.max(
@@ -3489,8 +3493,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   : ChatTimelineListMotion(
                       itemCount: chatDisplayItems.length +
                           (topSystemNoticeText == null ? 0 : 1) +
-                          (showAgentThinking ? 1 : 0) +
-                          (showDefaultAgentOfflineReply ? 1 : 0),
+                          (showAgentThinking ? 1 : 0),
                       newestItemKey: newestTimelineItemKey,
                       child: RefreshIndicator(
                         color: t.accent,
@@ -3501,8 +3504,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           padding: messagePadding,
                           itemCount: chatDisplayItems.length +
                               1 +
-                              (showAgentThinking ? 1 : 0) +
-                              (showDefaultAgentOfflineReply ? 1 : 0),
+                              (showAgentThinking ? 1 : 0),
                           itemBuilder: (context, i) {
                             if (i == 0) {
                               if (topSystemNoticeText != null) {
@@ -3514,23 +3516,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             }
                             final itemIndex = i - 1;
                             if (itemIndex >= chatDisplayItems.length) {
-                              if (showDefaultAgentOfflineReply) {
-                                return chatMessageEntrance(
-                                  key: const ValueKey(
-                                    'private_message_enter_agent_offline_reply_default',
-                                  ),
-                                  isMe: false,
-                                  index: itemIndex,
-                                  enabled: true,
-                                  child: _SAgentOfflineReplyBubble(
-                                    text: l10n?.agentChatOfflineReply ??
-                                        '目前Agent离线，请耐心等待',
-                                    avatarSeed: name,
-                                    avatarUrl: effectivePeerAvatarUrl,
-                                    avatarAsset: agentMessageAvatarAsset,
-                                  ),
-                                );
-                              }
                               if (!showAgentThinking) {
                                 return const SizedBox.shrink();
                               }
@@ -4459,9 +4444,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onPickSuggestion: _pickAgentSlashCommand,
                     onTextChanged: _handleComposerTextChanged,
                     enabled: canSendMessages,
+                    agentStyle: isAgent,
                     hintText: isWaitingForAccept
                         ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
-                        : '',
+                        : isAgent
+                            ? 'Your message...'
+                            : '',
                   ),
                 if (_showPlusPanel)
                   ChatAttachmentPanel(

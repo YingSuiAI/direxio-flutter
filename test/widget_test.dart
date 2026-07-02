@@ -21822,9 +21822,11 @@ void main() {
     expect(find.text('Online'), findsNothing);
     expect(find.text('离线'), findsNothing);
     expect(find.text('在线'), findsNothing);
+    expect(find.byIcon(Symbols.settings), findsOneWidget);
+    expect(find.text('Your message...'), findsOneWidget);
     expect(
       find.text('Agent is currently offline. Please wait patiently.'),
-      findsOneWidget,
+      findsNothing,
     );
   });
 

@@ -22,6 +22,13 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     required this.tertiaryFixed,
     required this.toastBackground,
     required this.onToastBackground,
+    required this.agentChatBackground,
+    required this.agentSettingsBackground,
+    required this.agentHeaderText,
+    required this.agentContentText,
+    required this.agentMutedText,
+    required this.agentStatusText,
+    required this.agentComposerSurface,
   });
 
   // —— 历史稳定字段 ——
@@ -44,6 +51,13 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
   final Color tertiaryFixed; // tertiary-fixed（在线状态绿点）
   final Color toastBackground; // toast background
   final Color onToastBackground; // toast text
+  final Color agentChatBackground; // Agent chat timeline background
+  final Color agentSettingsBackground; // Agent settings page background
+  final Color agentHeaderText; // Agent header title/icon text
+  final Color agentContentText; // Agent settings/card primary text
+  final Color agentMutedText; // Agent settings/card secondary text
+  final Color agentStatusText; // Agent online/offline status label
+  final Color agentComposerSurface; // Agent chat composer input surface
 
   /// 全局品牌主色。换产品主色时优先改这里。
   static const brandPrimary = Color(0xFF3DCFFF);
@@ -67,6 +81,13 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     tertiaryFixed: Color(0xFF72FE88),
     toastBackground: Color(0x4D000000),
     onToastBackground: Color(0xFFFAFAFA),
+    agentChatBackground: Color(0xFFF5FAFF),
+    agentSettingsBackground: Color(0xFFF9F9F9),
+    agentHeaderText: Color(0xFF000000),
+    agentContentText: Color(0xFF333333),
+    agentMutedText: Color(0xFF999999),
+    agentStatusText: Color(0xFF9DA3AE),
+    agentComposerSurface: Color(0xFFEFF1F3),
   );
 
   // M3 dark palette; accent keeps the Direxio product blue.
@@ -88,6 +109,13 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     tertiaryFixed: Color(0xFF72FE88),
     toastBackground: Color(0x4D000000),
     onToastBackground: Color(0xFFFAFAFA),
+    agentChatBackground: Color(0xFF141922),
+    agentSettingsBackground: Color(0xFF1C1D23),
+    agentHeaderText: Color(0xFFF4F4F5),
+    agentContentText: Color(0xFFF4F4F5),
+    agentMutedText: Color(0xFFC7C8CE),
+    agentStatusText: Color(0xFFA6ABB7),
+    agentComposerSurface: Color(0xFF2A2B33),
   );
 
   @override
@@ -109,6 +137,13 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     Color? tertiaryFixed,
     Color? toastBackground,
     Color? onToastBackground,
+    Color? agentChatBackground,
+    Color? agentSettingsBackground,
+    Color? agentHeaderText,
+    Color? agentContentText,
+    Color? agentMutedText,
+    Color? agentStatusText,
+    Color? agentComposerSurface,
   }) =>
       PortalTokens(
         bg: bg ?? this.bg,
@@ -128,6 +163,14 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
         tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
         toastBackground: toastBackground ?? this.toastBackground,
         onToastBackground: onToastBackground ?? this.onToastBackground,
+        agentChatBackground: agentChatBackground ?? this.agentChatBackground,
+        agentSettingsBackground:
+            agentSettingsBackground ?? this.agentSettingsBackground,
+        agentHeaderText: agentHeaderText ?? this.agentHeaderText,
+        agentContentText: agentContentText ?? this.agentContentText,
+        agentMutedText: agentMutedText ?? this.agentMutedText,
+        agentStatusText: agentStatusText ?? this.agentStatusText,
+        agentComposerSurface: agentComposerSurface ?? this.agentComposerSurface,
       );
 
   @override
@@ -169,6 +212,41 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
       onToastBackground: Color.lerp(
         onToastBackground,
         other.onToastBackground,
+        t,
+      )!,
+      agentChatBackground: Color.lerp(
+        agentChatBackground,
+        other.agentChatBackground,
+        t,
+      )!,
+      agentSettingsBackground: Color.lerp(
+        agentSettingsBackground,
+        other.agentSettingsBackground,
+        t,
+      )!,
+      agentHeaderText: Color.lerp(
+        agentHeaderText,
+        other.agentHeaderText,
+        t,
+      )!,
+      agentContentText: Color.lerp(
+        agentContentText,
+        other.agentContentText,
+        t,
+      )!,
+      agentMutedText: Color.lerp(
+        agentMutedText,
+        other.agentMutedText,
+        t,
+      )!,
+      agentStatusText: Color.lerp(
+        agentStatusText,
+        other.agentStatusText,
+        t,
+      )!,
+      agentComposerSurface: Color.lerp(
+        agentComposerSurface,
+        other.agentComposerSurface,
         t,
       )!,
     );

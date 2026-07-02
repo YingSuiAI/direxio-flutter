@@ -24,6 +24,9 @@ Load `p2p-client-channel-work` for channel UI, and `p2p-client-auth-session` for
 Use Material 3 conventions from the local design system.
 
 Use `context.tk` color tokens from `core/theme/design_tokens.dart`. Do not hardcode new colors or hex values.
+For Figma-aligned Agent chat/settings surfaces, use the Agent-specific tokens
+such as `agentChatBackground`, `agentSettingsBackground`,
+`agentContentText`, `agentStatusText`, and `agentComposerSurface`.
 
 Use `AppTheme.sans(...)` for text. Do not introduce new hardcoded font families or arbitrary font sizes.
 

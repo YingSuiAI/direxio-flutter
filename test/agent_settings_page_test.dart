@@ -57,9 +57,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Agent 设置'), findsOneWidget);
+    expect(find.text('Agent Settings'), findsOneWidget);
     expect(find.text('Ops Agent'), findsOneWidget);
-    expect(find.text('已屏蔽 1 个房间'), findsOneWidget);
+    expect(find.text('Blocked Conversations List'), findsOneWidget);
+    expect(find.text('1 rooms blocked'), findsOneWidget);
+    expect(find.text('Activity Log'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('agent_blocked_rooms_row')));
     await tester.pumpAndSettle();
@@ -86,7 +88,47 @@ void main() {
       '!blocked:p2p-im.com',
       '!visible:p2p-im.com',
     ]);
-    expect(find.text('已屏蔽 2 个房间'), findsOneWidget);
+    expect(find.text('2 rooms blocked'), findsOneWidget);
+  });
+
+  testWidgets('agent settings edits display name inline', (tester) async {
+    final asClient = _AgentSettingsAsClient(
+      const AgentConfig(displayName: 'Agent', contextWindow: 64),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          productConversationsProvider.overrideWith((_) async => const []),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AgentSettingsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('agent_profile_name')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('编辑 Agent'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('agent_profile_name_field')), findsOneWidget);
+    expect(find.text('Activity Log'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('agent_profile_name_field')),
+      'Ops Agent',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(asClient.config.displayName, 'Ops Agent');
+    expect(find.text('Ops Agent'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('agent_profile_name_field')), findsNothing);
   });
 
   testWidgets('agent settings uploads avatar through picker result',

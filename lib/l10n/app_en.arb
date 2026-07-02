@@ -1844,6 +1844,24 @@
   "toolCallWarnings": "Warnings",
   "commonMe": "Me",
   "commonJustNow": "Just now",
+  "agentSettingsTitle": "Agent Settings",
+  "agentSettingsBlockedConversationsTitle": "Blocked Conversations List",
+  "agentSettingsBlockedRoomsCount": "{count, plural, =1{1 room blocked} other{{count} rooms blocked}}",
+  "@agentSettingsBlockedRoomsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agentSettingsActivityLog": "Activity Log",
+  "agentSettingsOfflineStatus": "Offline status",
+  "agentSettingsSaveFailed": "Failed to save. Please try again later.",
+  "agentSettingsAvatarUploadFailed": "Failed to upload avatar. Please try again later.",
+  "agentSettingsLoadFailed": "Failed to load",
+  "agentSettingsBlockedRoomsSheetTitle": "Select conversations to block",
+  "agentSettingsBlockedRoomsSheetSubtitle": "Agent will not be able to access information from blocked conversations",
+  "agentSettingsBlockedRoomsEmpty": "No conversations available to block",
   "agentChatEmptyTitle": "Start our chat",
   "agentChatOfflineReply": "Agent is currently offline. Please wait patiently."
 }

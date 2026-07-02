@@ -5662,6 +5662,72 @@ abstract class AppLocalizations {
   /// **'刚刚'**
   String get commonJustNow;
 
+  /// No description provided for @agentSettingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 设置'**
+  String get agentSettingsTitle;
+
+  /// No description provided for @agentSettingsBlockedConversationsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'屏蔽会话列表'**
+  String get agentSettingsBlockedConversationsTitle;
+
+  /// No description provided for @agentSettingsBlockedRoomsCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count, plural, =0{未屏蔽会话} other{已屏蔽 {count} 个会话}}'**
+  String agentSettingsBlockedRoomsCount(int count);
+
+  /// No description provided for @agentSettingsActivityLog.
+  ///
+  /// In zh, this message translates to:
+  /// **'活动记录'**
+  String get agentSettingsActivityLog;
+
+  /// No description provided for @agentSettingsOfflineStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线状态'**
+  String get agentSettingsOfflineStatus;
+
+  /// No description provided for @agentSettingsSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败，请稍后重试'**
+  String get agentSettingsSaveFailed;
+
+  /// No description provided for @agentSettingsAvatarUploadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'头像上传失败，请稍后重试'**
+  String get agentSettingsAvatarUploadFailed;
+
+  /// No description provided for @agentSettingsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败'**
+  String get agentSettingsLoadFailed;
+
+  /// No description provided for @agentSettingsBlockedRoomsSheetTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择需要屏蔽的会话'**
+  String get agentSettingsBlockedRoomsSheetTitle;
+
+  /// No description provided for @agentSettingsBlockedRoomsSheetSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 将不能获取已屏蔽会话的信息'**
+  String get agentSettingsBlockedRoomsSheetSubtitle;
+
+  /// No description provided for @agentSettingsBlockedRoomsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可屏蔽会话'**
+  String get agentSettingsBlockedRoomsEmpty;
+
   /// No description provided for @agentChatEmptyTitle.
   ///
   /// In zh, this message translates to:

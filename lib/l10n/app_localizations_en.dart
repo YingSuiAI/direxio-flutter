@@ -3133,6 +3133,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonJustNow => 'Just now';
 
   @override
+  String get agentSettingsTitle => 'Agent Settings';
+
+  @override
+  String get agentSettingsBlockedConversationsTitle =>
+      'Blocked Conversations List';
+
+  @override
+  String agentSettingsBlockedRoomsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count rooms blocked',
+      one: '1 room blocked',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get agentSettingsActivityLog => 'Activity Log';
+
+  @override
+  String get agentSettingsOfflineStatus => 'Offline status';
+
+  @override
+  String get agentSettingsSaveFailed =>
+      'Failed to save. Please try again later.';
+
+  @override
+  String get agentSettingsAvatarUploadFailed =>
+      'Failed to upload avatar. Please try again later.';
+
+  @override
+  String get agentSettingsLoadFailed => 'Failed to load';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetTitle =>
+      'Select conversations to block';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetSubtitle =>
+      'Agent will not be able to access information from blocked conversations';
+
+  @override
+  String get agentSettingsBlockedRoomsEmpty =>
+      'No conversations available to block';
+
+  @override
   String get agentChatEmptyTitle => 'Start our chat';
 
   @override

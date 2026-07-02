@@ -121,6 +121,29 @@ void main() {
     expect(find.byTooltip('详情'), findsNothing);
   });
 
+  testWidgets('chat capsule header renders custom detail action icons',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: ChatCapsuleHeader(
+            title: 'Direxio AI',
+            subtitle: 'Offline',
+            onBack: () {},
+            actions: const [
+              ChatCapsuleAction(icon: Symbols.settings, tooltip: 'Agent 设置'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('chat_header_actions_capsule')), findsOne);
+    expect(find.byTooltip('Agent 设置'), findsOneWidget);
+    expect(find.byIcon(Symbols.settings), findsOneWidget);
+  });
+
   testWidgets('chat capsule header shows status dot before online subtitle',
       (tester) async {
     await tester.pumpWidget(

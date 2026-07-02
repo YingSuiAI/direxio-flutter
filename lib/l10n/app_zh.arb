@@ -1847,6 +1847,24 @@
   "toolCallWarnings": "警告",
   "commonMe": "我",
   "commonJustNow": "刚刚",
+  "agentSettingsTitle": "Agent 设置",
+  "agentSettingsBlockedConversationsTitle": "屏蔽会话列表",
+  "agentSettingsBlockedRoomsCount": "{count, plural, =0{未屏蔽会话} other{已屏蔽 {count} 个会话}}",
+  "@agentSettingsBlockedRoomsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agentSettingsActivityLog": "活动记录",
+  "agentSettingsOfflineStatus": "离线状态",
+  "agentSettingsSaveFailed": "保存失败，请稍后重试",
+  "agentSettingsAvatarUploadFailed": "头像上传失败，请稍后重试",
+  "agentSettingsLoadFailed": "加载失败",
+  "agentSettingsBlockedRoomsSheetTitle": "选择需要屏蔽的会话",
+  "agentSettingsBlockedRoomsSheetSubtitle": "Agent 将不能获取已屏蔽会话的信息",
+  "agentSettingsBlockedRoomsEmpty": "暂无可屏蔽会话",
   "agentChatEmptyTitle": "开始我们的聊天吧",
   "agentChatOfflineReply": "目前Agent离线，请耐心等待"
 }

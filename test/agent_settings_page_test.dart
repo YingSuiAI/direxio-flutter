@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/pages/agent_settings_page.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
@@ -49,10 +50,7 @@ void main() {
             ],
           ),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const AgentSettingsPage(),
-        ),
+        child: _localizedAgentSettingsApp(home: const AgentSettingsPage()),
       ),
     );
     await tester.pumpAndSettle();
@@ -60,13 +58,13 @@ void main() {
     expect(find.text('Agent Settings'), findsOneWidget);
     expect(find.text('Ops Agent'), findsOneWidget);
     expect(find.text('Blocked Conversations List'), findsOneWidget);
-    expect(find.text('1 rooms blocked'), findsOneWidget);
+    expect(find.text('1 room blocked'), findsOneWidget);
     expect(find.text('Activity Log'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('agent_blocked_rooms_row')));
     await tester.pumpAndSettle();
 
-    expect(find.text('选择需要屏蔽的房间'), findsOneWidget);
+    expect(find.text('Select conversations to block'), findsOneWidget);
     expect(find.text('Visible Group'), findsOneWidget);
     expect(find.text('Blocked Alice'), findsOneWidget);
     expect(
@@ -91,6 +89,37 @@ void main() {
     expect(find.text('2 rooms blocked'), findsOneWidget);
   });
 
+  testWidgets('agent settings localizes labels in Chinese', (tester) async {
+    final asClient = _AgentSettingsAsClient(
+      const AgentConfig(displayName: 'Agent', contextWindow: 64),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          productConversationsProvider.overrideWith((_) async => const []),
+        ],
+        child: _localizedAgentSettingsApp(
+          locale: const Locale('zh'),
+          home: const AgentSettingsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent 设置'), findsOneWidget);
+    expect(find.text('屏蔽会话列表'), findsOneWidget);
+    expect(find.text('未屏蔽会话'), findsOneWidget);
+    expect(find.text('离线状态'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('agent_blocked_rooms_row')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择需要屏蔽的会话'), findsOneWidget);
+    expect(find.text('暂无可屏蔽会话'), findsOneWidget);
+  });
+
   testWidgets('agent settings edits display name inline', (tester) async {
     final asClient = _AgentSettingsAsClient(
       const AgentConfig(displayName: 'Agent', contextWindow: 64),
@@ -102,10 +131,7 @@ void main() {
           asClientProvider.overrideWithValue(asClient),
           productConversationsProvider.overrideWith((_) async => const []),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const AgentSettingsPage(),
-        ),
+        child: _localizedAgentSettingsApp(home: const AgentSettingsPage()),
       ),
     );
     await tester.pumpAndSettle();
@@ -143,8 +169,7 @@ void main() {
           asClientProvider.overrideWithValue(asClient),
           productConversationsProvider.overrideWith((_) async => const []),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
+        child: _localizedAgentSettingsApp(
           home: AgentSettingsPage(
             pickAvatarUrl: (_, __) async => 'mxc://example.com/uploaded-agent',
           ),
@@ -158,6 +183,7 @@ void main() {
 
     expect(asClient.config.avatarUrl, 'mxc://example.com/uploaded-agent');
     expect(find.text('头像 URL'), findsNothing);
+    expect(find.byWidgetPredicate(_isAgentAvatarEditIcon), findsOneWidget);
   });
 
   testWidgets('agent settings renders current mxc avatar as media URL',
@@ -179,10 +205,7 @@ void main() {
           asClientProvider.overrideWithValue(asClient),
           productConversationsProvider.overrideWith((_) async => const []),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const AgentSettingsPage(),
-        ),
+        child: _localizedAgentSettingsApp(home: const AgentSettingsPage()),
       ),
     );
     await tester.pumpAndSettle();
@@ -191,6 +214,24 @@ void main() {
     expect(avatar.imageUrl, isNot('mxc://p2p-im.com/agent-avatar'));
     expect(avatar.imageUrl, startsWith('https://p2p-im.com'));
   });
+}
+
+Widget _localizedAgentSettingsApp({
+  required Widget home,
+  Locale locale = const Locale('en'),
+}) {
+  return MaterialApp(
+    theme: AppTheme.light,
+    locale: locale,
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    home: home,
+  );
+}
+
+bool _isAgentAvatarEditIcon(Widget widget) {
+  final image = widget is Image ? widget.image : null;
+  return image is AssetImage && image.assetName == 'assets/images/ellipse.png';
 }
 
 class _AgentSettingsAsClient extends MockAsClient {

@@ -3035,6 +3035,47 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonJustNow => '刚刚';
 
   @override
+  String get agentSettingsTitle => 'Agent 设置';
+
+  @override
+  String get agentSettingsBlockedConversationsTitle => '屏蔽会话列表';
+
+  @override
+  String agentSettingsBlockedRoomsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已屏蔽 $count 个会话',
+      zero: '未屏蔽会话',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get agentSettingsActivityLog => '活动记录';
+
+  @override
+  String get agentSettingsOfflineStatus => '离线状态';
+
+  @override
+  String get agentSettingsSaveFailed => '保存失败，请稍后重试';
+
+  @override
+  String get agentSettingsAvatarUploadFailed => '头像上传失败，请稍后重试';
+
+  @override
+  String get agentSettingsLoadFailed => '加载失败';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetTitle => '选择需要屏蔽的会话';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetSubtitle => 'Agent 将不能获取已屏蔽会话的信息';
+
+  @override
+  String get agentSettingsBlockedRoomsEmpty => '暂无可屏蔽会话';
+
+  @override
   String get agentChatEmptyTitle => '开始我们的聊天吧';
 
   @override

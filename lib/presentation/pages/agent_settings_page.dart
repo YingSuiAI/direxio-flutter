@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/agent_config_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_conversations_provider.dart';
@@ -20,6 +21,8 @@ typedef AgentAvatarPicker = Future<String?> Function(
   BuildContext context,
   WidgetRef ref,
 );
+
+const _agentAvatarEditIconAsset = 'assets/images/ellipse.png';
 
 class AgentSettingsPage extends ConsumerStatefulWidget {
   const AgentSettingsPage({super.key, this.pickAvatarUrl});
@@ -55,7 +58,9 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
       setState(() => _saving = false);
       showTopSnackBar(
         context,
-        const SnackBar(content: Text('保存失败，请稍后重试')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).agentSettingsSaveFailed),
+        ),
       );
     }
   }
@@ -66,11 +71,12 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
     final configAsync = ref.watch(agentConfigProvider);
     final config = configAsync.valueOrNull;
     final matrixClient = ref.watch(matrixClientProvider);
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: t.agentSettingsBackground,
       body: Column(
         children: [
-          const _AgentSettingsHeader(title: 'Agent Settings'),
+          _AgentSettingsHeader(title: l10n.agentSettingsTitle),
           Expanded(
             child: RefreshIndicator(
               color: t.accent,
@@ -107,16 +113,17 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                     const SizedBox(height: 12),
                     _SettingsCard(
                       key: const ValueKey('agent_blocked_rooms_row'),
-                      title: 'Blocked Conversations List',
-                      subtitle:
-                          '${config.mcpBlockedRoomIds.length} rooms blocked',
+                      title: l10n.agentSettingsBlockedConversationsTitle,
+                      subtitle: l10n.agentSettingsBlockedRoomsCount(
+                        config.mcpBlockedRoomIds.length,
+                      ),
                       trailingIcon: Symbols.chevron_right,
                       onTap: () => _showBlockedRoomsSheet(config),
                     ),
                     if (_editingName) ...[
                       const SizedBox(height: 12),
                       _SettingsCard(
-                        title: 'Activity Log',
+                        title: l10n.agentSettingsActivityLog,
                         compact: true,
                         trailingIcon: Symbols.chevron_right,
                         onTap: () {},
@@ -146,7 +153,11 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
       if (!mounted) return;
       showTopSnackBar(
         context,
-        const SnackBar(content: Text('头像上传失败，请稍后重试')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).agentSettingsAvatarUploadFailed,
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
@@ -284,12 +295,16 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('加载失败', style: AppTheme.sans(size: 14, color: t.textMute)),
+        Text(
+          l10n.agentSettingsLoadFailed,
+          style: AppTheme.sans(size: 14, color: t.textMute),
+        ),
         const SizedBox(height: 8),
-        TextButton(onPressed: onRetry, child: const Text('重试')),
+        TextButton(onPressed: onRetry, child: Text(l10n.commonRetry)),
       ],
     );
   }
@@ -321,6 +336,7 @@ class _AgentProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     final displayName =
         config.displayName.trim().isEmpty ? 'Agent' : config.displayName.trim();
     return Material(
@@ -402,7 +418,7 @@ class _AgentProfileCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 1),
-                      const _AgentStatusLabel(text: 'Offline status'),
+                      _AgentStatusLabel(text: l10n.agentSettingsOfflineStatus),
                     ],
                   ),
                 ),
@@ -426,7 +442,6 @@ class _AgentEditableAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return SizedBox(
       width: 58,
       height: 58,
@@ -448,22 +463,10 @@ class _AgentEditableAvatar extends StatelessWidget {
           Positioned(
             left: 38,
             top: 36,
-            child: Container(
+            child: Image.asset(
+              _agentAvatarEditIconAsset,
               width: 20,
               height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    t.accent.withValues(alpha: 0.9),
-                    t.danger.withValues(alpha: 0.72),
-                  ],
-                ),
-                border: Border.all(color: t.surface, width: 1),
-              ),
-              child: Icon(Symbols.sync, size: 13, color: t.onAccent),
             ),
           ),
         ],
@@ -616,6 +619,7 @@ class _BlockedRoomsSheetState extends State<_BlockedRoomsSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return SafeArea(
       top: false,
       child: Container(
@@ -643,7 +647,7 @@ class _BlockedRoomsSheetState extends State<_BlockedRoomsSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    '选择需要屏蔽的房间',
+                    l10n.agentSettingsBlockedRoomsSheetTitle,
                     style: AppTheme.sans(
                       size: 22,
                       weight: FontWeight.w700,
@@ -660,7 +664,7 @@ class _BlockedRoomsSheetState extends State<_BlockedRoomsSheet> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Agent 将不能获取已屏蔽房间的信息',
+                l10n.agentSettingsBlockedRoomsSheetSubtitle,
                 style: AppTheme.sans(size: 14, color: t.textMute),
               ),
             ),
@@ -669,7 +673,7 @@ class _BlockedRoomsSheetState extends State<_BlockedRoomsSheet> {
               child: widget.conversations.isEmpty
                   ? Center(
                       child: Text(
-                        '暂无可屏蔽房间',
+                        l10n.agentSettingsBlockedRoomsEmpty,
                         style: AppTheme.sans(size: 14, color: t.textMute),
                       ),
                     )
@@ -703,7 +707,7 @@ class _BlockedRoomsSheetState extends State<_BlockedRoomsSheet> {
                 key: const ValueKey('agent_room_picker_save'),
                 onPressed: () =>
                     Navigator.pop(context, List<String>.of(_selected)),
-                child: const Text('保存'),
+                child: Text(l10n.commonSave),
               ),
             ),
           ],

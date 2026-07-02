@@ -1844,6 +1844,24 @@
   "toolCallWarnings": "警告",
   "commonMe": "自分",
   "commonJustNow": "たった今",
+  "agentSettingsTitle": "Agent 設定",
+  "agentSettingsBlockedConversationsTitle": "ブロックした会話リスト",
+  "agentSettingsBlockedRoomsCount": "{count, plural, =0{ブロック中の会話はありません} other{{count}件の会話をブロック中}}",
+  "@agentSettingsBlockedRoomsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agentSettingsActivityLog": "アクティビティログ",
+  "agentSettingsOfflineStatus": "オフライン状態",
+  "agentSettingsSaveFailed": "保存に失敗しました。しばらくしてからもう一度お試しください",
+  "agentSettingsAvatarUploadFailed": "アバターのアップロードに失敗しました。しばらくしてからもう一度お試しください",
+  "agentSettingsLoadFailed": "読み込みに失敗しました",
+  "agentSettingsBlockedRoomsSheetTitle": "ブロックする会話を選択",
+  "agentSettingsBlockedRoomsSheetSubtitle": "Agent はブロックした会話の情報にアクセスできません",
+  "agentSettingsBlockedRoomsEmpty": "ブロックできる会話はありません",
   "agentChatEmptyTitle": "チャットを始めましょう",
   "agentChatOfflineReply": "現在Agentはオフラインです。しばらくお待ちください"
 }

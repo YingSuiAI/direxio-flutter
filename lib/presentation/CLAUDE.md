@@ -31,13 +31,11 @@
 | `onPrimaryContainer` | primaryContainer 上的文字 | `#FEFCFF` |
 | `secondaryContainer` | 底栏 pill 等 | `#E0DFE4` |
 | `tertiaryFixed` | 在线状态绿点 | `#72FE88` |
-| `agentChatBackground` | Agent 会话浅蓝消息区 | `#F5FAFF` |
 | `agentSettingsBackground` | Agent 设置页背景 | `#F9F9F9` |
-| `agentHeaderText` | Agent 头部黑色文字 / 图标 | `#000000` |
+| `agentHeaderText` | Agent 设置页头部黑色文字 / 图标 | `#000000` |
 | `agentContentText` | Agent 卡片主文字 / 图标 | `#333333` |
 | `agentMutedText` | Agent 卡片次要文字 / chevron | `#999999` |
 | `agentStatusText` | Agent 离线状态文字 / 圆点 | `#9DA3AE` |
-| `agentComposerSurface` | Agent 输入框底色 | `#EFF1F3` |
 
 深色值见 `design_tokens.dart`，**用 token 名即可，不要写死十六进制**。
 

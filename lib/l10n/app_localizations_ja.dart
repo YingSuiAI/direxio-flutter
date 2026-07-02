@@ -3045,6 +3045,49 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonJustNow => 'たった今';
 
   @override
+  String get agentSettingsTitle => 'Agent 設定';
+
+  @override
+  String get agentSettingsBlockedConversationsTitle => 'ブロックした会話リスト';
+
+  @override
+  String agentSettingsBlockedRoomsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count件の会話をブロック中',
+      zero: 'ブロック中の会話はありません',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get agentSettingsActivityLog => 'アクティビティログ';
+
+  @override
+  String get agentSettingsOfflineStatus => 'オフライン状態';
+
+  @override
+  String get agentSettingsSaveFailed => '保存に失敗しました。しばらくしてからもう一度お試しください';
+
+  @override
+  String get agentSettingsAvatarUploadFailed =>
+      'アバターのアップロードに失敗しました。しばらくしてからもう一度お試しください';
+
+  @override
+  String get agentSettingsLoadFailed => '読み込みに失敗しました';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetTitle => 'ブロックする会話を選択';
+
+  @override
+  String get agentSettingsBlockedRoomsSheetSubtitle =>
+      'Agent はブロックした会話の情報にアクセスできません';
+
+  @override
+  String get agentSettingsBlockedRoomsEmpty => 'ブロックできる会話はありません';
+
+  @override
   String get agentChatEmptyTitle => 'チャットを始めましょう';
 
   @override

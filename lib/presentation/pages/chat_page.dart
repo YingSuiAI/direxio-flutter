@@ -3373,14 +3373,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     _lastKeyboardInsetBottom = keyboardInsetBottom;
     _lastBottomPanelVisible = bottomPanelVisible;
-    final messageTopInset =
-        chatMessageTopOverlayClearanceFor(context, agentStyle: isAgent);
+    final messageTopInset = chatMessageTopOverlayClearanceFor(context);
     final messageBottomInset = chatMessageBottomOverlayClearance(
       context,
       replyBarVisible: replyBarVisible,
       selectionBarVisible: selectionBarVisible,
       bottomPanelVisible: bottomPanelVisible,
-      agentStyle: isAgent,
     );
     final messagePadding = chatMessageViewportPadding(
       context,
@@ -3389,14 +3387,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       bottomPanelVisible: bottomPanelVisible,
       reserveTopOverlay: false,
       reserveBottomOverlay: false,
-      agentStyle: isAgent,
     ).add(const EdgeInsets.symmetric(vertical: 12));
 
     return RealtimeRoomFocus(
       roomId: widget.roomId,
       child: Scaffold(
         body: ChatGlassBackground(
-          color: isAgent ? t.agentChatBackground : null,
           child: ChatLayeredLayout(
             messageTopInset: messageTopInset,
             messageBottomInset: messageBottomInset,
@@ -3412,7 +3408,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     title: name,
                     subtitle: headerSubtitle,
                     subtitleStatus: headerSubtitleStatus,
-                    agentStyle: isAgent,
                     onBack: () => unawaited(_popChatOrHome(context)),
                     showEncryptionIcon: true,
                     actions: isAgent
@@ -3420,7 +3415,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             ChatCapsuleAction(
                               icon: Symbols.settings,
                               tooltip: 'Agent 设置',
-                              color: t.agentContentText,
+                              color: t.text,
                               onTap: () => context.push('/agent-settings'),
                             ),
                           ]
@@ -4444,7 +4439,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onPickSuggestion: _pickAgentSlashCommand,
                     onTextChanged: _handleComposerTextChanged,
                     enabled: canSendMessages,
-                    agentStyle: isAgent,
                     hintText: isWaitingForAccept
                         ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
                         : isAgent

@@ -27,6 +27,7 @@ import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
 import 'package:portal_app/data/media_thumbnail_cache.dart';
+import 'package:portal_app/presentation/chat/chat_glass_background.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -21823,8 +21824,37 @@ void main() {
     expect(find.text('Online'), findsNothing);
     expect(find.text('离线'), findsNothing);
     expect(find.text('在线'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('chat_header_left_capsule')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_header_title_capsule')),
+        findsOneWidget);
+    expect(
+        tester
+            .widget<ChatGlassBackground>(find.byType(ChatGlassBackground))
+            .color,
+        isNull);
     expect(find.byIcon(Symbols.settings), findsOneWidget);
     expect(find.text('Your message...'), findsOneWidget);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('chat_input_mic_circle'))).size,
+      const Size(40, 40),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('chat_input_emoji_circle')))
+          .size,
+      const Size(40, 40),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('chat_input_plus_circle'))).size,
+      const Size(40, 40),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('chat_input_text_capsule')))
+          .height,
+      46,
+    );
     expect(
       find.text('Agent is currently offline. Please wait patiently.'),
       findsNothing,

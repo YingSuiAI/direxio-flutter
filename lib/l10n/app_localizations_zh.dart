@@ -90,18 +90,41 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPrivacySecurity => '隐私与安全';
 
   @override
-  String get settingsBlacklist => '通讯录黑名单';
+  String get settingsBlacklist => '黑名单';
 
   @override
-  String get blacklistRemove => '移除';
+  String get blacklistRemove => '取消拉黑';
 
   @override
   String blacklistRemovedMessage(String name) {
-    return '已移除 $name';
+    return '已取消拉黑 $name';
   }
 
   @override
-  String get blacklistEmpty => '暂无黑名单联系人';
+  String blacklistRemoveFailed(String error) {
+    return '取消拉黑失败: $error';
+  }
+
+  @override
+  String get blacklistContactsTab => '好友';
+
+  @override
+  String get blacklistGroupsTab => '群聊';
+
+  @override
+  String get blacklistChannelsTab => '频道';
+
+  @override
+  String get blacklistEmpty => '暂无拉黑好友';
+
+  @override
+  String get blacklistContactsEmpty => '暂无拉黑好友';
+
+  @override
+  String get blacklistGroupsEmpty => '暂无拉黑群聊';
+
+  @override
+  String get blacklistChannelsEmpty => '暂无拉黑频道';
 
   @override
   String get settingsChangePassword => '修改密码';
@@ -1266,7 +1289,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactBlockConfirmTitle => '拉黑用户';
 
   @override
-  String get contactBlockConfirmBody => '拉黑后将移除该联系人和会话关系。';
+  String get contactBlockConfirmBody => '拉黑后将不能继续发送消息。';
 
   @override
   String get contactBlockAction => '拉黑';
@@ -1278,6 +1301,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String contactBlockFailed(String error) {
     return '拉黑用户失败: $error';
   }
+
+  @override
+  String get contactUnblockUserDetail => '取消拉黑';
+
+  @override
+  String get contactUnblockConfirmTitle => '取消拉黑';
+
+  @override
+  String get contactUnblockConfirmBody => '取消后可以继续发送消息。';
+
+  @override
+  String get contactUnblockAction => '取消拉黑';
+
+  @override
+  String get contactUnblocked => '已取消拉黑';
+
+  @override
+  String contactUnblockFailed(String error) {
+    return '取消拉黑失败: $error';
+  }
+
+  @override
+  String get blockAlreadyBlocked => '已经拉黑';
+
+  @override
+  String get blockCannotSendMessage => '已拉黑，不能发送消息';
 
   @override
   String get contactReportSubmitted => '举报已提交';

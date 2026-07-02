@@ -78,6 +78,14 @@ group chat route, where the composer is replaced by the exited-group send block.
 Do not treat `left`, `removed`, `kicked`, or `banned` like pending/invite group
 states that should be hidden from the user's existing chat history.
 
+Blocked contacts are hidden from normal contact and direct-conversation lists.
+Ordinary contact settings pages expose the block action; unblock is available
+only from Settings -> Blacklist, where records are shown as a single contact
+list. Other routes into blocked contacts, such as contact/profile pages,
+direct-room pages, search results, notification jumps, or avatar taps, must be
+intercepted with an already-blocked prompt instead of opening the blocked
+contact. Group and channel settings pages do not expose blacklist actions.
+
 The logged-in home conversation list must show the Agent conversation first by
 default, ahead of pinned and recent normal conversations. Once live
 ProductCore/Matrix conversation entries are available, use that merged live

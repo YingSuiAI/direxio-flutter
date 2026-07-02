@@ -3765,6 +3765,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     enabled: canSendMessages,
                     textEnabled: canSendMessages || canQueueChannelTextFailure,
                     sendEnabled: canSendMessages || canQueueChannelTextFailure,
+                    hintText: '',
                     onVoiceRecordStart: _startVoiceRecording,
                     onVoiceRecordStop: _stopVoiceRecording,
                     onVoiceRecordCancel: _cancelVoiceRecording,

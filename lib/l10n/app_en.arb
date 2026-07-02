@@ -46,9 +46,9 @@
   "settingsThemeDark": "Dark",
   "settingsFavorites": "Favorites",
   "settingsPrivacySecurity": "Privacy & Security",
-  "settingsBlacklist": "Blocked Contacts",
-  "blacklistRemove": "Remove",
-  "blacklistRemovedMessage": "Removed {name}",
+  "settingsBlacklist": "Blacklist",
+  "blacklistRemove": "Unblock",
+  "blacklistRemovedMessage": "Unblocked {name}",
   "@blacklistRemovedMessage": {
     "placeholders": {
       "name": {
@@ -56,7 +56,21 @@
       }
     }
   },
-  "blacklistEmpty": "No blocked contacts",
+  "blacklistRemoveFailed": "Failed to unblock: {error}",
+  "@blacklistRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistContactsTab": "Friends",
+  "blacklistGroupsTab": "Groups",
+  "blacklistChannelsTab": "Channels",
+  "blacklistEmpty": "No blocked friends",
+  "blacklistContactsEmpty": "No blocked friends",
+  "blacklistGroupsEmpty": "No blocked groups",
+  "blacklistChannelsEmpty": "No blocked channels",
   "settingsChangePassword": "Change Password",
   "changePasswordOldHint": "Current password",
   "changePasswordNewHint": "New password",
@@ -683,7 +697,7 @@
     }
   },
   "contactBlockConfirmTitle": "Block User",
-  "contactBlockConfirmBody": "Blocking will remove this contact and conversation relationship.",
+  "contactBlockConfirmBody": "After blocking, you cannot send messages.",
   "contactBlockAction": "Block",
   "contactBlocked": "User blocked",
   "contactBlockFailed": "Failed to block user: {error}",
@@ -694,6 +708,21 @@
       }
     }
   },
+  "contactUnblockUserDetail": "Unblock",
+  "contactUnblockConfirmTitle": "Unblock",
+  "contactUnblockConfirmBody": "After unblocking, you can send messages again.",
+  "contactUnblockAction": "Unblock",
+  "contactUnblocked": "Unblocked",
+  "contactUnblockFailed": "Failed to unblock: {error}",
+  "@contactUnblockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blockAlreadyBlocked": "Already blocked",
+  "blockCannotSendMessage": "Blocked. You cannot send messages.",
   "contactReportSubmitted": "Report submitted",
   "contactReportSubmitFailed": "Failed to submit report: {error}",
   "@contactReportSubmitFailed": {

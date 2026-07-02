@@ -2347,6 +2347,72 @@ class AsSyncPendingItem {
   }
 }
 
+const asBlockTargetContact = 'contact';
+
+class AsBlockList {
+  const AsBlockList({
+    this.contacts = const [],
+  });
+
+  final List<AsBlockItem> contacts;
+
+  factory AsBlockList.fromJson(Map<String, dynamic> json) {
+    return AsBlockList(
+      contacts: _parseList(json['contacts'], AsBlockItem.fromJson),
+    );
+  }
+}
+
+class AsBlockItem {
+  const AsBlockItem({
+    required this.targetType,
+    required this.targetId,
+    this.roomId = '',
+    this.peerMxid = '',
+    this.displayName = '',
+    this.avatarUrl = '',
+    this.createdAt,
+  });
+
+  final String targetType;
+  final String targetId;
+  final String roomId;
+  final String peerMxid;
+  final String displayName;
+  final String avatarUrl;
+  final DateTime? createdAt;
+
+  bool get isContact => targetType == asBlockTargetContact;
+
+  String get displayId {
+    if (isContact && peerMxid.trim().isNotEmpty) return peerMxid.trim();
+    return targetId.trim();
+  }
+
+  factory AsBlockItem.fromJson(Map<String, dynamic> json) {
+    final targetType = _firstString(json, const ['target_type', 'type']);
+    final peerMxid = _firstString(json, const ['peer_mxid', 'mxid']);
+    final roomId = _firstString(json, const ['room_id']);
+    return AsBlockItem(
+      targetType: targetType,
+      targetId: _firstNonEmptyString([
+        _firstString(json, const ['target_id', 'id']),
+        peerMxid,
+        roomId,
+      ]),
+      roomId: roomId,
+      peerMxid: peerMxid,
+      displayName: _firstString(json, const [
+        'display_name',
+        'name',
+        'title',
+      ]),
+      avatarUrl: _firstString(json, const ['avatar_url', 'avatar']),
+      createdAt: _parseDateTime(json['created_at']),
+    );
+  }
+}
+
 /// P2P API 调用失败
 class AsClientException implements Exception {
   AsClientException(this.message, {this.statusCode});
@@ -2476,6 +2542,22 @@ abstract class AsClient {
     required String displayName,
     String avatarUrl = '',
     String domain = '',
+  });
+
+  /// P2P product API action.
+  Future<AsBlockList> listBlocks();
+
+  /// P2P product API action.
+  Future<AsBlockItem> blockContact({
+    required String peerMxid,
+    String displayName = '',
+    String avatarUrl = '',
+  });
+
+  /// P2P product API action.
+  Future<void> removeBlock({
+    required String targetType,
+    required String targetId,
   });
 
   /// P2P product API action.

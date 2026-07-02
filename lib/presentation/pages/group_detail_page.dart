@@ -136,7 +136,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
         : realMembers.length;
     final canManageGroup = _canManageGroup(room);
     final canDissolveGroup = _canDissolveGroup(room);
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(

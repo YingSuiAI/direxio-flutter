@@ -408,7 +408,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         label: l10n?.channelInfoReportAction ?? '举报频道',
         onTap: () => _showReportDialog(context, channel),
       ),
-      const SizedBox(height: 26),
+      const SizedBox(height: 14),
       _DangerCenterRow(
         label: l10n?.channelInfoLeaveAction ?? '退出频道',
         onTap: () => _confirmLeaveChannel(context, ref, channel),
@@ -468,7 +468,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         busy: _muteChanging,
         onChanged: (value) => _setChannelMuted(channel, value),
       ),
-      const SizedBox(height: 26),
+      const SizedBox(height: 14),
       _DangerCenterRow(
         label: l10n?.channelInfoDissolveAction ?? '解散频道',
         onTap: () => _confirmDissolveChannel(context, ref, channel),

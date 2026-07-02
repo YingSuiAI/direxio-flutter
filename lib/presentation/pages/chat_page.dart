@@ -18,6 +18,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/agent_offline_reply_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
 import '../providers/conversation_summary_provider.dart';
 import '../widgets/portal_avatar.dart';
@@ -127,6 +128,38 @@ bool _isProductDirectRoomForChat(Room room, AsSyncCacheState syncCache) {
       // flows. A joined room with exactly one non-agent peer must still use
       // P2P API as the authority for whether it is a valid private chat.
       joinedPersonPeerMxid(room) != null;
+}
+
+String _directPeerMxidForBlock(Room room, AsSyncCacheState syncCache) {
+  return syncCache.acceptedContactForRoom(room.id)?.userId.trim().isNotEmpty ==
+          true
+      ? syncCache.acceptedContactForRoom(room.id)!.userId.trim()
+      : (room.directChatMatrixID?.trim().isNotEmpty == true
+          ? room.directChatMatrixID!.trim()
+          : _firstNonEmpty([
+              productDirectPeerMxid(room),
+              joinedPersonPeerMxid(room),
+            ]));
+}
+
+bool _isDirectChatBlocked(
+  AsBlockList? blocks,
+  Room room,
+  AsSyncCacheState syncCache,
+) {
+  return isContactBlocked(
+    blocks,
+    peerMxid: _directPeerMxidForBlock(room, syncCache),
+    roomId: room.id,
+  );
+}
+
+String _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
 }
 
 void _openChatRecordDetail(BuildContext context, ChatRecordPayload payload) {
@@ -1358,6 +1391,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room,
       syncCache,
     );
+    if (_isDirectChatBlocked(
+      ref.read(blockListProvider).valueOrNull,
+      room,
+      syncCache,
+    )) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendText) {
       final l10n = _l10n;
       showTopSnackBar(
@@ -1500,6 +1541,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room,
       syncCache,
     );
+    if (_isDirectChatBlocked(
+      ref.read(blockListProvider).valueOrNull,
+      room,
+      syncCache,
+    )) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendMedia) {
       _showPendingContactToast(context);
       return;
@@ -2750,6 +2799,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room,
       ref.read(asSyncCacheProvider),
     );
+    if (_isDirectChatBlocked(
+      ref.read(blockListProvider).valueOrNull,
+      room,
+      ref.read(asSyncCacheProvider),
+    )) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendMedia) {
       _showPendingContactToast(context);
       return;
@@ -3287,9 +3344,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room,
       syncCache,
     );
-    final canSendMessages = capabilityPolicy.canSendText;
-    final canSendMedia = capabilityPolicy.canSendMedia;
-    final canStartCall = capabilityPolicy.canCall;
+    final blocked = _isDirectChatBlocked(
+      ref.watch(blockListProvider).valueOrNull,
+      room,
+      syncCache,
+    );
+    final canSendMessages = !blocked && capabilityPolicy.canSendText;
+    final canSendMedia = !blocked && capabilityPolicy.canSendMedia;
+    final canStartCall = !blocked && capabilityPolicy.canCall;
     final locale = Localizations.localeOf(context);
     final agentSlashSuggestions =
         isAgent && canSendMessages && _msgCtrl.text.trimLeft().startsWith('/')
@@ -3433,7 +3495,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           effectivePeerAvatarUrl,
                                         ),
                                       )
-                                  : () => _showPendingContactToast(context),
+                                  : () => blocked
+                                      ? _showBlockedCannotSendToast(context)
+                                      : _showPendingContactToast(context),
                             ),
                             ChatCapsuleAction(
                               icon: Symbols.more_vert,
@@ -4425,10 +4489,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onSend: _send,
                     onPlus: canSendMedia
                         ? _togglePlus
-                        : () => _showPendingContactToast(context),
+                        : () => blocked
+                            ? _showBlockedCannotSendToast(context)
+                            : _showPendingContactToast(context),
                     onEmoji: canSendMessages
                         ? _toggleEmoji
-                        : () => _showPendingContactToast(context),
+                        : () => blocked
+                            ? _showBlockedCannotSendToast(context)
+                            : _showPendingContactToast(context),
                     plusActive: _showPlusPanel,
                     emojiActive: _showEmojiPanel,
                     onVoiceRecordStart: _startVoiceRecording,
@@ -4439,11 +4507,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     onPickSuggestion: _pickAgentSlashCommand,
                     onTextChanged: _handleComposerTextChanged,
                     enabled: canSendMessages,
-                    hintText: isWaitingForAccept
-                        ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
-                        : isAgent
-                            ? 'Your message...'
-                            : '',
+                    hintText: blocked
+                        ? l10n?.blockCannotSendMessage ?? '已拉黑，不能发送消息'
+                        : isWaitingForAccept
+                            ? l10n?.chatPeerAcceptBeforeSend ?? '等待对方接受后才能发送消息'
+                            : isAgent
+                                ? 'Your message...'
+                                : '',
                   ),
                 if (_showPlusPanel)
                   ChatAttachmentPanel(
@@ -4452,7 +4522,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     canSend: canSendMedia,
                     useAsProductMedia: isProductDirect && !isAgent,
                     onClose: () => setState(() => _showPlusPanel = false),
-                    onCannotSend: _showPendingContactToast,
+                    onCannotSend: blocked
+                        ? _showBlockedCannotSendToast
+                        : _showPendingContactToast,
                     onImageUploadStarted: _addPendingImageUpload,
                     onImageUploadsStarted: _addPendingImageUploads,
                     onImageUploadDelivered: _recordDeliveredMediaUpload,
@@ -4470,7 +4542,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? null
                         : () {
                             if (!canStartCall) {
-                              _showPendingContactToast(context);
+                              blocked
+                                  ? _showBlockedCannotSendToast(context)
+                                  : _showPendingContactToast(context);
                               return;
                             }
                             context.push(
@@ -4486,7 +4560,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? null
                         : () {
                             if (!canStartCall) {
-                              _showPendingContactToast(context);
+                              blocked
+                                  ? _showBlockedCannotSendToast(context)
+                                  : _showPendingContactToast(context);
                               return;
                             }
                             context.push(
@@ -6438,6 +6514,17 @@ void _showPendingContactToast(BuildContext context) {
     context,
     SnackBar(
         content: Text(l10n?.chatPeerAcceptBeforeSend ?? '对方接受好友请求后才能发送消息')),
+  );
+}
+
+void _showBlockedCannotSendToast(BuildContext context) {
+  if (!context.mounted) return;
+  final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+  showTopSnackBar(
+    context,
+    SnackBar(
+      content: Text(l10n?.blockCannotSendMessage ?? '已拉黑，不能发送消息'),
+    ),
   );
 }
 

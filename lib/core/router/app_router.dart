@@ -52,6 +52,7 @@ import '../../presentation/channel/channel_share.dart';
 import '../../presentation/pages/agent_settings_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
+import '../../presentation/widgets/blocked_route_guard.dart';
 import '../../presentation/providers/as_sync_cache_provider.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../data/setup_payload.dart';
@@ -353,21 +354,34 @@ GoRouter appRouter(Ref ref) {
         path: '/chat/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
           state.matchedLocation,
-          ChatPage(
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
             roomId: state.pathParameters['roomId']!,
-            targetEventId: state.uri.queryParameters['event'],
+            child: ChatPage(
+              roomId: state.pathParameters['roomId']!,
+              targetEventId: state.uri.queryParameters['event'],
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/chat-info/:roomId',
-        pageBuilder: (_, state) =>
-            _slidePage(ChatInfoPage(roomId: state.pathParameters['roomId']!)),
+        pageBuilder: (_, state) => _slidePage(
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
+            roomId: state.pathParameters['roomId']!,
+            child: ChatInfoPage(roomId: state.pathParameters['roomId']!),
+          ),
+        ),
       ),
       GoRoute(
         path: '/room-search/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          RoomSearchPage(roomId: state.pathParameters['roomId']!),
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
+            roomId: state.pathParameters['roomId']!,
+            child: RoomSearchPage(roomId: state.pathParameters['roomId']!),
+          ),
         ),
       ),
       GoRoute(
@@ -388,27 +402,39 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/contact/:userId',
         pageBuilder: (_, state) => _slidePage(
-          ContactDetailPage(
-            userId: state.pathParameters['userId']!,
-            fromChatAvatar:
-                state.uri.queryParameters['source'] == 'chat_avatar',
-            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: state.pathParameters['userId']!,
+            child: ContactDetailPage(
+              userId: state.pathParameters['userId']!,
+              fromChatAvatar:
+                  state.uri.queryParameters['source'] == 'chat_avatar',
+              fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/contact-home/:userId',
         pageBuilder: (_, state) => _slidePage(
-          ContactHomePage(userId: state.pathParameters['userId']!),
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: state.pathParameters['userId']!,
+            child: ContactHomePage(userId: state.pathParameters['userId']!),
+          ),
         ),
       ),
       GoRoute(
         path: '/contact-channels/:userId',
         pageBuilder: (_, state) => _slidePage(
-          ContactChannelsPage(
-            userId: state.pathParameters['userId']!,
-            remoteNodeBaseUri:
-                _queryUri(state.uri.queryParameters['remote_node_base_url']),
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: state.pathParameters['userId']!,
+            child: ContactChannelsPage(
+              userId: state.pathParameters['userId']!,
+              remoteNodeBaseUri:
+                  _queryUri(state.uri.queryParameters['remote_node_base_url']),
+            ),
           ),
         ),
       ),
@@ -419,22 +445,30 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/add-contact/detail/:userId',
         pageBuilder: (_, state) => _slidePage(
-          AddContactDetailPage(
-            userId: state.pathParameters['userId']!,
-            displayName: state.uri.queryParameters['name'],
-            avatarUrl: state.uri.queryParameters['avatar'],
-            remoteNodeBaseUri:
-                _queryUri(state.uri.queryParameters['remote_node_base_url']),
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: state.pathParameters['userId']!,
+            child: AddContactDetailPage(
+              userId: state.pathParameters['userId']!,
+              displayName: state.uri.queryParameters['name'],
+              avatarUrl: state.uri.queryParameters['avatar'],
+              remoteNodeBaseUri:
+                  _queryUri(state.uri.queryParameters['remote_node_base_url']),
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/add-contact/verify/:userId',
         pageBuilder: (_, state) => _slidePage(
-          AddContactVerificationPage(
-            userId: state.pathParameters['userId']!,
-            displayName: state.uri.queryParameters['name'],
-            avatarUrl: state.uri.queryParameters['avatar'],
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: state.pathParameters['userId']!,
+            child: AddContactVerificationPage(
+              userId: state.pathParameters['userId']!,
+              displayName: state.uri.queryParameters['name'],
+              avatarUrl: state.uri.queryParameters['avatar'],
+            ),
           ),
         ),
       ),
@@ -522,29 +556,37 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/call/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          CallPage(
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
             roomId: state.pathParameters['roomId']!,
-            callId: state.uri.queryParameters['call_id'],
-            peerUserId: state.uri.queryParameters['peer'],
-            peerDisplayName: state.uri.queryParameters['name'],
-            peerAvatarUrl: state.uri.queryParameters['avatar'],
-            incoming: state.uri.queryParameters['incoming'] == '1',
-            restore: state.uri.queryParameters['restore'] == '1',
+            child: CallPage(
+              roomId: state.pathParameters['roomId']!,
+              callId: state.uri.queryParameters['call_id'],
+              peerUserId: state.uri.queryParameters['peer'],
+              peerDisplayName: state.uri.queryParameters['name'],
+              peerAvatarUrl: state.uri.queryParameters['avatar'],
+              incoming: state.uri.queryParameters['incoming'] == '1',
+              restore: state.uri.queryParameters['restore'] == '1',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/video-call/:roomId',
         pageBuilder: (_, state) => _slidePage(
-          CallPage(
+          BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
             roomId: state.pathParameters['roomId']!,
-            isVideo: true,
-            callId: state.uri.queryParameters['call_id'],
-            peerUserId: state.uri.queryParameters['peer'],
-            peerDisplayName: state.uri.queryParameters['name'],
-            peerAvatarUrl: state.uri.queryParameters['avatar'],
-            incoming: state.uri.queryParameters['incoming'] == '1',
-            restore: state.uri.queryParameters['restore'] == '1',
+            child: CallPage(
+              roomId: state.pathParameters['roomId']!,
+              isVideo: true,
+              callId: state.uri.queryParameters['call_id'],
+              peerUserId: state.uri.queryParameters['peer'],
+              peerDisplayName: state.uri.queryParameters['name'],
+              peerAvatarUrl: state.uri.queryParameters['avatar'],
+              incoming: state.uri.queryParameters['incoming'] == '1',
+              restore: state.uri.queryParameters['restore'] == '1',
+            ),
           ),
         ),
       ),
@@ -648,7 +690,9 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/channel/:channelId/post/create',
         pageBuilder: (_, state) => _slidePage(
-          ChannelPostCreatePage(channelId: state.pathParameters['channelId']!),
+          ChannelPostCreatePage(
+            channelId: state.pathParameters['channelId']!,
+          ),
         ),
       ),
       GoRoute(

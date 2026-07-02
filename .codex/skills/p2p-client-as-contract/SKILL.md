@@ -82,6 +82,13 @@ token.
 Accepted-contact remark updates use `contacts.update` with `room_id` and
 `display_name`; the backend stores that remark as contact `display_name`.
 
+User blacklist actions use `blocks.list`, `blocks.add`, and `blocks.remove`.
+The blacklist is contact-only: `blocks.list` returns `contacts`, and contact
+blocks are keyed by peer Matrix id. Block list records must carry
+`display_name` and may carry `avatar_url` so the UI can identify blocked
+contacts without showing raw ids only. Do not expose group or channel blacklist
+methods in `AsClient`.
+
 ## Change Order
 
 1. Update `AsClient` types and method signatures first.

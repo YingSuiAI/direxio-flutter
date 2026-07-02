@@ -49,9 +49,9 @@
   "settingsThemeDark": "深色",
   "settingsFavorites": "收藏",
   "settingsPrivacySecurity": "隐私与安全",
-  "settingsBlacklist": "通讯录黑名单",
-  "blacklistRemove": "移除",
-  "blacklistRemovedMessage": "已移除 {name}",
+  "settingsBlacklist": "黑名单",
+  "blacklistRemove": "取消拉黑",
+  "blacklistRemovedMessage": "已取消拉黑 {name}",
   "@blacklistRemovedMessage": {
     "placeholders": {
       "name": {
@@ -59,7 +59,21 @@
       }
     }
   },
-  "blacklistEmpty": "暂无黑名单联系人",
+  "blacklistRemoveFailed": "取消拉黑失败: {error}",
+  "@blacklistRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistContactsTab": "好友",
+  "blacklistGroupsTab": "群聊",
+  "blacklistChannelsTab": "频道",
+  "blacklistEmpty": "暂无拉黑好友",
+  "blacklistContactsEmpty": "暂无拉黑好友",
+  "blacklistGroupsEmpty": "暂无拉黑群聊",
+  "blacklistChannelsEmpty": "暂无拉黑频道",
   "settingsChangePassword": "修改密码",
   "changePasswordOldHint": "原密码",
   "changePasswordNewHint": "新密码",
@@ -686,7 +700,7 @@
     }
   },
   "contactBlockConfirmTitle": "拉黑用户",
-  "contactBlockConfirmBody": "拉黑后将移除该联系人和会话关系。",
+  "contactBlockConfirmBody": "拉黑后将不能继续发送消息。",
   "contactBlockAction": "拉黑",
   "contactBlocked": "已拉黑用户",
   "contactBlockFailed": "拉黑用户失败: {error}",
@@ -697,6 +711,21 @@
       }
     }
   },
+  "contactUnblockUserDetail": "取消拉黑",
+  "contactUnblockConfirmTitle": "取消拉黑",
+  "contactUnblockConfirmBody": "取消后可以继续发送消息。",
+  "contactUnblockAction": "取消拉黑",
+  "contactUnblocked": "已取消拉黑",
+  "contactUnblockFailed": "取消拉黑失败: {error}",
+  "@contactUnblockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blockAlreadyBlocked": "已经拉黑",
+  "blockCannotSendMessage": "已拉黑，不能发送消息",
   "contactReportSubmitted": "举报已提交",
   "contactReportSubmitFailed": "举报提交失败: {error}",
   "@contactReportSubmitFailed": {

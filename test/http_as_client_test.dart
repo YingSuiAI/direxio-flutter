@@ -208,6 +208,82 @@ void main() {
     ]);
   });
 
+  test('block actions use contact-only backend contract', () async {
+    final seen = <Map<String, dynamic>>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        seen.add(body);
+        switch (body['action']) {
+          case 'blocks.list':
+            expect(request.url.path, '/_p2p/query');
+            return _jsonResponse({
+              'contacts': [
+                {
+                  'target_type': 'contact',
+                  'peer_mxid': '@alice:p2p-im.com',
+                  'display_name': 'Alice',
+                },
+              ],
+            }, 200);
+          case 'blocks.add':
+            expect(request.url.path, '/_p2p/command');
+            return _jsonResponse({
+              'status': 'blocked',
+              'block': {
+                'target_type': 'contact',
+                'target_id': '@alice:p2p-im.com',
+                'peer_mxid': '@alice:p2p-im.com',
+                'display_name': 'Alice',
+                'avatar_url': 'mxc://avatar',
+              },
+            }, 200);
+          case 'blocks.remove':
+            expect(request.url.path, '/_p2p/command');
+            return _jsonResponse({'removed': true}, 200);
+        }
+        return _jsonResponse({'error': 'unexpected action'}, 500);
+      }),
+    );
+
+    final blocks = await client.listBlocks();
+    final contact = await client.blockContact(
+      peerMxid: '@alice:p2p-im.com',
+      displayName: 'Alice',
+      avatarUrl: 'mxc://avatar',
+    );
+    await client.removeBlock(
+      targetType: asBlockTargetContact,
+      targetId: '@alice:p2p-im.com',
+    );
+
+    expect(blocks.contacts.single.displayName, 'Alice');
+    expect(contact.peerMxid, '@alice:p2p-im.com');
+    expect(contact.displayName, 'Alice');
+    expect(contact.avatarUrl, 'mxc://avatar');
+    expect(seen, [
+      {'action': 'blocks.list', 'params': <String, dynamic>{}},
+      {
+        'action': 'blocks.add',
+        'params': {
+          'target_type': 'contact',
+          'peer_mxid': '@alice:p2p-im.com',
+          'display_name': 'Alice',
+          'avatar_url': 'mxc://avatar',
+        },
+      },
+      {
+        'action': 'blocks.remove',
+        'params': {
+          'target_type': 'contact',
+          'peer_mxid': '@alice:p2p-im.com',
+        },
+      },
+    ]);
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

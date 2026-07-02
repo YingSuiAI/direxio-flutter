@@ -23,6 +23,7 @@ class MockAsClient implements AsClient {
   ];
   final List<AsFavoriteMessage> _favorites = [];
   final Map<String, AsCallSession> _calls = {};
+  final Map<String, AsBlockItem> _blockedContacts = {};
   final Map<String, AsChannel> _channels = {};
   final Map<String, List<AsChannelMember>> _channelMembers = {};
   final Map<String, List<AsChannelPost>> _channelPosts = {};
@@ -308,6 +309,44 @@ class MockAsClient implements AsClient {
       roomId: roomId,
       status: 'accepted',
     );
+  }
+
+  @override
+  Future<AsBlockList> listBlocks() async {
+    await Future.delayed(_latency);
+    return AsBlockList(
+      contacts: List.unmodifiable(_blockedContacts.values),
+    );
+  }
+
+  @override
+  Future<AsBlockItem> blockContact({
+    required String peerMxid,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async {
+    await Future.delayed(_latency);
+    final id = peerMxid.trim();
+    final item = AsBlockItem(
+      targetType: asBlockTargetContact,
+      targetId: id,
+      peerMxid: id,
+      displayName: displayName.trim().isEmpty ? id : displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
+      createdAt: DateTime.now().toUtc(),
+    );
+    _blockedContacts[id] = item;
+    return item;
+  }
+
+  @override
+  Future<void> removeBlock({
+    required String targetType,
+    required String targetId,
+  }) async {
+    await Future.delayed(_latency);
+    final id = targetId.trim();
+    _blockedContacts.remove(id);
   }
 
   @override

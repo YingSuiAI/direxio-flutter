@@ -207,6 +207,116 @@ void main() {
     ]);
   });
 
+  test('block actions use grouped backend contract', () async {
+    final seen = <Map<String, dynamic>>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        seen.add(body);
+        switch (body['action']) {
+          case 'blocks.list':
+            expect(request.url.path, '/_p2p/query');
+            return _jsonResponse({
+              'contacts': [
+                {
+                  'target_type': 'contact',
+                  'peer_mxid': '@alice:p2p-im.com',
+                  'display_name': 'Alice',
+                },
+              ],
+              'groups': [
+                {
+                  'target_type': 'group',
+                  'room_id': '!group:p2p-im.com',
+                  'display_name': 'Team',
+                },
+              ],
+              'channels': [
+                {
+                  'target_type': 'channel',
+                  'room_id': '!channel:p2p-im.com',
+                  'display_name': 'News',
+                },
+              ],
+            }, 200);
+          case 'blocks.add':
+            expect(request.url.path, '/_p2p/command');
+            return _jsonResponse(
+              (body['params'] as Map).cast<String, dynamic>(),
+              200,
+            );
+          case 'blocks.remove':
+            expect(request.url.path, '/_p2p/command');
+            return _jsonResponse({'removed': true}, 200);
+        }
+        return _jsonResponse({'error': 'unexpected action'}, 500);
+      }),
+    );
+
+    final blocks = await client.listBlocks();
+    final contact = await client.blockContact(
+      peerMxid: '@alice:p2p-im.com',
+      displayName: 'Alice',
+      avatarUrl: 'mxc://avatar',
+    );
+    final group = await client.blockGroup(
+      roomId: '!group:p2p-im.com',
+      displayName: 'Team',
+    );
+    final channel = await client.blockChannel(
+      roomId: '!channel:p2p-im.com',
+      displayName: 'News',
+    );
+    await client.removeBlock(
+      targetType: asBlockTargetChannel,
+      targetId: '!channel:p2p-im.com',
+    );
+
+    expect(blocks.contacts.single.displayName, 'Alice');
+    expect(blocks.groups.single.roomId, '!group:p2p-im.com');
+    expect(blocks.channels.single.roomId, '!channel:p2p-im.com');
+    expect(contact.peerMxid, '@alice:p2p-im.com');
+    expect(group.roomId, '!group:p2p-im.com');
+    expect(channel.roomId, '!channel:p2p-im.com');
+    expect(seen, [
+      {'action': 'blocks.list', 'params': <String, dynamic>{}},
+      {
+        'action': 'blocks.add',
+        'params': {
+          'target_type': 'contact',
+          'peer_mxid': '@alice:p2p-im.com',
+          'display_name': 'Alice',
+          'avatar_url': 'mxc://avatar',
+        },
+      },
+      {
+        'action': 'blocks.add',
+        'params': {
+          'target_type': 'group',
+          'room_id': '!group:p2p-im.com',
+          'display_name': 'Team',
+        },
+      },
+      {
+        'action': 'blocks.add',
+        'params': {
+          'target_type': 'channel',
+          'room_id': '!channel:p2p-im.com',
+          'display_name': 'News',
+        },
+      },
+      {
+        'action': 'blocks.remove',
+        'params': {
+          'target_type': 'channel',
+          'room_id': '!channel:p2p-im.com',
+        },
+      },
+    ]);
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

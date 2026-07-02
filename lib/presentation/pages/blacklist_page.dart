@@ -1,48 +1,85 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
+import '../providers/as_bootstrap_store_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
+import '../providers/block_list_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/center_toast.dart';
 
-class BlacklistPage extends StatefulWidget {
+class BlacklistPage extends ConsumerStatefulWidget {
   const BlacklistPage({super.key});
 
   @override
-  State<BlacklistPage> createState() => _BlacklistPageState();
+  ConsumerState<BlacklistPage> createState() => _BlacklistPageState();
 }
 
-class _BlacklistPageState extends State<BlacklistPage> {
-  final List<_BlacklistEntry> _entries = const [
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-1:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-2:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-1:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-3:p2p-im.com'),
-    _BlacklistEntry(name: '吴世伟', seed: '@wushiwei-4:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-2:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-3:p2p-im.com'),
-    _BlacklistEntry(name: '林佩瑜', seed: '@linpeiyu-4:p2p-im.com'),
-  ].toList();
+class _BlacklistPageState extends ConsumerState<BlacklistPage> {
+  var _selectedType = asBlockTargetContact;
+  final Set<String> _removing = {};
 
-  void _remove(_BlacklistEntry entry) {
-    setState(() => _entries.remove(entry));
+  Future<void> _refresh() async {
+    await ref.read(blockListProvider.notifier).refresh();
+  }
+
+  Future<void> _remove(AsBlockItem entry) async {
+    final key = '${entry.targetType}:${entry.displayId}';
+    if (_removing.contains(key)) return;
+    setState(() => _removing.add(key));
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
     );
-    showTopSnackBar(
-      context,
-      SnackBar(
-        content: Text(
-          l10n?.blacklistRemovedMessage(entry.name) ?? '已移除 ${entry.name}',
+    try {
+      await ref.read(blockListProvider.notifier).removeBlock(
+            targetType: entry.targetType,
+            targetId: entry.displayId,
+          );
+      await _refreshVisibleListsAfterUnblock();
+      if (!mounted) return;
+      showTopSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            l10n?.blacklistRemovedMessage(_entryTitle(entry)) ??
+                '已取消拉黑 ${_entryTitle(entry)}',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showTopSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            l10n?.blacklistRemoveFailed('$error') ?? '取消拉黑失败: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _removing.remove(key));
+    }
+  }
+
+  Future<void> _refreshVisibleListsAfterUnblock() async {
+    try {
+      final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+      ref.invalidate(productConversationsProvider);
+    } catch (error) {
+      debugPrint('refresh bootstrap after unblock failed: $error');
+    }
   }
 
   @override
@@ -57,19 +94,50 @@ class _BlacklistPageState extends State<BlacklistPage> {
           children: [
             _BlacklistHeader(topInset: topInset),
             Expanded(
-              child: _entries.isEmpty
-                  ? const _BlacklistEmpty()
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(top: 1),
-                      itemCount: _entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = _entries[index];
-                        return _BlacklistRow(
-                          entry: entry,
-                          onRemove: () => _remove(entry),
-                        );
-                      },
-                    ),
+              child: Builder(
+                builder: (context) {
+                  final value = ref.watch(blockListProvider);
+                  final blocks = value.valueOrNull ?? const AsBlockList();
+                  final entries = _entriesForType(blocks, _selectedType);
+                  return Column(
+                    children: [
+                      _BlacklistTabs(
+                        selectedType: _selectedType,
+                        onSelected: (type) =>
+                            setState(() => _selectedType = type),
+                      ),
+                      Expanded(
+                        child: value.isLoading && value.valueOrNull == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : value.hasError
+                                ? _BlacklistError(onRetry: _refresh)
+                                : entries.isEmpty
+                                    ? _BlacklistEmpty(
+                                        targetType: _selectedType,
+                                      )
+                                    : RefreshIndicator(
+                                        onRefresh: _refresh,
+                                        child: ListView.builder(
+                                          padding:
+                                              const EdgeInsets.only(top: 1),
+                                          itemCount: entries.length,
+                                          itemBuilder: (context, index) {
+                                            final entry = entries[index];
+                                            final key =
+                                                '${entry.targetType}:${entry.displayId}';
+                                            return _BlacklistRow(
+                                              entry: entry,
+                                              removing: _removing.contains(key),
+                                              onRemove: () => _remove(entry),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -78,14 +146,18 @@ class _BlacklistPageState extends State<BlacklistPage> {
   }
 }
 
-class _BlacklistEntry {
-  const _BlacklistEntry({
-    required this.name,
-    required this.seed,
-  });
+List<AsBlockItem> _entriesForType(AsBlockList blocks, String targetType) {
+  return switch (targetType) {
+    asBlockTargetGroup => blocks.groups,
+    asBlockTargetChannel => blocks.channels,
+    _ => blocks.contacts,
+  };
+}
 
-  final String name;
-  final String seed;
+String _entryTitle(AsBlockItem entry) {
+  final name = entry.displayName.trim();
+  if (name.isNotEmpty) return name;
+  return entry.displayId;
 }
 
 class _BlacklistHeader extends StatelessWidget {
@@ -177,10 +249,12 @@ class _HeaderGlassButton extends StatelessWidget {
 class _BlacklistRow extends StatelessWidget {
   const _BlacklistRow({
     required this.entry,
+    required this.removing,
     required this.onRemove,
   });
 
-  final _BlacklistEntry entry;
+  final AsBlockItem entry;
+  final bool removing;
   final VoidCallback onRemove;
 
   @override
@@ -193,8 +267,11 @@ class _BlacklistRow extends StatelessWidget {
         child: Row(
           children: [
             PortalAvatar(
-              seed: entry.seed,
+              seed: entry.displayId,
               size: 28,
+              imageUrl: entry.avatarUrl.trim().isEmpty
+                  ? null
+                  : entry.avatarUrl.trim(),
               shape: AvatarShape.squircle,
             ),
             const SizedBox(width: 8),
@@ -211,7 +288,7 @@ class _BlacklistRow extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  entry.name,
+                  _entryTitle(entry),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
@@ -223,7 +300,10 @@ class _BlacklistRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            _RemoveButton(onTap: onRemove),
+            _RemoveButton(
+              busy: removing,
+              onTap: onRemove,
+            ),
           ],
         ),
       ),
@@ -232,8 +312,12 @@ class _BlacklistRow extends StatelessWidget {
 }
 
 class _RemoveButton extends StatelessWidget {
-  const _RemoveButton({required this.onTap});
+  const _RemoveButton({
+    required this.busy,
+    required this.onTap,
+  });
 
+  final bool busy;
   final VoidCallback onTap;
 
   @override
@@ -248,14 +332,14 @@ class _RemoveButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
+        onTap: busy ? null : onTap,
         child: SizedBox(
           height: 28,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Center(
               child: Text(
-                l10n?.blacklistRemove ?? '移除',
+                busy ? '处理中...' : l10n?.blacklistRemove ?? '取消拉黑',
                 style: AppTheme.sans(
                   size: 12,
                   weight: FontWeight.w500,
@@ -270,8 +354,49 @@ class _RemoveButton extends StatelessWidget {
   }
 }
 
+class _BlacklistTabs extends StatelessWidget {
+  const _BlacklistTabs({
+    required this.selectedType,
+    required this.onSelected,
+  });
+
+  final String selectedType;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: SegmentedButton<String>(
+        segments: [
+          ButtonSegment(
+            value: asBlockTargetContact,
+            label: Text(l10n?.blacklistContactsTab ?? '好友'),
+          ),
+          ButtonSegment(
+            value: asBlockTargetGroup,
+            label: Text(l10n?.blacklistGroupsTab ?? '群聊'),
+          ),
+          ButtonSegment(
+            value: asBlockTargetChannel,
+            label: Text(l10n?.blacklistChannelsTab ?? '频道'),
+          ),
+        ],
+        selected: {selectedType},
+        onSelectionChanged: (values) => onSelected(values.first),
+      ),
+    );
+  }
+}
+
 class _BlacklistEmpty extends StatelessWidget {
-  const _BlacklistEmpty();
+  const _BlacklistEmpty({required this.targetType});
+
+  final String targetType;
 
   @override
   Widget build(BuildContext context) {
@@ -282,8 +407,32 @@ class _BlacklistEmpty extends StatelessWidget {
     );
     return Center(
       child: Text(
-        l10n?.blacklistEmpty ?? '暂无黑名单联系人',
+        switch (targetType) {
+          asBlockTargetGroup => l10n?.blacklistGroupsEmpty ?? '暂无拉黑群聊',
+          asBlockTargetChannel => l10n?.blacklistChannelsEmpty ?? '暂无拉黑频道',
+          _ => l10n?.blacklistContactsEmpty ?? l10n?.blacklistEmpty ?? '暂无拉黑好友',
+        },
         style: AppTheme.sans(size: 14, color: t.textMute),
+      ),
+    );
+  }
+}
+
+class _BlacklistError extends StatelessWidget {
+  const _BlacklistError({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Center(
+      child: TextButton(
+        onPressed: onRetry,
+        child: Text(l10n?.commonRetry ?? '重试'),
       ),
     );
   }

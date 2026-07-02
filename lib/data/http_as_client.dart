@@ -470,6 +470,97 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<AsBlockList> listBlocks() async {
+    final body = await _getJson('blocks/list');
+    return AsBlockList.fromJson(body);
+  }
+
+  @override
+  Future<AsBlockItem> blockContact({
+    required String peerMxid,
+    String displayName = '',
+    String avatarUrl = '',
+  }) {
+    return _blockTarget(
+      targetType: asBlockTargetContact,
+      peerMxid: peerMxid,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
+  }
+
+  @override
+  Future<AsBlockItem> blockGroup({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) {
+    return _blockTarget(
+      targetType: asBlockTargetGroup,
+      roomId: roomId,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
+  }
+
+  @override
+  Future<AsBlockItem> blockChannel({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) {
+    return _blockTarget(
+      targetType: asBlockTargetChannel,
+      roomId: roomId,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
+  }
+
+  Future<AsBlockItem> _blockTarget({
+    required String targetType,
+    String peerMxid = '',
+    String roomId = '',
+    String displayName = '',
+    String avatarUrl = '',
+  }) async {
+    final body = await _requestJson(
+      'POST',
+      'blocks/add',
+      body: {
+        'target_type': targetType,
+        if (peerMxid.trim().isNotEmpty) 'peer_mxid': peerMxid.trim(),
+        if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
+        if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
+        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+      },
+      allowedStatusCodes: const {200},
+    );
+    return AsBlockItem.fromJson(body);
+  }
+
+  @override
+  Future<void> removeBlock({
+    required String targetType,
+    required String targetId,
+  }) async {
+    final cleanType = targetType.trim();
+    final cleanId = targetId.trim();
+    await _requestJson(
+      'POST',
+      'blocks/remove',
+      body: {
+        'target_type': cleanType,
+        if (cleanType == asBlockTargetContact)
+          'peer_mxid': cleanId
+        else
+          'room_id': cleanId,
+      },
+      allowedStatusCodes: const {200, 404},
+    );
+  }
+
+  @override
   Future<AsCallSession> createCall({
     required String roomId,
     required String mediaType,

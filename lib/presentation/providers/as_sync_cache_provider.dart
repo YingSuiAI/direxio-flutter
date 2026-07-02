@@ -504,6 +504,54 @@ class AsSyncCacheState {
     );
   }
 
+  AsSyncCacheState withoutContact({
+    String peerMxid = '',
+    String roomId = '',
+  }) {
+    final cleanPeerMxid = peerMxid.trim();
+    final cleanRoomId = roomId.trim();
+    if (cleanPeerMxid.isEmpty && cleanRoomId.isEmpty) return this;
+    final current = bootstrap;
+    final statuses = Map<String, String>.from(localContactStatusesByRoomId)
+      ..removeWhere((entryRoomId, _) => entryRoomId.trim() == cleanRoomId);
+    final entries = Map<String, ContactEntry>.from(localContactEntriesByRoomId)
+      ..removeWhere((entryRoomId, contact) {
+        if (entryRoomId.trim() == cleanRoomId) return true;
+        return cleanPeerMxid.isNotEmpty &&
+            contact.peerMxid.trim() == cleanPeerMxid;
+      });
+    if (current == null) {
+      return copyWith(
+        localContactStatusesByRoomId: statuses,
+        localContactEntriesByRoomId: entries,
+      );
+    }
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        agentRoomId: current.agentRoomId,
+        rooms: current.rooms,
+        contacts: current.contacts.where((contact) {
+          final contactRoomId = contact.roomId.trim();
+          final contactPeerMxid = contact.userId.trim();
+          if (cleanRoomId.isNotEmpty && contactRoomId == cleanRoomId) {
+            return false;
+          }
+          if (cleanPeerMxid.isNotEmpty && contactPeerMxid == cleanPeerMxid) {
+            return false;
+          }
+          return true;
+        }).toList(growable: false),
+        groups: current.groups,
+        channels: current.channels,
+        pending: current.pending,
+      ),
+      localContactStatusesByRoomId: statuses,
+      localContactEntriesByRoomId: entries,
+    );
+  }
+
   AsSyncCacheState withoutChannel(String channelIdOrRoomId) {
     final trimmed = channelIdOrRoomId.trim();
     final current = bootstrap;

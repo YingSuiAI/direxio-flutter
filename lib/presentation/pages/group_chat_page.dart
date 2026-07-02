@@ -25,6 +25,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_event_stream_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/chat_clear_state_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_message_order_provider.dart';
@@ -386,6 +387,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool get _isChannelConversation =>
       widget.channelId?.trim().isNotEmpty ?? false;
 
+  bool _isCurrentRoomBlocked(AsBlockList? blocks, Room room) {
+    return _isChannelConversation
+        ? isChannelBlocked(blocks, room.id)
+        : isGroupBlocked(blocks, room.id);
+  }
+
   void _onVoicePlaybackChanged() {
     if (mounted) setState(() {});
   }
@@ -441,6 +448,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room,
       ref.read(asSyncCacheProvider),
     );
+    if (_isCurrentRoomBlocked(ref.read(blockListProvider).valueOrNull, room)) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendMedia) {
       _showGroupCannotSendToast(context);
       return;
@@ -508,6 +519,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room,
       ref.read(asSyncCacheProvider),
     );
+    if (_isCurrentRoomBlocked(ref.read(blockListProvider).valueOrNull, room)) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendMedia) {
       _showGroupCannotSendToast(context);
       return;
@@ -1764,6 +1779,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final productConversations =
         ref.read(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
+    if (_isCurrentRoomBlocked(ref.read(blockListProvider).valueOrNull, room)) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (_isRemovedFromGroupConversation(
       room: room,
       syncCache: syncCache,
@@ -2030,6 +2049,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
   }
 
+  void _showBlockedCannotSendToast(BuildContext context) {
+    if (!context.mounted) return;
+    final l10n = _groupChatL10n(context);
+    showTopSnackBar(
+      context,
+      SnackBar(content: Text(l10n.blockCannotSendMessage)),
+    );
+  }
+
   String _channelConversationTitle(
     AsSyncCacheState syncCache,
     String channelId,
@@ -2184,6 +2212,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room,
       ref.read(asSyncCacheProvider),
     );
+    if (_isCurrentRoomBlocked(ref.read(blockListProvider).valueOrNull, room)) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendMedia) {
       _showGroupCannotSendToast(context);
       return;
@@ -2277,6 +2309,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room,
       ref.read(asSyncCacheProvider),
     );
+    if (_isCurrentRoomBlocked(ref.read(blockListProvider).valueOrNull, room)) {
+      _showBlockedCannotSendToast(context);
+      return;
+    }
     if (!capabilityPolicy.canSendText) {
       _showGroupCannotSendToast(context);
       return;
@@ -3032,9 +3068,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       syncCache: syncCache,
       productConversations: productConversations,
     );
-    final canSendMessages = !removedFromGroup && capabilityPolicy.canSendText;
-    final canSendMedia = !removedFromGroup && capabilityPolicy.canSendMedia;
+    final blocked = _isCurrentRoomBlocked(
+      ref.watch(blockListProvider).valueOrNull,
+      room,
+    );
+    final canSendMessages =
+        !blocked && !removedFromGroup && capabilityPolicy.canSendText;
+    final canSendMedia =
+        !blocked && !removedFromGroup && capabilityPolicy.canSendMedia;
     final canQueueChannelTextFailure = !removedFromGroup &&
+        !blocked &&
         !canSendMessages &&
         _isJoinedChannelConversation(room, syncCache);
     final myId = ref.read(matrixClientProvider).userID;
@@ -3045,10 +3088,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       _emojiPanelHeight = keyboardInsetBottom.clamp(240.0, 420.0).toDouble();
     }
     final bottomPanelVisible = !removedFromGroup &&
+        !blocked &&
         keyboardInsetBottom <= 1 &&
         (_showPlusPanel || _showEmojiPanel);
-    final showEmojiPanelContent =
-        !removedFromGroup && _showEmojiPanel && keyboardInsetBottom <= 1;
+    final showEmojiPanelContent = !removedFromGroup &&
+        !blocked &&
+        _showEmojiPanel &&
+        keyboardInsetBottom <= 1;
     final bottomViewportChanged =
         keyboardInsetBottom != _lastKeyboardInsetBottom ||
             bottomPanelVisible != _lastBottomPanelVisible;
@@ -3756,15 +3802,20 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     onSend: _send,
                     onPlus: canSendMedia
                         ? _togglePlus
-                        : () => _showGroupCannotSendToast(context),
+                        : () => blocked
+                            ? _showBlockedCannotSendToast(context)
+                            : _showGroupCannotSendToast(context),
                     onEmoji: canSendMessages
                         ? _toggleEmoji
-                        : () => _showGroupCannotSendToast(context),
+                        : () => blocked
+                            ? _showBlockedCannotSendToast(context)
+                            : _showGroupCannotSendToast(context),
                     plusActive: _showPlusPanel,
                     emojiActive: _showEmojiPanel,
                     enabled: canSendMessages,
                     textEnabled: canSendMessages || canQueueChannelTextFailure,
                     sendEnabled: canSendMessages || canQueueChannelTextFailure,
+                    hintText: blocked ? l10n.blockCannotSendMessage : '',
                     onVoiceRecordStart: _startVoiceRecording,
                     onVoiceRecordStop: _stopVoiceRecording,
                     onVoiceRecordCancel: _cancelVoiceRecording,
@@ -3776,7 +3827,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     canSend: canSendMedia,
                     useAsProductMedia: true,
                     onClose: () => setState(() => _showPlusPanel = false),
-                    onCannotSend: _showGroupCannotSendToast,
+                    onCannotSend: blocked
+                        ? _showBlockedCannotSendToast
+                        : _showGroupCannotSendToast,
                     onImageUploadStarted: _addPendingImageUpload,
                     onImageUploadsStarted: _addPendingImageUploads,
                     onImageUploadDelivered: _recordDeliveredMediaUpload,

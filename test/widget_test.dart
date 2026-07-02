@@ -36,6 +36,7 @@ import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
 import 'package:portal_app/presentation/pages/about_us_page.dart';
+import 'package:portal_app/presentation/pages/blacklist_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
@@ -69,6 +70,7 @@ import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/agent_bridge_presence_provider.dart';
+import 'package:portal_app/presentation/providers/block_list_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
@@ -913,6 +915,57 @@ class _EmptyAsClient implements AsClient {
         roomId: roomId,
         status: 'accepted',
       );
+
+  @override
+  Future<AsBlockList> listBlocks() async => const AsBlockList();
+
+  @override
+  Future<AsBlockItem> blockContact({
+    required String peerMxid,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async =>
+      AsBlockItem(
+        targetType: asBlockTargetContact,
+        targetId: peerMxid.trim(),
+        peerMxid: peerMxid.trim(),
+        displayName: displayName.trim(),
+        avatarUrl: avatarUrl.trim(),
+      );
+
+  @override
+  Future<AsBlockItem> blockGroup({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async =>
+      AsBlockItem(
+        targetType: asBlockTargetGroup,
+        targetId: roomId.trim(),
+        roomId: roomId.trim(),
+        displayName: displayName.trim(),
+        avatarUrl: avatarUrl.trim(),
+      );
+
+  @override
+  Future<AsBlockItem> blockChannel({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async =>
+      AsBlockItem(
+        targetType: asBlockTargetChannel,
+        targetId: roomId.trim(),
+        roomId: roomId.trim(),
+        displayName: displayName.trim(),
+        avatarUrl: avatarUrl.trim(),
+      );
+
+  @override
+  Future<void> removeBlock({
+    required String targetType,
+    required String targetId,
+  }) async {}
 
   @override
   Future<AsGroupResult> createGroup({
@@ -1923,6 +1976,20 @@ class _TrackingAsClient extends _EmptyAsClient {
   AsConversation? createdContactProductConversation;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
+  int blockContactCalls = 0;
+  String? blockedContactPeerMxid;
+  String? blockedContactDisplayName;
+  String? blockedContactAvatarUrl;
+  int blockGroupCalls = 0;
+  String? blockedGroupRoomId;
+  String? blockedGroupDisplayName;
+  int blockChannelCalls = 0;
+  String? blockedChannelRoomId;
+  String? blockedChannelDisplayName;
+  int removeBlockCalls = 0;
+  String? removedBlockTargetType;
+  String? removedBlockTargetId;
+  AsBlockList blockList = const AsBlockList();
   int updateContactCalls = 0;
   String? updatedContactRoomId;
   String? updatedContactDisplayName;
@@ -2035,6 +2102,74 @@ class _TrackingAsClient extends _EmptyAsClient {
       roomId: roomId,
       status: 'rejected',
     );
+  }
+
+  @override
+  Future<AsBlockList> listBlocks() async => blockList;
+
+  @override
+  Future<AsBlockItem> blockContact({
+    required String peerMxid,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async {
+    blockContactCalls++;
+    blockedContactPeerMxid = peerMxid;
+    blockedContactDisplayName = displayName;
+    blockedContactAvatarUrl = avatarUrl;
+    return AsBlockItem(
+      targetType: asBlockTargetContact,
+      targetId: peerMxid.trim(),
+      peerMxid: peerMxid.trim(),
+      displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
+    );
+  }
+
+  @override
+  Future<AsBlockItem> blockGroup({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async {
+    blockGroupCalls++;
+    blockedGroupRoomId = roomId;
+    blockedGroupDisplayName = displayName;
+    return AsBlockItem(
+      targetType: asBlockTargetGroup,
+      targetId: roomId.trim(),
+      roomId: roomId.trim(),
+      displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
+    );
+  }
+
+  @override
+  Future<AsBlockItem> blockChannel({
+    required String roomId,
+    String displayName = '',
+    String avatarUrl = '',
+  }) async {
+    blockChannelCalls++;
+    blockedChannelRoomId = roomId;
+    blockedChannelDisplayName = displayName;
+    return AsBlockItem(
+      targetType: asBlockTargetChannel,
+      targetId: roomId.trim(),
+      roomId: roomId.trim(),
+      displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
+    );
+  }
+
+  @override
+  Future<void> removeBlock({
+    required String targetType,
+    required String targetId,
+  }) async {
+    removeBlockCalls++;
+    removedBlockTargetType = targetType;
+    removedBlockTargetId = targetId;
   }
 
   @override
@@ -19572,7 +19707,7 @@ void main() {
     expect(find.text('messages-home'), findsOneWidget);
   });
 
-  testWidgets('contact detail blocks contact through AS delete flow',
+  testWidgets('contact detail blocks contact through block list contract',
       (tester) async {
     final client = Client('DirexioContactDetailBlockTest')
       ..setUserId('@owner:p2p-im.com');
@@ -19646,10 +19781,13 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '拉黑'));
     await tester.pumpAndSettle();
 
-    expect(asClient.deleteContactCalls, 1);
-    expect(asClient.deletedContactRoomId, '!alice:p2p-im.com');
+    expect(asClient.blockContactCalls, 1);
+    expect(asClient.blockedContactPeerMxid, '@alice:portal.local');
+    expect(asClient.blockedContactDisplayName, 'Alice');
     expect(client.getRoomById('!alice:p2p-im.com'), isNull);
     expect(find.text('messages-home'), findsOneWidget);
+    expect(find.text('取消拉黑'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets(
@@ -21484,7 +21622,7 @@ void main() {
     expect(find.text('主题'), findsOneWidget);
     expect(find.text('收藏'), findsNothing);
     expect(find.text('隐私与安全'), findsOneWidget);
-    expect(find.text('通讯录黑名单'), findsNothing);
+    expect(find.text('黑名单'), findsOneWidget);
     expect(find.text('消息与通知'), findsOneWidget);
     expect(find.text('勿扰模式'), findsOneWidget);
     expect(find.text('新消息提示音'), findsOneWidget);
@@ -21593,11 +21731,15 @@ void main() {
     expect(find.text('密码至少 8 位'), findsNothing);
   });
 
-  testWidgets('settings blacklist row is hidden', (tester) async {
+  testWidgets('settings blacklist row opens blacklist page', (tester) async {
     final router = GoRouter(
       initialLocation: '/settings',
       routes: [
         GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+        GoRoute(
+          path: '/settings/blacklist',
+          builder: (_, __) => const BlacklistPage(),
+        ),
       ],
     );
 
@@ -21605,6 +21747,10 @@ void main() {
       ProviderScope(
         overrides: [
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          blockListProvider.overrideWith(
+            (ref) => BlockListController(_TrackingAsClient()),
+          ),
         ],
         child: MaterialApp.router(
           locale: const Locale('en'),
@@ -21618,8 +21764,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Blocked Contacts'), findsNothing);
-    expect(find.text('通讯录黑名单'), findsNothing);
+    expect(find.text('Blacklist'), findsOneWidget);
+
+    await tester.tap(find.text('Blacklist'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Friends'), findsOneWidget);
+    expect(find.text('Groups'), findsOneWidget);
+    expect(find.text('Channels'), findsOneWidget);
   });
 
   testWidgets('settings deactivate login shows cancellation window',

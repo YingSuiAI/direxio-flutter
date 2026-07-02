@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-30
+Last verified from current code: 2026-07-02
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -36,6 +36,8 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Contact request remarks travel as `remark` on `contacts.request` and may be mirrored in contact or `sync.bootstrap.pending.friend_requests` metadata for the verifier UI.
 - Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.
 - Contact identity writes preserve the peer profile: `contacts.request`, `contacts.requests.accept`, and `contacts.update` may send `display_name`, `avatar_url`, and `domain`; `ContactEntry` reads `avatar_url` back for contact and direct-conversation caches.
+- Block actions: `blocks.list`, `blocks.add`, and `blocks.remove`. `blocks.list` returns grouped `contacts`, `groups`, and `channels`; the client does not require a merged total list. Contact blocks are keyed by peer Matrix id, while group and channel blocks are keyed by Matrix `room_id`. Block entries must include `display_name` and may include `avatar_url` so the blacklist UI can show recognizable names instead of ids.
+- The client hides blocked contacts, groups, channels, and matching conversation rows from normal lists. Unblock is only exposed from Settings -> Blacklist; ordinary contact/group/channel settings pages keep only the block action.
 - Follow/favorite actions: `follows.*`, `favorites.*`. Flutter user-facing report screens use the signed imadmin `/im/report` boundary, not P2P `reports.submit`.
 - Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present. Unified `favorites.add` sends media details inside a Matrix-style `content` snapshot so P2P responses can restore image/file URLs even when only `content` is persisted.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.

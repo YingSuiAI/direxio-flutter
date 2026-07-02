@@ -16,6 +16,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
@@ -84,7 +85,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     final peerDomain = peerId == null
         ? widget.roomId
         : reportDomainForUserId(peerId, acceptedContact?.domain);
-
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -160,7 +160,18 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                               context,
                               l10n?.chatInfoSelfBlockDisabled ?? '当前用户无法拉黑',
                             )
-                        : () => _confirmBlockContact(context, room.id),
+                        : peerId == null
+                            ? () => _toast(
+                                  context,
+                                  l10n?.contactRoomMissingBlock ??
+                                      '拉黑用户失败: 缺少联系人信息',
+                                )
+                            : () => _confirmBlockContact(
+                                  context,
+                                  peerMxid: peerId,
+                                  displayName: name,
+                                  avatarUrl: avatarUrl,
+                                ),
                   ),
                   const SizedBox(height: 12),
                   _ChatInfoRow(
@@ -343,9 +354,11 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
   }
 
   Future<void> _confirmBlockContact(
-    BuildContext context,
-    String roomId,
-  ) async {
+    BuildContext context, {
+    required String peerMxid,
+    required String displayName,
+    String? avatarUrl,
+  }) async {
     if (_blocking) return;
     final l10n = _chatInfoL10n(context);
     final ok = await showDialog<bool>(
@@ -356,7 +369,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          l10n?.contactBlockConfirmBody ?? '拉黑后将移除该联系人和会话关系。',
+          l10n?.contactBlockConfirmBody ?? '拉黑后将不能继续发送消息。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
@@ -384,9 +397,11 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     if (ok != true || !context.mounted) return;
     setState(() => _blocking = true);
     try {
-      await _removeContact(
+      await _blockContact(
         context,
-        roomId,
+        peerMxid: peerMxid,
+        displayName: displayName,
+        avatarUrl: avatarUrl,
         successMessage: l10n?.contactBlocked ?? '已拉黑用户',
         failureMessage: (error) =>
             l10n?.contactBlockFailed(error) ?? '拉黑用户失败: $error',
@@ -425,6 +440,42 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     } catch (e) {
       if (!context.mounted) return;
       _toast(context, failureMessage('$e'));
+    }
+  }
+
+  Future<void> _blockContact(
+    BuildContext context, {
+    required String peerMxid,
+    required String displayName,
+    String? avatarUrl,
+    required String successMessage,
+    required String Function(String error) failureMessage,
+  }) async {
+    try {
+      await ref.read(blockListProvider.notifier).blockContact(
+            peerMxid: peerMxid.trim(),
+            displayName: displayName.trim(),
+            avatarUrl: avatarUrl?.trim() ?? '',
+          );
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withoutContact(
+              peerMxid: peerMxid,
+              roomId: widget.roomId,
+            ),
+          );
+      final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+      if (room != null) {
+        ref.read(matrixClientProvider).rooms.remove(room);
+      }
+      if (!context.mounted) return;
+      _toast(context, successMessage);
+      context.go('/home');
+    } catch (e) {
+      if (!context.mounted) return;
+      final message = _alreadyBlockedMessage(e)
+          ? _chatInfoL10n(context)?.blockAlreadyBlocked ?? '已经拉黑'
+          : failureMessage('$e');
+      _toast(context, message);
     }
   }
 
@@ -888,4 +939,9 @@ class _RemarkDialogState extends State<_RemarkDialog> {
       ],
     );
   }
+}
+
+bool _alreadyBlockedMessage(Object error) {
+  final message = error.toString().toLowerCase();
+  return message.contains('already blocked') || message.contains('已经拉黑');
 }

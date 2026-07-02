@@ -46,9 +46,9 @@
   "settingsThemeDark": "ダーク",
   "settingsFavorites": "お気に入り",
   "settingsPrivacySecurity": "プライバシーとセキュリティ",
-  "settingsBlacklist": "連絡先ブラックリスト",
-  "blacklistRemove": "削除",
-  "blacklistRemovedMessage": "{name}を削除しました",
+  "settingsBlacklist": "ブラックリスト",
+  "blacklistRemove": "ブロック解除",
+  "blacklistRemovedMessage": "{name}のブロックを解除しました",
   "@blacklistRemovedMessage": {
     "placeholders": {
       "name": {
@@ -56,7 +56,21 @@
       }
     }
   },
-  "blacklistEmpty": "ブロックした連絡先はありません",
+  "blacklistRemoveFailed": "ブロック解除に失敗しました: {error}",
+  "@blacklistRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistContactsTab": "友だち",
+  "blacklistGroupsTab": "グループ",
+  "blacklistChannelsTab": "チャンネル",
+  "blacklistEmpty": "ブロックした友だちはありません",
+  "blacklistContactsEmpty": "ブロックした友だちはありません",
+  "blacklistGroupsEmpty": "ブロックしたグループはありません",
+  "blacklistChannelsEmpty": "ブロックしたチャンネルはありません",
   "settingsChangePassword": "パスワードを変更",
   "changePasswordOldHint": "現在のパスワード",
   "changePasswordNewHint": "新しいパスワード",
@@ -702,7 +716,7 @@
     }
   },
   "contactBlockConfirmTitle": "ユーザーをブロック",
-  "contactBlockConfirmBody": "ブロックすると、この連絡先と会話の関係が削除されます。",
+  "contactBlockConfirmBody": "ブロック後はメッセージを送信できません。",
   "contactBlockAction": "ブロック",
   "contactBlocked": "ユーザーをブロックしました",
   "contactBlockFailed": "ユーザーのブロックに失敗しました: {error}",
@@ -713,6 +727,21 @@
       }
     }
   },
+  "contactUnblockUserDetail": "ブロック解除",
+  "contactUnblockConfirmTitle": "ブロック解除",
+  "contactUnblockConfirmBody": "解除後はメッセージを送信できます。",
+  "contactUnblockAction": "ブロック解除",
+  "contactUnblocked": "ブロックを解除しました",
+  "contactUnblockFailed": "ブロック解除に失敗しました: {error}",
+  "@contactUnblockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blockAlreadyBlocked": "すでにブロック済みです",
+  "blockCannotSendMessage": "ブロック中のため送信できません",
   "contactReportSubmitted": "報告を送信しました",
   "contactReportSubmitFailed": "報告の送信に失敗しました: {error}",
   "@contactReportSubmitFailed": {

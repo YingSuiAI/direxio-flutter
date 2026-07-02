@@ -90,18 +90,41 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsPrivacySecurity => 'プライバシーとセキュリティ';
 
   @override
-  String get settingsBlacklist => '連絡先ブラックリスト';
+  String get settingsBlacklist => 'ブラックリスト';
 
   @override
-  String get blacklistRemove => '削除';
+  String get blacklistRemove => 'ブロック解除';
 
   @override
   String blacklistRemovedMessage(String name) {
-    return '$nameを削除しました';
+    return '$nameのブロックを解除しました';
   }
 
   @override
-  String get blacklistEmpty => 'ブロックした連絡先はありません';
+  String blacklistRemoveFailed(String error) {
+    return 'ブロック解除に失敗しました: $error';
+  }
+
+  @override
+  String get blacklistContactsTab => '友だち';
+
+  @override
+  String get blacklistGroupsTab => 'グループ';
+
+  @override
+  String get blacklistChannelsTab => 'チャンネル';
+
+  @override
+  String get blacklistEmpty => 'ブロックした友だちはありません';
+
+  @override
+  String get blacklistContactsEmpty => 'ブロックした友だちはありません';
+
+  @override
+  String get blacklistGroupsEmpty => 'ブロックしたグループはありません';
+
+  @override
+  String get blacklistChannelsEmpty => 'ブロックしたチャンネルはありません';
 
   @override
   String get settingsChangePassword => 'パスワードを変更';
@@ -1321,7 +1344,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactBlockConfirmTitle => 'ユーザーをブロック';
 
   @override
-  String get contactBlockConfirmBody => 'ブロックすると、この連絡先と会話の関係が削除されます。';
+  String get contactBlockConfirmBody => 'ブロック後はメッセージを送信できません。';
 
   @override
   String get contactBlockAction => 'ブロック';
@@ -1333,6 +1356,32 @@ class AppLocalizationsJa extends AppLocalizations {
   String contactBlockFailed(String error) {
     return 'ユーザーのブロックに失敗しました: $error';
   }
+
+  @override
+  String get contactUnblockUserDetail => 'ブロック解除';
+
+  @override
+  String get contactUnblockConfirmTitle => 'ブロック解除';
+
+  @override
+  String get contactUnblockConfirmBody => '解除後はメッセージを送信できます。';
+
+  @override
+  String get contactUnblockAction => 'ブロック解除';
+
+  @override
+  String get contactUnblocked => 'ブロックを解除しました';
+
+  @override
+  String contactUnblockFailed(String error) {
+    return 'ブロック解除に失敗しました: $error';
+  }
+
+  @override
+  String get blockAlreadyBlocked => 'すでにブロック済みです';
+
+  @override
+  String get blockCannotSendMessage => 'ブロック中のため送信できません';
 
   @override
   String get contactReportSubmitted => '報告を送信しました';

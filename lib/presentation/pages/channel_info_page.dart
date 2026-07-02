@@ -22,6 +22,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/im_public_client_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
@@ -48,6 +49,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   List<AsChannelMember> _members = const [];
   bool _removingMember = false;
   bool _muteChanging = false;
+  bool _blocking = false;
   final Set<String> _preloadedMemberAvatarUrls = {};
   final Map<String, String> _memberProfileAvatarUrls = {};
   final Set<String> _resolvingMemberProfileAvatars = {};
@@ -385,6 +387,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
 
   List<Widget> _memberContent(BuildContext context, ChannelInfoData channel) {
     final l10n = _channelInfoL10n(context);
+    final roomId = _channelBlockRoomId(channel);
     return [
       const SizedBox(height: 24),
       _ChannelInfoHeader(
@@ -410,6 +413,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 26),
       _DangerCenterRow(
+        label: '拉黑频道',
+        onTap: () => _confirmBlockChannel(context, channel, roomId: roomId),
+      ),
+      const SizedBox(height: 14),
+      _DangerCenterRow(
         label: l10n?.channelInfoLeaveAction ?? '退出频道',
         onTap: () => _confirmLeaveChannel(context, ref, channel),
       ),
@@ -418,6 +426,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
 
   List<Widget> _ownerContent(BuildContext context, ChannelInfoData channel) {
     final l10n = _channelInfoL10n(context);
+    final roomId = _channelBlockRoomId(channel);
     final displayMembers =
         _members.where(_isJoinedChannelMember).toList(growable: false);
     final visibleMemberCount = displayMembers.isEmpty
@@ -470,6 +479,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 26),
       _DangerCenterRow(
+        label: '拉黑频道',
+        onTap: () => _confirmBlockChannel(context, channel, roomId: roomId),
+      ),
+      const SizedBox(height: 14),
+      _DangerCenterRow(
         label: l10n?.channelInfoDissolveAction ?? '解散频道',
         onTap: () => _confirmDissolveChannel(context, ref, channel),
       ),
@@ -481,6 +495,82 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ref.watch(matrixClientProvider),
       channel.avatarUrl,
     );
+  }
+
+  String _channelBlockRoomId(ChannelInfoData channel) {
+    final roomId = channel.roomId.trim();
+    if (roomId.isNotEmpty) return roomId;
+    return _currentChannelRoomId().trim();
+  }
+
+  Future<void> _confirmBlockChannel(
+    BuildContext context,
+    ChannelInfoData channel, {
+    required String roomId,
+  }) async {
+    if (_blocking) return;
+    final targetRoomId = roomId.trim();
+    if (targetRoomId.isEmpty) {
+      _showSnack(context, '拉黑频道失败: 缺少频道房间ID');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(
+          '拉黑频道',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '拉黑后将不能继续发送消息。',
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(true),
+            child: Text(
+              '拉黑',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: context.tk.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await ref.read(blockListProvider.notifier).blockChannel(
+            roomId: targetRoomId,
+            displayName: channel.name,
+            avatarUrl: channel.avatarUrl,
+          );
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withoutChannel(targetRoomId),
+          );
+      final room = ref.read(matrixClientProvider).getRoomById(targetRoomId);
+      if (room != null) {
+        ref.read(matrixClientProvider).rooms.remove(room);
+      }
+      if (!context.mounted) return;
+      _showSnack(context, '已拉黑频道');
+      context.go('/home?tab=channels');
+    } catch (error) {
+      if (!context.mounted) return;
+      _showSnack(
+        context,
+        _alreadyBlockedMessage(error) ? '已经拉黑' : '拉黑频道失败: $error',
+      );
+    } finally {
+      if (mounted) setState(() => _blocking = false);
+    }
   }
 
   bool _displayedChannelMuted(ChannelInfoData channel) {
@@ -1374,4 +1464,9 @@ void _returnToChannelTab(BuildContext context) {
 
 AppLocalizations? _channelInfoL10n(BuildContext context) {
   return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
+
+bool _alreadyBlockedMessage(Object error) {
+  final message = error.toString().toLowerCase();
+  return message.contains('already blocked') || message.contains('已经拉黑');
 }

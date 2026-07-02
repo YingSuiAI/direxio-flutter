@@ -18,6 +18,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/im_public_client_provider.dart';
@@ -187,7 +188,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           )
         : null;
     final publicChannels = profileChannels?.valueOrNull ?? const <AsChannel>[];
-
     if (widget.fromChatAvatar) {
       return _buildChatAvatarProfile(
         context,
@@ -356,13 +356,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       const SizedBox(height: 16),
                       _ContactSettingRow(
                         label: l10n?.contactBlockUserDetail ?? '拉黑用户',
-                        onTap: room == null
-                            ? () => _toast(
-                                  context,
-                                  l10n?.contactRoomMissingBlock ??
-                                      '拉黑用户失败: 缺少联系人房间信息',
-                                )
-                            : () => _confirmBlockContact(context, room.id),
+                        onTap: () => _confirmBlockContact(
+                          context,
+                          peerMxid: userId,
+                          roomId: acceptedContact?.roomId ?? roomId ?? '',
+                          displayName: displayName,
+                          avatarUrl: identityAvatarUrl,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _ContactSettingRow(
@@ -587,9 +587,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   }
 
   Future<void> _confirmBlockContact(
-    BuildContext context,
-    String roomId,
-  ) async {
+    BuildContext context, {
+    required String peerMxid,
+    required String roomId,
+    required String displayName,
+    String? avatarUrl,
+  }) async {
     if (_blocking) return;
     final l10n = _contactDetailL10n(context);
     final ok = await showDialog<bool>(
@@ -600,7 +603,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          l10n?.contactBlockConfirmBody ?? '拉黑后将移除该联系人和会话关系。',
+          l10n?.contactBlockConfirmBody ?? '拉黑后将不能继续发送消息。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
@@ -625,9 +628,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     if (ok != true || !context.mounted) return;
     setState(() => _blocking = true);
     try {
-      await _removeContact(
+      await _blockContact(
         context,
-        roomId,
+        peerMxid: peerMxid,
+        roomId: roomId,
+        displayName: displayName,
+        avatarUrl: avatarUrl,
         successMessage: l10n?.contactBlocked ?? '已拉黑用户',
         failureMessage: (error) =>
             l10n?.contactBlockFailed(error) ?? '拉黑用户失败: $error',
@@ -798,6 +804,59 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       );
     }
   }
+
+  Future<void> _blockContact(
+    BuildContext context, {
+    required String peerMxid,
+    required String roomId,
+    required String displayName,
+    String? avatarUrl,
+    required String successMessage,
+    required String Function(String error) failureMessage,
+  }) async {
+    final cleanPeerMxid = peerMxid.trim();
+    if (cleanPeerMxid.isEmpty) return;
+    try {
+      await ref.read(blockListProvider.notifier).blockContact(
+            peerMxid: cleanPeerMxid,
+            displayName: displayName.trim(),
+            avatarUrl: avatarUrl?.trim() ?? '',
+          );
+      final cleanRoomId = roomId.trim();
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withoutContact(
+              peerMxid: cleanPeerMxid,
+              roomId: cleanRoomId,
+            ),
+          );
+      final room = cleanRoomId.isEmpty
+          ? null
+          : ref.read(matrixClientProvider).getRoomById(cleanRoomId);
+      if (room != null) {
+        ref.read(matrixClientProvider).rooms.remove(room);
+      }
+      if (!context.mounted) return;
+      showTopSnackBar(
+        context,
+        SnackBar(content: Text(successMessage)),
+      );
+      context.go('/home');
+    } catch (e) {
+      if (!context.mounted) return;
+      final message = _alreadyBlockedMessage(e)
+          ? _contactDetailL10n(context)?.blockAlreadyBlocked ?? '已经拉黑'
+          : failureMessage('$e');
+      showTopSnackBar(
+        context,
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+}
+
+bool _alreadyBlockedMessage(Object error) {
+  final message = error.toString().toLowerCase();
+  return message.contains('already blocked') || message.contains('已经拉黑');
 }
 
 Uri? _publicChannelsRemoteNodeBaseUri(

@@ -253,26 +253,68 @@ abstract class AppLocalizations {
   /// No description provided for @settingsBlacklist.
   ///
   /// In zh, this message translates to:
-  /// **'通讯录黑名单'**
+  /// **'黑名单'**
   String get settingsBlacklist;
 
   /// No description provided for @blacklistRemove.
   ///
   /// In zh, this message translates to:
-  /// **'移除'**
+  /// **'取消拉黑'**
   String get blacklistRemove;
 
   /// No description provided for @blacklistRemovedMessage.
   ///
   /// In zh, this message translates to:
-  /// **'已移除 {name}'**
+  /// **'已取消拉黑 {name}'**
   String blacklistRemovedMessage(String name);
+
+  /// No description provided for @blacklistRemoveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消拉黑失败: {error}'**
+  String blacklistRemoveFailed(String error);
+
+  /// No description provided for @blacklistContactsTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友'**
+  String get blacklistContactsTab;
+
+  /// No description provided for @blacklistGroupsTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊'**
+  String get blacklistGroupsTab;
+
+  /// No description provided for @blacklistChannelsTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道'**
+  String get blacklistChannelsTab;
 
   /// No description provided for @blacklistEmpty.
   ///
   /// In zh, this message translates to:
-  /// **'暂无黑名单联系人'**
+  /// **'暂无拉黑好友'**
   String get blacklistEmpty;
+
+  /// No description provided for @blacklistContactsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无拉黑好友'**
+  String get blacklistContactsEmpty;
+
+  /// No description provided for @blacklistGroupsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无拉黑群聊'**
+  String get blacklistGroupsEmpty;
+
+  /// No description provided for @blacklistChannelsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无拉黑频道'**
+  String get blacklistChannelsEmpty;
 
   /// No description provided for @settingsChangePassword.
   ///
@@ -2546,7 +2588,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactBlockConfirmBody.
   ///
   /// In zh, this message translates to:
-  /// **'拉黑后将移除该联系人和会话关系。'**
+  /// **'拉黑后将不能继续发送消息。'**
   String get contactBlockConfirmBody;
 
   /// No description provided for @contactBlockAction.
@@ -2566,6 +2608,54 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'拉黑用户失败: {error}'**
   String contactBlockFailed(String error);
+
+  /// No description provided for @contactUnblockUserDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消拉黑'**
+  String get contactUnblockUserDetail;
+
+  /// No description provided for @contactUnblockConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消拉黑'**
+  String get contactUnblockConfirmTitle;
+
+  /// No description provided for @contactUnblockConfirmBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消后可以继续发送消息。'**
+  String get contactUnblockConfirmBody;
+
+  /// No description provided for @contactUnblockAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消拉黑'**
+  String get contactUnblockAction;
+
+  /// No description provided for @contactUnblocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消拉黑'**
+  String get contactUnblocked;
+
+  /// No description provided for @contactUnblockFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消拉黑失败: {error}'**
+  String contactUnblockFailed(String error);
+
+  /// No description provided for @blockAlreadyBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已经拉黑'**
+  String get blockAlreadyBlocked;
+
+  /// No description provided for @blockCannotSendMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拉黑，不能发送消息'**
+  String get blockCannotSendMessage;
 
   /// No description provided for @contactReportSubmitted.
   ///

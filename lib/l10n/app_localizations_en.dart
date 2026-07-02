@@ -91,18 +91,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPrivacySecurity => 'Privacy & Security';
 
   @override
-  String get settingsBlacklist => 'Blocked Contacts';
+  String get settingsBlacklist => 'Blacklist';
 
   @override
-  String get blacklistRemove => 'Remove';
+  String get blacklistRemove => 'Unblock';
 
   @override
   String blacklistRemovedMessage(String name) {
-    return 'Removed $name';
+    return 'Unblocked $name';
   }
 
   @override
-  String get blacklistEmpty => 'No blocked contacts';
+  String blacklistRemoveFailed(String error) {
+    return 'Failed to unblock: $error';
+  }
+
+  @override
+  String get blacklistContactsTab => 'Friends';
+
+  @override
+  String get blacklistGroupsTab => 'Groups';
+
+  @override
+  String get blacklistChannelsTab => 'Channels';
+
+  @override
+  String get blacklistEmpty => 'No blocked friends';
+
+  @override
+  String get blacklistContactsEmpty => 'No blocked friends';
+
+  @override
+  String get blacklistGroupsEmpty => 'No blocked groups';
+
+  @override
+  String get blacklistChannelsEmpty => 'No blocked channels';
 
   @override
   String get settingsChangePassword => 'Change Password';
@@ -1365,7 +1388,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contactBlockConfirmBody =>
-      'Blocking will remove this contact and conversation relationship.';
+      'After blocking, you cannot send messages.';
 
   @override
   String get contactBlockAction => 'Block';
@@ -1377,6 +1400,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String contactBlockFailed(String error) {
     return 'Failed to block user: $error';
   }
+
+  @override
+  String get contactUnblockUserDetail => 'Unblock';
+
+  @override
+  String get contactUnblockConfirmTitle => 'Unblock';
+
+  @override
+  String get contactUnblockConfirmBody =>
+      'After unblocking, you can send messages again.';
+
+  @override
+  String get contactUnblockAction => 'Unblock';
+
+  @override
+  String get contactUnblocked => 'Unblocked';
+
+  @override
+  String contactUnblockFailed(String error) {
+    return 'Failed to unblock: $error';
+  }
+
+  @override
+  String get blockAlreadyBlocked => 'Already blocked';
+
+  @override
+  String get blockCannotSendMessage => 'Blocked. You cannot send messages.';
 
   @override
   String get contactReportSubmitted => 'Report submitted';

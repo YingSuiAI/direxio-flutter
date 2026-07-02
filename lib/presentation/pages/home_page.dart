@@ -16,6 +16,7 @@ import '../providers/agent_config_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/block_list_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
@@ -829,6 +830,40 @@ String _homeDirectPeerMxid({
   return roomPeerMxid;
 }
 
+List<ConversationSummaryEntry> _filterBlockedHomeConversations({
+  required Client client,
+  required List<ConversationSummaryEntry> entries,
+  required AsBlockList? blocks,
+  required Map<String, AsConversation> productConversationsByRoomId,
+  required AsSyncCacheState syncCache,
+}) {
+  if (blocks == null) return entries;
+  return entries.where((entry) {
+    final roomId = entry.roomId.trim();
+    if (roomId.isEmpty || entry.isAgent) return true;
+    final productConversation = productConversationsByRoomId[roomId];
+    if (productConversation?.isAgent == true) return true;
+    if (productConversation?.isChannel == true) {
+      return !isChannelBlocked(blocks, roomId);
+    }
+    if (entry.isGroup || productConversation?.isGroup == true) {
+      return !isGroupBlocked(blocks, roomId);
+    }
+    final room = client.getRoomById(roomId);
+    final peerMxid = _homeDirectPeerMxid(
+      productConversation: productConversation,
+      syncCache: syncCache,
+      room: room,
+      roomId: roomId,
+    );
+    return !isContactBlocked(
+      blocks,
+      peerMxid: peerMxid,
+      roomId: roomId,
+    );
+  }).toList(growable: false);
+}
+
 String? _homeAvatarStableCacheKey({
   required ConversationSummaryEntry entry,
   required String roomId,
@@ -1527,7 +1562,13 @@ class _ChatList extends ConsumerWidget {
       projection: homeSummary.projection,
     );
     final cacheReady = summaryState.loaded;
-    final displayConversations = homeSummary.displayEntries;
+    final displayConversations = _filterBlockedHomeConversations(
+      client: client,
+      entries: homeSummary.displayEntries,
+      blocks: ref.watch(blockListProvider).valueOrNull,
+      productConversationsByRoomId: homeSummary.productConversationsByRoomId,
+      syncCache: syncCache,
+    );
 
     if (displayConversations.isEmpty) {
       if (productConversationsAsync.isLoading && productConversations.isEmpty) {
@@ -2325,7 +2366,16 @@ class _ContactList extends ConsumerWidget {
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     final isLoggedIn = auth?.isLoggedIn == true;
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
-    final acceptedContacts = syncCache.acceptedContacts;
+    final blocks = ref.watch(blockListProvider).valueOrNull;
+    final acceptedContacts = syncCache.acceptedContacts
+        .where(
+          (contact) => !isContactBlocked(
+            blocks,
+            peerMxid: contact.userId,
+            roomId: contact.roomId,
+          ),
+        )
+        .toList(growable: false);
     final pendingInvites = friendRequestReadState.unreadCountForRoomIds(
       _pendingFriendRequestReadKeys(client: client, syncCache: syncCache),
     );

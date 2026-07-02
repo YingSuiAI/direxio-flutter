@@ -168,6 +168,14 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                     ),
                   ),
                 ],
+                if (_channelInfoRatingLabel(channel) != null) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: _ChannelRatingPill(
+                      label: _channelInfoRatingLabel(channel)!,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 26),
                 Text(
                   _channelInfoL10n(context)?.channelDetailIntroTitle ?? '频道介绍',
@@ -261,6 +269,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
           routeChannelType.isNotEmpty ? routeChannelType : fallback.channelType,
       tags: fallback.tags,
       memberCount: fallback.memberCount,
+      ratingCount: fallback.ratingCount,
+      averageScore: fallback.averageScore,
     );
   }
 
@@ -468,6 +478,8 @@ Future<void> _shareChannelDetail(
         channelType: channel.channelType,
         tags: channel.tags,
         memberCount: channel.memberCount,
+        ratingCount: channel.ratingCount,
+        averageScore: channel.averageScore,
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
@@ -521,6 +533,8 @@ ChannelInfoData _withLocalChannelState(
     channelType: display.channelType,
     tags: display.tags,
     memberCount: display.memberCount,
+    ratingCount: display.ratingCount,
+    averageScore: display.averageScore,
   );
 }
 
@@ -652,6 +666,33 @@ class _ChannelTypeBadge extends StatelessWidget {
   }
 }
 
+class _ChannelRatingPill extends StatelessWidget {
+  const _ChannelRatingPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: context.tk.surfaceHover,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: AppTheme.sans(
+          size: 13,
+          weight: FontWeight.w500,
+          color: context.tk.textMute,
+        ),
+      ),
+    );
+  }
+}
+
 class _IntroCard extends StatelessWidget {
   const _IntroCard({required this.text});
 
@@ -777,6 +818,13 @@ String _channelDescription(BuildContext context, ChannelInfoData channel) {
     return description;
   }
   return _channelInfoL10n(context)?.channelDetailNoIntro ?? '暂无频道介绍';
+}
+
+String? _channelInfoRatingLabel(ChannelInfoData channel) {
+  final score = channel.averageScore;
+  final count = channel.ratingCount;
+  if (score <= 0 && count <= 0) return null;
+  return '★ ${score.toStringAsFixed(1)} ($count)';
 }
 
 String _channelDetailDisplayId(ChannelInfoData channel) {

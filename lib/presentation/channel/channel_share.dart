@@ -36,6 +36,8 @@ class ChannelSharePayload {
     this.channelType = asChannelTypeChat,
     this.tags = const [],
     this.memberCount = -1,
+    this.ratingCount = 0,
+    this.averageScore = 0,
   });
 
   final String channelId;
@@ -52,6 +54,8 @@ class ChannelSharePayload {
   final String channelType;
   final List<String> tags;
   final int memberCount;
+  final int ratingCount;
+  final double averageScore;
 
   String get displayName => name.trim().isEmpty ? '未命名频道' : name.trim();
 
@@ -72,6 +76,8 @@ class ChannelSharePayload {
         channelType: channelType,
         tags: tags,
         memberCount: memberCount,
+        ratingCount: ratingCount,
+        averageScore: averageScore,
       );
 
   AsChannel get asDiscoveredChannel => AsChannel(
@@ -87,6 +93,8 @@ class ChannelSharePayload {
         channelType: channelType,
         tags: tags,
         memberCount: memberCount,
+        ratingCount: ratingCount,
+        averageScore: averageScore,
       );
 }
 
@@ -246,6 +254,8 @@ ChannelSharePayload channelSharePayloadFromChannel({
   String channelType = asChannelTypeChat,
   List<String> tags = const [],
   int memberCount = -1,
+  int ratingCount = 0,
+  double averageScore = 0,
 }) {
   return ChannelSharePayload(
     channelId: channelId,
@@ -262,6 +272,8 @@ ChannelSharePayload channelSharePayloadFromChannel({
     channelType: channelType,
     tags: tags,
     memberCount: memberCount,
+    ratingCount: ratingCount,
+    averageScore: averageScore,
   );
 }
 
@@ -302,6 +314,8 @@ ChannelSharePayload? channelSharePayloadFromContent(
     channelType: normalizeAsChannelType(_stringValue(raw['channel_type'])),
     tags: _stringList(raw['tags']),
     memberCount: _intValue(raw['member_count'], fallback: -1),
+    ratingCount: _intValue(raw['rating_count']),
+    averageScore: _doubleValue(raw['average_score']),
   );
 }
 
@@ -397,6 +411,8 @@ ChannelSharePayload channelSharePayloadWithInviteGrant(
     channelType: payload.channelType,
     tags: payload.tags,
     memberCount: payload.memberCount,
+    ratingCount: payload.ratingCount,
+    averageScore: payload.averageScore,
   );
 }
 
@@ -688,6 +704,13 @@ int _intValue(Object? value, {int fallback = 0}) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value.trim()) ?? fallback;
   return fallback;
+}
+
+double _doubleValue(Object? value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim()) ?? 0;
+  return 0;
 }
 
 Map<String, Object?> _objectMap(Object? value) {

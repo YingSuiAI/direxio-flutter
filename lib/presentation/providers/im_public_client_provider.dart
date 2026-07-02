@@ -21,8 +21,12 @@ final imPublicTagCacheStoreProvider =
 final imPublicChannelTagsProvider =
     FutureProvider.autoDispose<List<ImPublicTag>>((ref) async {
   final store = await ref.watch(imPublicTagCacheStoreProvider.future);
-  return loadCachedImPublicChannelTags(
-    client: ref.read(imPublicClientProvider),
-    store: store,
-  );
+  try {
+    return await loadCachedImPublicChannelTags(
+      client: ref.read(imPublicClientProvider),
+      store: store,
+    );
+  } on Object {
+    return const <ImPublicTag>[];
+  }
 });

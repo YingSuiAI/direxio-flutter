@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../data/im_public_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_avatar_cache.dart';
 import '../channel/channel_join_flow.dart';
@@ -44,6 +45,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   String _lastQuery = '';
   String _error = '';
   List<AsChannel> _results = const [];
+  int? _selectedTagId;
+  bool _filterTouched = false;
 
   @override
   void dispose() {
@@ -56,6 +59,10 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     _debounce?.cancel();
     final q = query.trim();
     if (q.isEmpty) {
+      if (_filterTouched) {
+        _debounce = Timer(const Duration(milliseconds: 320), () => _search(''));
+        return;
+      }
       setState(() {
         _loading = false;
         _lastQuery = '';
@@ -67,6 +74,15 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     _debounce = Timer(const Duration(milliseconds: 320), () => _search(q));
   }
 
+  void _onTagSelected(int? tagId) {
+    _debounce?.cancel();
+    setState(() {
+      _selectedTagId = tagId;
+      _filterTouched = true;
+    });
+    unawaited(_search(_ctrl.text.trim()));
+  }
+
   Future<void> _search(String query) async {
     final serial = ++_serial;
     setState(() {
@@ -75,7 +91,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       _error = '';
     });
     try {
-      if (looksLikeMatrixRoomId(query)) {
+      if (query.trim().isNotEmpty && looksLikeMatrixRoomId(query)) {
         final channel =
             await ref.read(asClientProvider).getPublicChannelByRoomId(
                   query.trim(),
@@ -91,6 +107,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       final page = await ref.read(imPublicClientProvider).listChannels(
             name: query.trim(),
             pageSize: 20,
+            tagId: _selectedTagId,
           );
       final results = page.items
           .map((item) => item.channel)
@@ -266,11 +283,27 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final tagState = ref.watch(imPublicChannelTagsProvider);
+    final tags = tagState.valueOrNull ?? const <ImPublicTag>[];
+    return Column(
+      children: [
+        _ChannelSearchTagTabs(
+          tags: tags,
+          selectedTagId: _selectedTagId,
+          onSelected: _onTagSelected,
+        ),
+        Expanded(child: _buildResultBody(context)),
+      ],
+    );
+  }
+
+  Widget _buildResultBody(BuildContext context) {
     final l10n = _channelSearchL10n(context);
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_lastQuery.isEmpty) {
+    final hasActiveFilter = _lastQuery.isNotEmpty || _filterTouched;
+    if (!hasActiveFilter) {
       return _ChannelSearchEmpty(
         icon: Symbols.search,
         title: l10n?.channelSearchTitle ?? '搜索频道',
@@ -320,6 +353,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
               channelType: channel.channelType,
               tags: channel.tags,
               memberCount: channel.memberCount,
+              ratingCount: channel.ratingCount,
+              averageScore: channel.averageScore,
             ),
           ),
           onJoin: () => _join(channel),
@@ -468,6 +503,59 @@ class _ChannelSearchInput extends StatelessWidget {
   }
 }
 
+class _ChannelSearchTagTabs extends StatelessWidget {
+  const _ChannelSearchTagTabs({
+    required this.tags,
+    required this.selectedTagId,
+    required this.onSelected,
+  });
+
+  final List<ImPublicTag> tags;
+  final int? selectedTagId;
+  final ValueChanged<int?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (tags.isEmpty) return const SizedBox.shrink();
+    final t = context.tk;
+    final items = <({int? id, String name})>[
+      (id: null, name: '全部'),
+      for (final tag in tags)
+        if (tag.name.trim().isNotEmpty) (id: tag.id, name: tag.name.trim()),
+    ];
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final selected = item.id == selectedTagId;
+          return FilterChip(
+            selected: selected,
+            showCheckmark: false,
+            label: Text(item.name),
+            labelStyle: AppTheme.sans(
+              size: 13,
+              weight: FontWeight.w500,
+              color: selected ? t.onAccent : t.text,
+            ),
+            backgroundColor: t.surface,
+            selectedColor: t.accent,
+            side: BorderSide(color: selected ? t.accent : t.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+            onSelected: (_) => onSelected(item.id),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ChannelSearchResultTile extends StatelessWidget {
   const _ChannelSearchResultTile({
     required this.channel,
@@ -497,6 +585,7 @@ class _ChannelSearchResultTile extends StatelessWidget {
       status,
       approval: approval,
     );
+    final rating = _channelRatingLabel(channel);
     return Material(
       color: t.surface.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(12),
@@ -532,6 +621,19 @@ class _ChannelSearchResultTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(size: 13, color: t.textMute),
                     ),
+                    if (rating != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        rating,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 13,
+                          weight: FontWeight.w500,
+                          color: t.textMute,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -569,6 +671,13 @@ class _ChannelSearchResultTile extends StatelessWidget {
     }
     return parts.join(' · ');
   }
+}
+
+String? _channelRatingLabel(AsChannel channel) {
+  final score = channel.averageScore;
+  final count = channel.ratingCount;
+  if (score <= 0 && count <= 0) return null;
+  return '★ ${score.toStringAsFixed(1)} ($count)';
 }
 
 String _channelJoinLabel(

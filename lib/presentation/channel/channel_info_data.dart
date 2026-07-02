@@ -26,6 +26,8 @@ class ChannelInfoData {
     required this.channelType,
     required this.tags,
     required this.memberCount,
+    this.ratingCount = 0,
+    this.averageScore = 0,
   });
 
   final String id;
@@ -43,6 +45,8 @@ class ChannelInfoData {
   final String channelType;
   final List<String> tags;
   final int memberCount;
+  final int ratingCount;
+  final double averageScore;
 }
 
 String channelDisplayNameWithMemberCount(ChannelInfoData channel) {
@@ -69,6 +73,8 @@ ChannelInfoData channelInfoDataFromSharePayload(ChannelSharePayload payload) {
     channelType: payload.channelType,
     tags: payload.tags,
     memberCount: payload.memberCount,
+    ratingCount: payload.ratingCount,
+    averageScore: payload.averageScore,
   );
 }
 
@@ -91,6 +97,8 @@ ChannelInfoData channelInfoDataFromAsChannel(AsChannel channel) {
     channelType: channel.channelType,
     tags: channel.tags,
     memberCount: channel.memberCount,
+    ratingCount: channel.ratingCount,
+    averageScore: channel.averageScore,
   );
 }
 
@@ -115,6 +123,10 @@ ChannelInfoData mergeChannelInfoDataForDetail(
     tags: remote.tags.isEmpty ? local.tags : remote.tags,
     memberCount:
         remote.memberCount > 0 ? remote.memberCount : local.memberCount,
+    ratingCount:
+        remote.ratingCount > 0 ? remote.ratingCount : local.ratingCount,
+    averageScore:
+        remote.averageScore > 0 ? remote.averageScore : local.averageScore,
   );
 }
 

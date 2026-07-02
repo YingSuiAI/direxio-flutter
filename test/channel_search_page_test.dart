@@ -15,8 +15,15 @@ import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('channel search uses localized empty state and actions',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
@@ -87,6 +94,99 @@ void main() {
 
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
+  });
+
+  testWidgets('channel search filters public directory by selected tag',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..tags = const [
+        ImPublicTag(id: 7, name: 'AI'),
+      ]
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_ai',
+          roomId: '!ch_ai:p2p-im.com',
+          name: 'AI 频道',
+          description: 'AI updates',
+        ),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.text('AI'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(imPublicClient.lastTagId, 7);
+    expect(find.text('AI 频道'), findsOneWidget);
+  });
+
+  testWidgets('channel search result and detail show public rating',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient()
+      ..items = [
+        _publicChannelListing(
+          channelId: 'ch_rating',
+          roomId: '!ch_rating:p2p-im.com',
+          name: '评分频道',
+          description: '带评分',
+          ratingCount: 42,
+          averageScore: 4.6,
+        ),
+      ];
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const ChannelSearchPage()),
+        GoRoute(
+          path: '/channel/:channelId/detail',
+          builder: (_, state) => ChannelDetailInfoPage(
+            channelId: state.pathParameters['channelId']!,
+            sharePayload: state.extra is ChannelSharePayload
+                ? state.extra! as ChannelSharePayload
+                : null,
+            showJoinButton: state.extra is ChannelSharePayload,
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '评分');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('★ 4.6 (42)'), findsOneWidget);
+
+    await tester.tap(find.text('评分频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('★ 4.6 (42)'), findsOneWidget);
   });
 
   testWidgets('channel search result renders channel avatar', (tester) async {
@@ -950,7 +1050,9 @@ class _ChannelSearchImPublicClient extends ImPublicClient {
         );
 
   String? lastName;
+  int? lastTagId;
   int callCount = 0;
+  List<ImPublicTag> tags = const [];
   List<ImPublicChannelListing> items = [
     _publicChannelListing(
       channelId: 'ch_product',
@@ -971,12 +1073,18 @@ class _ChannelSearchImPublicClient extends ImPublicClient {
   }) async {
     callCount += 1;
     lastName = name;
+    lastTagId = tagId;
     return ImPublicChannelPage(
       items: items,
       total: 1,
       page: 1,
       pageSize: 10,
     );
+  }
+
+  @override
+  Future<List<ImPublicTag>> listTags({String type = 'channel'}) async {
+    return tags;
   }
 }
 
@@ -988,6 +1096,8 @@ ImPublicChannelListing _publicChannelListing({
   String role = '',
   String memberStatus = '',
   String avatarUrl = '',
+  int ratingCount = 0,
+  double averageScore = 0,
 }) {
   return ImPublicChannelListing(
     id: 1,
@@ -1007,6 +1117,8 @@ ImPublicChannelListing _publicChannelListing({
       commentsEnabled: true,
       role: role,
       memberStatus: memberStatus,
+      ratingCount: ratingCount,
+      averageScore: averageScore,
     ),
     tagId: 0,
     tag: null,

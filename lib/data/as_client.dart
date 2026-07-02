@@ -1447,6 +1447,8 @@ class AsChannelShareDraft {
     this.channelType = asChannelTypePost,
     this.tags = const [],
     this.memberCount = -1,
+    this.ratingCount = 0,
+    this.averageScore = 0,
   });
 
   final String channelId;
@@ -1463,6 +1465,8 @@ class AsChannelShareDraft {
   final String channelType;
   final List<String> tags;
   final int memberCount;
+  final int ratingCount;
+  final double averageScore;
 
   Map<String, dynamic> toJson() {
     return {
@@ -1479,6 +1483,8 @@ class AsChannelShareDraft {
       'comments_enabled': commentsEnabled,
       'channel_type': normalizeAsChannelType(channelType),
       if (memberCount >= 0) 'member_count': memberCount,
+      if (ratingCount > 0) 'rating_count': ratingCount,
+      if (averageScore > 0) 'average_score': averageScore,
       'tags':
           tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList(),
     };

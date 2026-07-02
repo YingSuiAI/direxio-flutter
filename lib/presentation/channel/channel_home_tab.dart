@@ -498,6 +498,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
+    final blocks = ref.watch(blockListProvider).valueOrNull;
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -553,6 +554,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel) ||
           _channelHiddenKeysContain(syncHiddenChannelKeys, channel);
       if (hidden) return false;
+      if (isChannelBlocked(blocks, channel.roomId)) return false;
       return _section == _MeChannelSection.created
           ? channel.isOwned
           : !channel.isOwned;

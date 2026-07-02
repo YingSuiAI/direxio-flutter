@@ -91,6 +91,7 @@ import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
 import 'package:portal_app/presentation/widgets/group_composite_avatar.dart';
+import 'package:portal_app/presentation/widgets/blocked_route_guard.dart';
 import 'package:portal_app/presentation/widgets/info_rows.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
@@ -21772,6 +21773,116 @@ void main() {
     expect(find.text('Friends'), findsOneWidget);
     expect(find.text('Groups'), findsOneWidget);
     expect(find.text('Channels'), findsOneWidget);
+  });
+
+  testWidgets('blocked contact route is intercepted with already blocked toast',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..blockList = const AsBlockList(
+        contacts: [
+          AsBlockItem(
+            targetType: asBlockTargetContact,
+            targetId: '@blocked:p2p-im.com',
+            peerMxid: '@blocked:p2p-im.com',
+            displayName: 'Blocked',
+          ),
+        ],
+      );
+    final router = GoRouter(
+      initialLocation: '/target',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('home')),
+        ),
+        GoRoute(
+          path: '/target',
+          builder: (_, __) => const BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.contact,
+            peerMxid: '@blocked:p2p-im.com',
+            child: Scaffold(body: Text('blocked-target')),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          blockListProvider
+              .overrideWith((ref) => BlockListController(asClient)),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('已经拉黑'), findsOneWidget);
+    expect(find.text('blocked-target'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('blocked room route is intercepted before opening room',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..blockList = const AsBlockList(
+        groups: [
+          AsBlockItem(
+            targetType: asBlockTargetGroup,
+            targetId: '!blocked:p2p-im.com',
+            roomId: '!blocked:p2p-im.com',
+            displayName: 'Blocked Group',
+          ),
+        ],
+      );
+    final router = GoRouter(
+      initialLocation: '/target',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('home')),
+        ),
+        GoRoute(
+          path: '/target',
+          builder: (_, __) => const BlockedRouteGuard(
+            kind: BlockedRouteTargetKind.room,
+            roomId: '!blocked:p2p-im.com',
+            child: Scaffold(body: Text('blocked-room')),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          blockListProvider
+              .overrideWith((ref) => BlockListController(asClient)),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('已经拉黑'), findsOneWidget);
+    expect(find.text('blocked-room'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('settings deactivate login shows cancellation window',

@@ -254,6 +254,57 @@ void main() {
     expect((image.image as MemoryImage).bytes, same(bytes));
   });
 
+  testWidgets('portal avatar prefers refreshed url bytes over stable fallback',
+      (tester) async {
+    final client = Client('AvatarStableRefreshUrlTest')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    const firstImageUrl =
+        'https://p2p-im.com/_matrix/media/v3/download/example.com/user-old';
+    const refreshedImageUrl =
+        'https://p2p-im.com/_matrix/media/v3/download/example.com/user-new';
+    const stableCacheKey = 'user:@alice:p2p-im.com';
+    final headers = avatarImageHeadersForUrl(client, firstImageUrl);
+    final staleBytes = Uint8List.fromList(_transparentPngBytes);
+    final refreshedBytes = Uint8List.fromList(_transparentPngBytes);
+    clearPortalAvatarMemoryCacheForTesting();
+    addTearDown(clearPortalAvatarMemoryCacheForTesting);
+    cachePortalAvatarBytesForTesting(
+      imageUrl: firstImageUrl,
+      headers: headers,
+      bytes: staleBytes,
+      stableCacheKey: stableCacheKey,
+    );
+    cachePortalAvatarBytesForTesting(
+      imageUrl: refreshedImageUrl,
+      headers: headers,
+      bytes: refreshedBytes,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(
+            body: PortalAvatar(
+              seed: '@alice:p2p-im.com',
+              imageUrl: refreshedImageUrl,
+              stableCacheKey: stableCacheKey,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.image, isA<MemoryImage>());
+    expect((image.image as MemoryImage).bytes, same(refreshedBytes));
+    expect((image.image as MemoryImage).bytes, isNot(same(staleBytes)));
+  });
+
   testWidgets('portal avatar uses stable disk cache key for refreshed urls',
       (tester) async {
     final client = Client('AvatarStableDiskKeyTest')

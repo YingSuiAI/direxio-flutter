@@ -345,9 +345,7 @@ bool shouldAnimateTimelineListForUpdate({
   required Object? oldNewestItemKey,
   required Object? newNewestItemKey,
 }) {
-  if (!initialized) return false;
-  if (newNewestItemKey == null) return false;
-  return newNewestItemKey != oldNewestItemKey && newItemCount > oldItemCount;
+  return false;
 }
 
 Widget chatMessageEntrance({

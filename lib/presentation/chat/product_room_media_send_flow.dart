@@ -175,6 +175,7 @@ Future<void> sendProductMediaWithPendingState({
       onDelivered,
   required FutureOr<void> Function(String pendingUploadId)? onSucceeded,
   required FutureOr<void> Function(String pendingUploadId)? onFailed,
+  bool completeAfterDelivery = true,
   AppLocalizations? l10n,
 }) async {
   try {
@@ -206,10 +207,13 @@ Future<void> sendProductMediaWithPendingState({
       },
       onSucceeded: (pendingUploadId) async {
         final result = sentResult;
-        if (result != null && result.eventId.trim().isNotEmpty) {
-          await onDelivered?.call(pendingUploadId, result.eventId);
+        final eventId = result?.eventId.trim() ?? '';
+        if (eventId.isNotEmpty) {
+          await onDelivered?.call(pendingUploadId, eventId);
         }
-        await onSucceeded?.call(pendingUploadId);
+        if (completeAfterDelivery || eventId.isEmpty) {
+          await onSucceeded?.call(pendingUploadId);
+        }
       },
       onFailed: onFailed,
       onLifecycleError: (error, stackTrace) {

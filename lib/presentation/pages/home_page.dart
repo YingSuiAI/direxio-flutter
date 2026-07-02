@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../home/home_plus_menu.dart';
 import '../home/conversation_summary_writer.dart';
+import '../providers/agent_offline_reply_provider.dart';
 import '../providers/agent_config_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -812,12 +813,40 @@ String? _homeAvatarUrl(Client client, String? avatarUrl) {
   return value;
 }
 
-String? _homeAvatarStableCacheKey(
-    ConversationSummaryEntry entry, String roomId) {
+String _homeDirectPeerMxid({
+  required AsConversation? productConversation,
+  required AsSyncCacheState syncCache,
+  required Room? room,
+  required String roomId,
+}) {
+  final productPeerMxid = productConversation?.peerMxid.trim() ?? '';
+  if (productPeerMxid.isNotEmpty) return productPeerMxid;
+  final cachedPeerMxid =
+      syncCache.acceptedContactForRoom(roomId)?.userId.trim() ?? '';
+  if (cachedPeerMxid.isNotEmpty) return cachedPeerMxid;
+  final roomPeerMxid =
+      room == null ? '' : productDirectPeerMxid(room)?.trim() ?? '';
+  return roomPeerMxid;
+}
+
+String? _homeAvatarStableCacheKey({
+  required ConversationSummaryEntry entry,
+  required String roomId,
+  required AsConversation? productConversation,
+  required AsSyncCacheState syncCache,
+  required Room? room,
+}) {
   final trimmedRoomId = roomId.trim();
   if (trimmedRoomId.isEmpty) return null;
   if (entry.isGroup) return 'group:$trimmedRoomId';
   if (entry.isAgent) return 'agent:$trimmedRoomId';
+  final peerMxid = _homeDirectPeerMxid(
+    productConversation: productConversation,
+    syncCache: syncCache,
+    room: room,
+    roomId: trimmedRoomId,
+  );
+  if (peerMxid.isNotEmpty) return 'user:$peerMxid';
   return 'conversation:$trimmedRoomId';
 }
 
@@ -1457,6 +1486,7 @@ class _ChatList extends ConsumerWidget {
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
+    final agentOfflineReplyCounts = ref.watch(agentOfflineReplyCacheProvider);
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -1488,6 +1518,7 @@ class _ChatList extends ConsumerWidget {
       currentUserId: currentUserId,
       l10n: l10n,
       agentEmptyPreview: l10n?.agentChatEmptyTitle ?? '开始我们的聊天吧',
+      agentOfflineReplyCounts: agentOfflineReplyCounts,
       includeDefaultAgentConversation: true,
     );
     recordHomeConversationSummaryProjection(
@@ -1564,6 +1595,14 @@ class _HomeConversationEntryList extends ConsumerWidget {
             : entryName;
         final productConversation = productConversationsByRoomId[roomId];
         final room = client.getRoomById(roomId);
+        final directPeerMxid = entry.isGroup || entry.isAgent
+            ? ''
+            : _homeDirectPeerMxid(
+                productConversation: productConversation,
+                syncCache: syncCache,
+                room: room,
+                roomId: roomId,
+              );
         final hasExplicitGroupAvatar =
             entry.isGroup && entry.avatarUrl.trim().isNotEmpty;
         final authoritativeGroupMembers = entry.isGroup
@@ -1620,6 +1659,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
         return _ConvRow(
           key: ValueKey('home_conversation_$roomId'),
           name: name,
+          avatarSeed: directPeerMxid.isNotEmpty ? directPeerMxid : name,
           lastMessage: _homeConversationPreviewText(entry, l10n),
           time: entry.previewTs <= 0 ? '' : _formatConvTime(entry.previewTs),
           unread: entry.unread,
@@ -1631,7 +1671,13 @@ class _HomeConversationEntryList extends ConsumerWidget {
                 ? _agentConfigAvatarUrl(agentConfig, entry.avatarUrl)
                 : entry.avatarUrl,
           ),
-          avatarStableCacheKey: _homeAvatarStableCacheKey(entry, roomId),
+          avatarStableCacheKey: _homeAvatarStableCacheKey(
+            entry: entry,
+            roomId: roomId,
+            productConversation: productConversation,
+            syncCache: syncCache,
+            room: room,
+          ),
           groupAvatarMembers: groupAvatarMembers?.members ??
               (entry.isGroup
                   ? cachedGroupAvatarMembers(
@@ -1834,6 +1880,7 @@ class _ConvRow extends StatelessWidget {
     required this.onTogglePin,
     required this.onHide,
     required this.onDelete,
+    this.avatarSeed,
     this.isAgent = false,
     this.isGroup = false,
     this.isPinned = false,
@@ -1849,6 +1896,7 @@ class _ConvRow extends StatelessWidget {
   final VoidCallback onTogglePin;
   final VoidCallback onHide;
   final VoidCallback onDelete;
+  final String? avatarSeed;
   final bool isAgent;
   final bool isGroup;
   final bool isPinned;
@@ -1862,13 +1910,15 @@ class _ConvRow extends StatelessWidget {
     final textColor = _homeTextColor(context);
     final mutedColor = _homeMutedColor(context);
     final borderColor = _homeBorderColor(context);
+    final effectiveAvatarSeed =
+        avatarSeed?.trim().isNotEmpty == true ? avatarSeed!.trim() : name;
     final avatar = SizedBox(
       width: _conversationTileAvatarSize,
       height: _conversationTileAvatarSize,
       child: isAgent
           ? (avatarUrl?.trim().isNotEmpty == true
               ? PortalAvatar(
-                  seed: name,
+                  seed: effectiveAvatarSeed,
                   size: _conversationTileAvatarSize,
                   imageUrl: avatarUrl,
                   stableCacheKey: avatarStableCacheKey,
@@ -1893,7 +1943,7 @@ class _ConvRow extends StatelessWidget {
                   minimumSlots: 4,
                 )
               : PortalAvatar(
-                  seed: name,
+                  seed: effectiveAvatarSeed,
                   size: _conversationTileAvatarSize,
                   imageUrl: avatarUrl,
                   stableCacheKey: avatarStableCacheKey,
@@ -2378,6 +2428,7 @@ class _ContactList extends ConsumerWidget {
                     .map(
                       (contact) => _ContactEntryTile(
                         name: contact.name,
+                        mxid: contact.mxid,
                         avatarUrl: contact.avatarUrl,
                         onTap: () {
                           if (contact.mxid.isNotEmpty) {
@@ -2897,25 +2948,30 @@ class _ContactFlatRow extends StatelessWidget {
 class _ContactEntryTile extends StatelessWidget {
   const _ContactEntryTile({
     required this.name,
+    required this.mxid,
     required this.onTap,
     this.avatarUrl,
   });
 
   final String name;
+  final String mxid;
   final VoidCallback onTap;
   final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
+    final trimmedMxid = mxid.trim();
+    final avatarSeed = trimmedMxid.isNotEmpty ? trimmedMxid : name;
     return _ContactFlatRow(
       onTap: onTap,
       leading: SizedBox(
         width: 28,
         height: 28,
         child: PortalAvatar(
-          seed: name,
+          seed: avatarSeed,
           size: 28,
           imageUrl: avatarUrl,
+          stableCacheKey: trimmedMxid.isNotEmpty ? 'user:$trimmedMxid' : null,
           shape: AvatarShape.squircle,
         ),
       ),

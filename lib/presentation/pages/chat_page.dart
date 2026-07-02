@@ -499,7 +499,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Map<String, int> _messageListIndexes = {};
   final ChatInitialEntranceRegistry _initialTimelineEntrances =
       ChatInitialEntranceRegistry();
-  final ScrollController _messageScrollCtrl = ScrollController();
+  late final ScrollController _messageScrollCtrl;
   final ChatScrollToLatestCoordinator _scrollToLatestCoordinator =
       ChatScrollToLatestCoordinator();
   Timer? _scrollToLatestRetryTimer;
@@ -854,6 +854,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void initState() {
     super.initState();
     _pendingTargetEventId = widget.targetEventId?.trim();
+    _messageScrollCtrl = chatMessageScrollController(
+      openAtLatest: (_pendingTargetEventId ?? '').isEmpty,
+    );
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     _messageScrollCtrl.addListener(_onMessageScroll);
     _roomSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
@@ -1475,8 +1478,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _chatGestureLog(
       'messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
     );
-    if (!hadPanels) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    if (!hadPanels) return;
     setState(() {
       _showPlusPanel = false;
       _showEmojiPanel = false;
@@ -1594,6 +1597,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        completeAfterDelivery: false,
         l10n: l10n,
       );
       return;
@@ -2831,6 +2835,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        completeAfterDelivery: false,
         l10n: l10n,
       );
     } finally {

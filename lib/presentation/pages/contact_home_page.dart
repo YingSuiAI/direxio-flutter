@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_avatar_cache.dart';
+import '../home/conversation_summary_writer.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -323,7 +325,11 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   @override
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
-    final home = _visitorHomeForUserId(widget.userId, bootstrap);
+    final home = _visitorHomeForUserId(
+      widget.userId,
+      bootstrap,
+      ref.watch(matrixClientProvider),
+    );
     final visitorChannels = _publicChannels
             ?.map((channel) => _contactChannelFromAs(channel, bootstrap))
             .toList(growable: false) ??
@@ -398,6 +404,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
 _ContactHomeData? _visitorHomeForUserId(
   String userId,
   AsSyncBootstrap? bootstrap,
+  Client client,
 ) {
   final trimmed = userId.trim();
   if (trimmed.isEmpty) return null;
@@ -416,14 +423,19 @@ _ContactHomeData? _visitorHomeForUserId(
     domain: domain,
     fallback: _displayNameFromMxid(trimmed, fallbackDomain: domain),
   );
-  final avatarUrl = contact?.avatarUrl.trim() ?? '';
+  final avatarUrl = contact == null
+      ? null
+      : contactListAvatarUrl(
+          client,
+          contact,
+        );
 
   return _ContactHomeData(
     userId: trimmed,
     displayName: displayName,
     domain: domain,
     bio: '',
-    avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
+    avatarUrl: avatarUrl?.trim().isEmpty == false ? avatarUrl!.trim() : null,
     channels: const [],
   );
 }

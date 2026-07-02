@@ -73,8 +73,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       roomId: widget.roomId,
       l10n: l10n,
     );
-    final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
-        localRoomMemberAvatarHttpUrl(room, peerId);
+    final avatarUrl = localRoomMemberAvatarHttpUrl(room, peerId) ??
+        avatarHttpUrl(client, acceptedContact?.avatarUrl);
     final preferenceKey = room.id;
     final muted = ref.watch(mutedConversationIdsProvider).contains(
           preferenceKey,

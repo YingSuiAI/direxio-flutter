@@ -250,5 +250,12 @@ class _MemoryLocalOutboxStore implements LocalOutboxStore {
 
 class _NoopAsClient implements AsClient {
   @override
+  Future<AgentConfig> getAgentConfig() async =>
+      const AgentConfig(displayName: 'Agent', contextWindow: 20);
+
+  @override
+  Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

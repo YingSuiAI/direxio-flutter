@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -83,6 +86,12 @@ final _matrixAgentStatusStateProvider = FutureProvider.autoDispose
     request.roomId,
     direxioAgentStatusEventType,
     request.stateKey,
+  );
+  _logAgentStatusApiContent(
+    source: 'matrix.room_state.io.direxio.agent.status.fetch',
+    roomId: request.roomId,
+    stateKey: request.stateKey,
+    content: content,
   );
   final raw = content['online'];
   final online = raw is bool ? raw : null;
@@ -199,6 +208,72 @@ final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
 });
 
 AgentBridgePresence _agentStatus(AgentBridgePresence presence) => presence;
+
+void _logAgentStatusApiContent({
+  required String source,
+  required String roomId,
+  required String stateKey,
+  required Map content,
+}) {
+  final fields = content.keys.map((key) => key.toString()).toList()..sort();
+  final hasOnline = content.containsKey('online');
+  final rawOnline = hasOnline ? content['online'] : null;
+  final onlineRaw = hasOnline ? rawOnline?.toString() ?? 'null' : '<missing>';
+  final onlineType = hasOnline ? _agentStatusValueType(rawOnline) : 'missing';
+  debugPrint(
+    [
+      '[agent.status.api]',
+      'source=$source',
+      'room_id=$roomId',
+      'state_key=$stateKey',
+      'fields=[${fields.join(', ')}]',
+      'online_raw=$onlineRaw',
+      'online_type=$onlineType',
+      'content=${_agentStatusContentPreview(content)}',
+    ].join(' '),
+  );
+}
+
+String _agentStatusValueType(Object? value) {
+  if (value == null) return 'null';
+  if (value is bool) return 'bool';
+  if (value is num) return 'num';
+  if (value is String) return 'String';
+  if (value is List) return 'List';
+  if (value is Map) return 'Map';
+  return value.runtimeType.toString();
+}
+
+String _agentStatusContentPreview(Object? content) {
+  try {
+    return jsonEncode(_redactAgentStatusJson(content));
+  } catch (_) {
+    return content.toString();
+  }
+}
+
+Object? _redactAgentStatusJson(Object? value) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _isSensitiveAgentStatusKey(entry.key.toString())
+            ? '<redacted>'
+            : _redactAgentStatusJson(entry.value),
+    };
+  }
+  if (value is List) {
+    return [for (final item in value) _redactAgentStatusJson(item)];
+  }
+  return value;
+}
+
+bool _isSensitiveAgentStatusKey(String key) {
+  final normalized = key.toLowerCase();
+  return normalized.contains('token') ||
+      normalized.contains('secret') ||
+      normalized.contains('password') ||
+      normalized == 'access_token';
+}
 
 class _MatrixAgentStatusStateRequest {
   const _MatrixAgentStatusStateRequest({

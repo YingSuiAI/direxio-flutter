@@ -100,17 +100,19 @@ class _PortalAvatarState extends State<PortalAvatar> {
         : _portalAvatarStableDiskCacheKey(stableCacheKey, imageHeaders);
     final networkDiskCacheKey =
         networkImageUrl == null ? null : stableDiskCacheKey ?? networkImageUrl;
-    final cachedNetworkBytes = _cachedPortalAvatarBytes(
-      stableMemoryCacheKey: stableMemoryCacheKey,
-      urlMemoryCacheKey: networkCacheKey,
-    );
+    final cachedUrlNetworkBytes = _cachedPortalAvatarUrlBytes(networkCacheKey);
+    final cachedStableNetworkBytes = cachedUrlNetworkBytes == null
+        ? _cachedPortalAvatarStableBytes(stableMemoryCacheKey)
+        : null;
+    final cachedNetworkBytes =
+        cachedUrlNetworkBytes ?? cachedStableNetworkBytes;
     final retainedNetworkBytes = _retainedNetworkBytes(
       networkImageUrl,
       imageHeaders,
       stableCacheKey,
     );
     if (networkImageUrl != null &&
-        cachedNetworkBytes == null &&
+        cachedUrlNetworkBytes == null &&
         widget.imageBytes == null) {
       _warmPortalAvatarMemoryCache(
         urlMemoryCacheKey: networkCacheKey!,
@@ -126,9 +128,15 @@ class _PortalAvatarState extends State<PortalAvatar> {
     }
     final displayedImageBytes =
         widget.imageBytes ?? cachedNetworkBytes ?? retainedNetworkBytes;
+    final retainedBytesBelongToCurrentUrl =
+        retainedNetworkBytes != null && _lastNetworkImageUrl == networkImageUrl;
+    final displayedBytesBelongToCurrentUrl = widget.imageBytes != null ||
+        cachedUrlNetworkBytes != null ||
+        retainedBytesBelongToCurrentUrl;
     if (networkImageUrl != null &&
         displayedImageBytes != null &&
-        displayedImageBytes.isNotEmpty) {
+        displayedImageBytes.isNotEmpty &&
+        displayedBytesBelongToCurrentUrl) {
       if (networkCacheKey != null) {
         _putPortalAvatarMemoryBytes(networkCacheKey, displayedImageBytes);
       }
@@ -301,17 +309,16 @@ String? _normalizedStableCacheKey(String? stableCacheKey) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-Uint8List? _cachedPortalAvatarBytes({
-  required String? stableMemoryCacheKey,
-  required String? urlMemoryCacheKey,
-}) {
-  if (stableMemoryCacheKey != null) {
-    final stableBytes = _portalAvatarMemoryBytes[stableMemoryCacheKey];
-    if (stableBytes != null && stableBytes.isNotEmpty) return stableBytes;
-  }
+Uint8List? _cachedPortalAvatarUrlBytes(String? urlMemoryCacheKey) {
   if (urlMemoryCacheKey == null) return null;
   final urlBytes = _portalAvatarMemoryBytes[urlMemoryCacheKey];
   return urlBytes == null || urlBytes.isEmpty ? null : urlBytes;
+}
+
+Uint8List? _cachedPortalAvatarStableBytes(String? stableMemoryCacheKey) {
+  if (stableMemoryCacheKey == null) return null;
+  final stableBytes = _portalAvatarMemoryBytes[stableMemoryCacheKey];
+  return stableBytes == null || stableBytes.isEmpty ? null : stableBytes;
 }
 
 void _putPortalAvatarMemoryBytes(String key, Uint8List bytes) {

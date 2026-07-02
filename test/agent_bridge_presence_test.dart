@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -127,6 +128,64 @@ void main() {
     expect(requestedPaths, [
       '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com',
     ]);
+  });
+
+  test('prints Agent status API response fields from Matrix fallback',
+      () async {
+    final logMessages = <String>[];
+    final previousDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null && message.startsWith('[agent.status.api]')) {
+        logMessages.add(message);
+      }
+    };
+    addTearDown(() => debugPrint = previousDebugPrint);
+
+    final client = Client(
+      'AgentBridgePresenceStatusApiLogTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path ==
+            '/_matrix/client/v3/rooms/!agent-room%3Aexample.com/state/io.direxio.agent.status/%40agent%3Aexample.com') {
+          return http.Response('{"online":false,"reason":"idle"}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    )
+      ..homeserver = Uri.parse('https://example.com')
+      ..accessToken = 'access-token'
+      ..setUserId('@owner:example.com');
+    client.rooms.add(Room(id: '!agent-room:example.com', client: client));
+    final container = _containerFor(client);
+    addTearDown(container.dispose);
+
+    final offlinePresence = Completer<AgentBridgePresence>();
+    final subscription = container.listen<AgentBridgePresence>(
+      agentBridgePresenceProvider,
+      (_, next) {
+        if (next.state == AgentBridgePresenceState.offline &&
+            next.source == 'matrix.room_state.io.direxio.agent.status.fetch' &&
+            !offlinePresence.isCompleted) {
+          offlinePresence.complete(next);
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await offlinePresence.future.timeout(const Duration(milliseconds: 500));
+
+    expect(
+      logMessages,
+      contains(
+        allOf(
+          contains('source=matrix.room_state.io.direxio.agent.status.fetch'),
+          contains('fields=[online, reason]'),
+          contains('online_raw=false'),
+          contains('online_type=bool'),
+          contains('content={"online":false,"reason":"idle"}'),
+        ),
+      ),
+    );
   });
 
   test('retries Matrix state API after transient lookup failure', () async {

@@ -70,18 +70,24 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
             filename: 'avatar.png',
             contentType: 'image/png',
           );
+          final avatarUrl = avatarMxc.toString();
           await client.setAvatarUrl(matrixUserId, avatarMxc);
+          await _syncMatrixRoomMemberProfile(
+            userId: matrixUserId,
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+          );
           await _saveOwnerProfile(
             data,
             userId: userId,
             displayName: displayName,
-            avatarUrl: avatarMxc.toString(),
+            avatarUrl: avatarUrl,
           );
           await cacheCurrentUserProfile(
             ref,
             userId: matrixUserId,
             displayName: displayName,
-            avatarUrl: avatarMxc.toString(),
+            avatarUrl: avatarUrl,
           );
           ref.invalidate(currentUserProfileProvider);
           await ref.read(currentUserProfileProvider.future);
@@ -185,13 +191,16 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     ref.read(personalProfileProvider.notifier).state = data;
   }
 
-  Future<void> _syncMatrixDisplayName(String userId, String displayName) async {
+  Future<void> _syncMatrixRoomMemberProfile({
+    required String userId,
+    String? displayName,
+    String? avatarUrl,
+  }) async {
     final client = ref.read(matrixClientProvider);
     final matrixUserId = client.userID?.trim().isNotEmpty == true
         ? client.userID!.trim()
         : userId;
     if (matrixUserId.trim().isEmpty) return;
-    await client.setDisplayName(matrixUserId, displayName);
 
     final joinedRooms =
         client.rooms.where((room) => room.membership == Membership.join);
@@ -202,7 +211,10 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         final nextContent = <String, Object?>{
           if (currentContent != null) ...currentContent,
           'membership': Membership.join.name,
-          'displayname': displayName,
+          if (displayName?.trim().isNotEmpty == true)
+            'displayname': displayName!.trim(),
+          if (avatarUrl?.trim().isNotEmpty == true)
+            'avatar_url': avatarUrl!.trim(),
         };
         await client.setRoomStateWithKey(
           room.id,
@@ -211,7 +223,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
           nextContent,
         );
       } catch (e) {
-        debugPrint('sync room member display name failed: ${room.id}: $e');
+        debugPrint('sync room member profile failed: ${room.id}: $e');
       }
     }
   }
@@ -294,7 +306,15 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
       );
       if (cleanDisplayName != null) {
         try {
-          await _syncMatrixDisplayName(userId, cleanDisplayName);
+          final client = ref.read(matrixClientProvider);
+          final matrixUserId = client.userID?.trim().isNotEmpty == true
+              ? client.userID!.trim()
+              : userId;
+          await client.setDisplayName(matrixUserId, cleanDisplayName);
+          await _syncMatrixRoomMemberProfile(
+            userId: matrixUserId,
+            displayName: cleanDisplayName,
+          );
         } catch (e) {
           debugPrint('sync Matrix display name failed: $e');
         }

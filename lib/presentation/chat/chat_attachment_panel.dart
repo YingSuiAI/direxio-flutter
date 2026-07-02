@@ -127,6 +127,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
         ChatMediaKind.audio => onFileUploadFailed,
         ChatMediaKind.file => onFileUploadFailed,
       },
+      completeAfterDelivery: false,
       l10n: l10n,
     );
   }

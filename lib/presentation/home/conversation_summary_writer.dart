@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
@@ -113,6 +112,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   required String? currentUserId,
   AppLocalizations? l10n,
   String? agentEmptyPreview,
+  Map<String, int> agentOfflineReplyCounts = const {},
   bool includeDefaultAgentConversation = false,
 }) {
   final resolvedAgentEmptyPreview =
@@ -163,6 +163,8 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
           conversation: conversation,
           l10n: l10n,
           agentEmptyPreview: resolvedAgentEmptyPreview,
+          agentOfflineReplyCount:
+              agentOfflineReplyCounts[conversation.roomId.trim()] ?? 0,
         ),
   ];
   return HomeConversationSummaryResult(
@@ -550,6 +552,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
   required VisibleHomeConversation conversation,
   AppLocalizations? l10n,
   String? agentEmptyPreview,
+  int agentOfflineReplyCount = 0,
 }) {
   final room = conversation.room;
   final lastEvent = room?.lastEvent;
@@ -589,6 +592,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
     cleared: clearCachedPreview,
     l10n: l10n,
     agentEmptyPreview: agentEmptyPreview,
+    agentOfflineReplyCount: agentOfflineReplyCount,
   );
   final displayName = conversationDisplayName(
     conversation,
@@ -641,19 +645,7 @@ String? conversationAvatarUrl(
   final productAvatar = avatarHttpUrl(client, conversation.product?.avatarUrl);
   if (conversation.isGroup) {
     final roomAvatar = room == null ? null : roomAvatarHttpUrl(room);
-    final resolved = productAvatar ?? roomAvatar;
-    _debugAvatarResolution(
-      source: 'conversation_group',
-      roomId: conversation.roomId,
-      productPeerMxid: conversation.product?.peerMxid,
-      contactPeerMxid: directContact?.userId,
-      productAvatar: conversation.product?.avatarUrl,
-      contactAvatar: directContact?.avatarUrl,
-      roomAvatar: roomAvatar,
-      resolved: resolved,
-      hasRoom: room != null,
-    );
-    return resolved;
+    return productAvatar ?? roomAvatar;
   }
 
   final roomSummaryAvatar =
@@ -674,20 +666,7 @@ String? conversationAvatarUrl(
     room == null ? null : productDirectPeerMxid(room),
   ]);
   final peerAvatar = peerMxid.isEmpty ? null : directory.avatarUrlFor(peerMxid);
-  final resolved =
-      productAvatar ?? peerAvatar ?? roomSummaryAvatar ?? roomAvatar;
-  _debugAvatarResolution(
-    source: 'conversation_direct',
-    roomId: conversation.roomId,
-    productPeerMxid: conversation.product?.peerMxid,
-    contactPeerMxid: directContact?.userId,
-    productAvatar: conversation.product?.avatarUrl,
-    contactAvatar: directContact?.avatarUrl,
-    roomAvatar: roomAvatar,
-    resolved: resolved,
-    hasRoom: room != null,
-  );
-  return resolved;
+  return peerAvatar ?? productAvatar ?? roomSummaryAvatar ?? roomAvatar;
 }
 
 String? contactListAvatarUrl(Client client, AsSyncContact contact) {
@@ -695,20 +674,10 @@ String? contactListAvatarUrl(Client client, AsSyncContact contact) {
     client: client,
     extraContacts: [contact],
   );
-  final resolved = directory.avatarUrlFor(
+  return directory.avatarUrlFor(
     contact.userId,
     fallbackAvatarUrl: contact.avatarUrl,
   );
-  _debugAvatarResolution(
-    source: 'contact_list',
-    roomId: contact.roomId,
-    contactPeerMxid: contact.userId,
-    contactAvatar: contact.avatarUrl,
-    roomAvatar: null,
-    resolved: resolved,
-    hasRoom: client.getRoomById(contact.roomId.trim()) != null,
-  );
-  return resolved;
 }
 
 String _firstNonEmpty(Iterable<String?> values) {
@@ -717,36 +686,6 @@ String _firstNonEmpty(Iterable<String?> values) {
     if (trimmed.isNotEmpty) return trimmed;
   }
   return '';
-}
-
-void _debugAvatarResolution({
-  required String source,
-  required String roomId,
-  String? productPeerMxid,
-  String? contactPeerMxid,
-  String? productAvatar,
-  String? contactAvatar,
-  String? roomAvatar,
-  String? resolved,
-  required bool hasRoom,
-}) {
-  if (!kDebugMode) return;
-  debugPrint(
-    '[home.avatar] source=$source '
-    'room=${_avatarLogValue(roomId)} '
-    'has_room=$hasRoom '
-    'product_peer=${_avatarLogValue(productPeerMxid)} '
-    'contact_peer=${_avatarLogValue(contactPeerMxid)} '
-    'product_avatar=${_avatarLogValue(productAvatar)} '
-    'contact_avatar=${_avatarLogValue(contactAvatar)} '
-    'room_avatar=${_avatarLogValue(roomAvatar)} '
-    'resolved=${_avatarLogValue(resolved)}',
-  );
-}
-
-String _avatarLogValue(String? value) {
-  final trimmed = value?.trim() ?? '';
-  return trimmed.isEmpty ? '<empty>' : trimmed;
 }
 
 String? directPeerAvatarUrlInRooms(Client client, String? peerUserId) {
@@ -900,8 +839,12 @@ String _conversationPreviewTextForConversation(
   bool cleared = false,
   AppLocalizations? l10n,
   String? agentEmptyPreview,
+  int agentOfflineReplyCount = 0,
 }) {
   if (cleared) return '';
+  if (conversation.isAgent && agentOfflineReplyCount > 0) {
+    return l10n?.agentChatOfflineReply ?? '目前Agent离线，请耐心等待';
+  }
   final resolvedAgentEmptyPreview =
       _resolvedAgentEmptyPreview(agentEmptyPreview);
   final canPreviewLastEvent = lastEvent != null &&

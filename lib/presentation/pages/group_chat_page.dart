@@ -358,7 +358,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Map<String, _GroupQuotedMessagePreview> _localReplyPreviews = {};
   final Map<String, GlobalKey> _messageAnchorKeys = {};
   final Map<String, int> _messageListIndexes = {};
-  final ScrollController _messageScrollCtrl = ScrollController();
+  late final ScrollController _messageScrollCtrl;
   final ChatScrollToLatestCoordinator _scrollToLatestCoordinator =
       ChatScrollToLatestCoordinator();
   Timer? _scrollToLatestRetryTimer;
@@ -420,8 +420,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _groupChatGestureLog(
       'messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
     );
-    if (!hadPanels) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    if (!hadPanels) return;
     setState(() {
       _showPlusPanel = false;
       _showEmojiPanel = false;
@@ -532,6 +532,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       onDelivered: _recordDeliveredMediaUpload,
       onSucceeded: _removePendingMediaUpload,
       onFailed: _failPendingMediaUpload,
+      completeAfterDelivery: false,
       l10n: l10n,
     );
   }
@@ -1196,6 +1197,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   void initState() {
     super.initState();
     _pendingTargetEventId = widget.targetEventId?.trim();
+    _messageScrollCtrl = chatMessageScrollController(
+      openAtLatest: (_pendingTargetEventId ?? '').isEmpty,
+    );
     _msgCtrl.addListener(_onComposerTextChanged);
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     _messageScrollCtrl.addListener(_onMessageScroll);
@@ -2255,6 +2259,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         onDelivered: _recordDeliveredMediaUpload,
         onSucceeded: _removePendingMediaUpload,
         onFailed: _failPendingMediaUpload,
+        completeAfterDelivery: false,
         l10n: l10n,
       );
     } finally {

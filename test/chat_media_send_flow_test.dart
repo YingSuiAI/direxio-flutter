@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/chat/chat_media_send_flow.dart';
+import 'package:portal_app/presentation/chat/product_room_media_send_flow.dart';
+import 'package:portal_app/presentation/widgets/center_toast.dart';
 
 void main() {
   test('sends selected image through Matrix media upload then product route',
@@ -490,6 +493,52 @@ void main() {
       'cleanup-start:pending-1',
       'cleanup-finished:pending-1',
     ]);
+  });
+
+  testWidgets('can defer pending media cleanup until timeline takes over',
+      (tester) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (buildContext) {
+            context = buildContext;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final calls = <String>[];
+
+    await sendProductMediaWithPendingState(
+      messenger: AppToastMessenger(context),
+      attachment: ChatMediaAttachment.image(name: 'photo.png', bytes: [1]),
+      sendAttachment: (_) async {
+        calls.add('send');
+        return ChatMediaSendResult(
+          eventId: r'$media',
+          mediaUrl: Uri.parse('mxc://p2p-im.com/photo'),
+        );
+      },
+      thumbnailCacheFuture: null,
+      onStarted: () {
+        calls.add('start');
+        return 'pending-1';
+      },
+      onDelivered: (pendingUploadId, eventId) {
+        calls.add('delivered:$pendingUploadId:$eventId');
+      },
+      onSucceeded: (pendingUploadId) {
+        calls.add('cleanup:$pendingUploadId');
+      },
+      onFailed: (pendingUploadId) {
+        calls.add('failed:$pendingUploadId');
+      },
+      completeAfterDelivery: false,
+    );
+
+    expect(calls, ['start', 'send', r'delivered:pending-1:$media']);
   });
 
   test('captured product media sender remains usable after panel close',

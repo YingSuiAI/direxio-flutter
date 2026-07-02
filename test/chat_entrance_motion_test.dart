@@ -90,7 +90,7 @@ void main() {
     expect(bottomSlide.position.value.dy, greaterThan(0));
   });
 
-  testWidgets('new message list motion shifts the whole timeline upward',
+  testWidgets('new message list motion keeps the timeline stable',
       (tester) async {
     await tester.pumpWidget(
       Theme(
@@ -126,8 +126,7 @@ void main() {
       ),
     );
 
-    expect(slide().position.value.dx, 0);
-    expect(slide().position.value.dy, greaterThan(0));
+    expect(slide().position.value, Offset.zero);
 
     await tester.pump(ChatTimelineListMotion.duration);
     await tester.pumpAndSettle();
@@ -183,7 +182,7 @@ void main() {
     expect(registry.contains('event-c'), isFalse);
   });
 
-  test('timeline list motion only animates concrete newer messages', () {
+  test('timeline list motion stays stable for concrete newer messages', () {
     expect(
       shouldAnimateTimelineListForUpdate(
         initialized: true,
@@ -192,7 +191,7 @@ void main() {
         oldNewestItemKey: 'event-a',
         newNewestItemKey: 'event-b',
       ),
-      isTrue,
+      isFalse,
     );
 
     expect(

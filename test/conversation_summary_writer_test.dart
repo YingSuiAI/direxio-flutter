@@ -488,6 +488,49 @@ void main() {
     expect(result.displayEntries.single.lastMessage, isEmpty);
   });
 
+  test('uses cached Agent offline reply as home summary preview', () {
+    const roomId = '!agent-room:p2p-im.com';
+    final client = Client('ConversationSummaryWriterAgentOfflineReplyTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 25, 10),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+          agentRoomId: roomId,
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      l10n: AppLocalizationsEn(),
+      agentOfflineReplyCounts: const {roomId: 1},
+    );
+
+    expect(result.displayEntries.single.lastMessage,
+        'Agent is currently offline. Please wait patiently.');
+    expect(result.storeEntries.single.lastMessage,
+        'Agent is currently offline. Please wait patiently.');
+  });
+
   test('does not build legacy Agent pseudo room without synced agent room', () {
     final client = Client('ConversationSummaryWriterFallbackAgentTest')
       ..setUserId('@owner:p2p-im.com');
@@ -816,6 +859,63 @@ void main() {
 
     final avatarUrl = result.displayEntries.single.avatarUrl;
     expect(avatarUrl, contains('/download/p2p-im.com/alice-product-avatar'));
+  });
+
+  test('uses refreshed Matrix member avatar over stale ProductCore avatar', () {
+    final client = Client('ConversationSummaryWriterFreshMemberAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'avatar_url': 'mxc://p2p-im.com/alice-fresh-avatar',
+        },
+      ),
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: '!direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          peerMxid: '@alice:p2p-im.com',
+          title: 'Alice',
+          avatarUrl: 'mxc://p2p-im.com/alice-stale-product-avatar',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final avatarUrl = result.displayEntries.single.avatarUrl;
+    expect(avatarUrl, contains('/download/p2p-im.com/alice-fresh-avatar'));
+    expect(avatarUrl, isNot(contains('alice-stale-product-avatar')));
   });
 
   test('uses accepted contact avatar when product row has no peer avatar', () {

@@ -3904,7 +3904,7 @@ void main() {
       roomId: '!owner:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
-      peerAvatarUrl: 'https://matrix.example.com/yanan.png',
+      includePeerMemberAvatar: false,
     );
     final asClient = _ConversationListAsClient(const [
       AsConversation(
@@ -3912,6 +3912,7 @@ void main() {
         roomId: '!owner:p2p-im.com',
         kind: asConversationKindDirect,
         lifecycle: 'active',
+        peerMxid: '@owner:p2p-liyanan.com',
         title: 'Yanan',
         avatarUrl: 'https://product.example.com/yanan.png',
       ),
@@ -3939,13 +3940,15 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
+            widget.seed == '@owner:p2p-liyanan.com' &&
+            widget.stableCacheKey == 'user:@owner:p2p-liyanan.com' &&
             widget.imageUrl == 'https://product.example.com/yanan.png',
       ),
       findsOneWidget,
     );
   });
 
-  testWidgets('messages keeps ProductCore avatar after Matrix member sync',
+  testWidgets('messages refreshes avatar after Matrix member sync',
       (tester) async {
     final client = Client('DirexioConversationAvatarSyncTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3962,6 +3965,7 @@ void main() {
         roomId: '!owner:p2p-im.com',
         kind: asConversationKindDirect,
         lifecycle: 'active',
+        peerMxid: '@owner:p2p-liyanan.com',
         title: 'Yanan',
         avatarUrl: 'https://product.example.com/yanan.png',
       ),
@@ -3987,7 +3991,9 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://product.example.com/yanan.png',
+            widget.seed == '@owner:p2p-liyanan.com' &&
+            widget.stableCacheKey == 'user:@owner:p2p-liyanan.com' &&
+            widget.imageUrl == 'https://matrix.example.com/old.png',
       ),
       findsOneWidget,
     );
@@ -4012,11 +4018,21 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://product.example.com/yanan.png',
+            widget.seed == '@owner:p2p-liyanan.com' &&
+            widget.stableCacheKey == 'user:@owner:p2p-liyanan.com' &&
+            widget.imageUrl == 'https://matrix.example.com/new.png',
       ),
       findsOneWidget,
     );
-    expect(find.text('Yanan 新昵称'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 42 &&
+            widget.imageUrl == 'https://product.example.com/yanan.png',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('messages contact conversation does not show online dot',
@@ -7961,6 +7977,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -7979,6 +7996,8 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 28 &&
+            widget.seed == '@alice:p2p-liyanan.com' &&
+            widget.stableCacheKey == 'user:@alice:p2p-liyanan.com' &&
             widget.imageUrl == 'https://matrix.example.com/alice.png',
       ),
       findsOneWidget,
@@ -8025,6 +8044,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -8043,6 +8063,8 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 28 &&
+            widget.seed == '@alice:p2p-liyanan.com' &&
+            widget.stableCacheKey == 'user:@alice:p2p-liyanan.com' &&
             widget.imageUrl == 'https://profile.example.com/alice.png',
       ),
       findsOneWidget,
@@ -15977,6 +15999,21 @@ void main() {
           const ValueKey(r'private_message_enter_$direct-opened-history')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('private chat blank tap dismisses keyboard', (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(tester);
+
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+    final inputFocus = FocusManager.instance.primaryFocus;
+    expect(inputFocus, isNotNull);
+
+    await tester.tapAt(const Offset(24, 240));
+    await tester.pump();
+
+    expect(FocusManager.instance.primaryFocus, isNot(same(inputFocus)));
   });
 
   testWidgets('private chat opens at the latest existing message',

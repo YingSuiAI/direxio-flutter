@@ -113,7 +113,20 @@ class ChatTimelineController {
   }
 
   Future<void> requestOlderMessages(Timeline timeline) async {
-    await backfillLocalStoredHistory(timeline);
+    try {
+      final storedEvents = await _loadLocalStoredEvents(
+        timeline,
+        start: timeline.events.length,
+        limit: chatOpenLocalHistoryPageSize,
+      );
+      if (storedEvents.isNotEmpty) {
+        await hydrateStoredEventSenders(timeline.room, storedEvents);
+        timeline.events.addAll(storedEvents);
+      }
+    } on Object catch (e) {
+      debugPrint('$debugLabel local timeline older load failed: $e');
+    }
+    rebuild();
   }
 
   Future<bool> markCurrentTimelineRead({

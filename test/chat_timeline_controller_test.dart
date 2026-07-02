@@ -79,6 +79,46 @@ void main() {
     expect(client.syncCalls, 0);
     expect(rebuilds, greaterThan(0));
   });
+
+  test('user load older continues local cache after initial page is full',
+      () async {
+    final client = _RecordingRoomHistoryClient()
+      ..setUserId('@me:p2p-im.com')
+      ..accessToken = 'matrix-token'
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!agent-room:p2p-im.com', client: client);
+    final initialEvents = List<Event>.generate(
+      20,
+      (index) => _messageEvent(room, '\$initial_$index'),
+    );
+    final olderEvent = _messageEvent(room, r'$older_agent_cache');
+    var rebuilds = 0;
+
+    final controller = ChatTimelineController(
+      room: room,
+      rebuild: () => rebuilds++,
+      debugLabel: 'agent',
+      localHistoryLoader: (timeline, {required start, required limit}) async {
+        if (start == 0) return initialEvents;
+        if (start == initialEvents.length) return [olderEvent];
+        return const <Event>[];
+      },
+    );
+    final timeline = await controller.openInitialTimeline();
+
+    expect(timeline, isNotNull);
+    await _flushAsyncWork();
+    expect(timeline!.events.length, initialEvents.length);
+
+    await controller.requestOlderMessages(timeline);
+
+    expect(timeline.events.map((event) => event.eventId), [
+      ...initialEvents.map((event) => event.eventId),
+      r'$older_agent_cache',
+    ]);
+    expect(client.syncCalls, 0);
+    expect(rebuilds, greaterThan(0));
+  });
 }
 
 Future<void> _flushAsyncWork() async {
